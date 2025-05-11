@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String?
+  email     String?   @unique
+  password  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  meetings  meeting[]
+}
+
+model meeting {
+  id             String           @id @default(uuid())
+  userId         String
+  title          String?          @default("Meeting")
+  startTime      DateTime
+  endTime        DateTime
+  user           User             @relation(fields: [userId], references: [id])
+  rawChunks      mediaChunks[]
+  finalRecording FinalRecording[]
+}
+
+model mediaChunks {
+  id         String   @id @default(uuid())
+  meetingId  String   @unique
+  bucketLink String[]
+  meeting    meeting  @relation(fields: [meetingId], references: [id])
+}
+
+model FinalRecording {
+  id          String   @id @default(uuid())
+  meeting     meeting  @relation(fields: [meetingId], references: [id])
+  meetingId   String
+  bucketLink  String
+  generatedAt DateTime @default(now())
+  format      format
+  quality     quality
+}
+
+enum quality {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum format {
+  MP3
+  WAV
+  OGG
+}
