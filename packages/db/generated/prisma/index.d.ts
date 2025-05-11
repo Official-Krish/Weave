@@ -2463,8 +2463,8 @@ export namespace Prisma {
     id: string
     userId: string
     title: string | null
-    startTime: Date
-    endTime: Date
+    startTime: Date | null
+    endTime: Date | null
     _count: MeetingCountAggregateOutputType | null
     _min: MeetingMinAggregateOutputType | null
     _max: MeetingMaxAggregateOutputType | null
@@ -2547,8 +2547,8 @@ export namespace Prisma {
       id: string
       userId: string
       title: string | null
-      startTime: Date
-      endTime: Date
+      startTime: Date | null
+      endTime: Date | null
     }, ExtArgs["result"]["meeting"]>
     composites: {}
   }
@@ -3455,11 +3455,13 @@ export namespace Prisma {
   export type MediaChunksMinAggregateOutputType = {
     id: string | null
     meetingId: string | null
+    bucketLink: string | null
   }
 
   export type MediaChunksMaxAggregateOutputType = {
     id: string | null
     meetingId: string | null
+    bucketLink: string | null
   }
 
   export type MediaChunksCountAggregateOutputType = {
@@ -3473,11 +3475,13 @@ export namespace Prisma {
   export type MediaChunksMinAggregateInputType = {
     id?: true
     meetingId?: true
+    bucketLink?: true
   }
 
   export type MediaChunksMaxAggregateInputType = {
     id?: true
     meetingId?: true
+    bucketLink?: true
   }
 
   export type MediaChunksCountAggregateInputType = {
@@ -3562,7 +3566,7 @@ export namespace Prisma {
   export type MediaChunksGroupByOutputType = {
     id: string
     meetingId: string
-    bucketLink: string[]
+    bucketLink: string
     _count: MediaChunksCountAggregateOutputType | null
     _min: MediaChunksMinAggregateOutputType | null
     _max: MediaChunksMaxAggregateOutputType | null
@@ -3628,7 +3632,7 @@ export namespace Prisma {
     scalars: $Extensions.GetPayloadResult<{
       id: string
       meetingId: string
-      bucketLink: string[]
+      bucketLink: string
     }, ExtArgs["result"]["mediaChunks"]>
     composites: {}
   }
@@ -4055,7 +4059,7 @@ export namespace Prisma {
   interface mediaChunksFieldRefs {
     readonly id: FieldRef<"mediaChunks", 'String'>
     readonly meetingId: FieldRef<"mediaChunks", 'String'>
-    readonly bucketLink: FieldRef<"mediaChunks", 'String[]'>
+    readonly bucketLink: FieldRef<"mediaChunks", 'String'>
   }
     
 
@@ -5768,8 +5772,8 @@ export namespace Prisma {
     id?: StringFilter<"meeting"> | string
     userId?: StringFilter<"meeting"> | string
     title?: StringNullableFilter<"meeting"> | string | null
-    startTime?: DateTimeFilter<"meeting"> | Date | string
-    endTime?: DateTimeFilter<"meeting"> | Date | string
+    startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
     rawChunks?: MediaChunksListRelationFilter
     finalRecording?: FinalRecordingListRelationFilter
@@ -5779,8 +5783,8 @@ export namespace Prisma {
     id?: SortOrder
     userId?: SortOrder
     title?: SortOrderInput | SortOrder
-    startTime?: SortOrder
-    endTime?: SortOrder
+    startTime?: SortOrderInput | SortOrder
+    endTime?: SortOrderInput | SortOrder
     user?: UserOrderByWithRelationInput
     rawChunks?: mediaChunksOrderByRelationAggregateInput
     finalRecording?: FinalRecordingOrderByRelationAggregateInput
@@ -5793,8 +5797,8 @@ export namespace Prisma {
     NOT?: meetingWhereInput | meetingWhereInput[]
     userId?: StringFilter<"meeting"> | string
     title?: StringNullableFilter<"meeting"> | string | null
-    startTime?: DateTimeFilter<"meeting"> | Date | string
-    endTime?: DateTimeFilter<"meeting"> | Date | string
+    startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
     rawChunks?: MediaChunksListRelationFilter
     finalRecording?: FinalRecordingListRelationFilter
@@ -5804,8 +5808,8 @@ export namespace Prisma {
     id?: SortOrder
     userId?: SortOrder
     title?: SortOrderInput | SortOrder
-    startTime?: SortOrder
-    endTime?: SortOrder
+    startTime?: SortOrderInput | SortOrder
+    endTime?: SortOrderInput | SortOrder
     _count?: meetingCountOrderByAggregateInput
     _max?: meetingMaxOrderByAggregateInput
     _min?: meetingMinOrderByAggregateInput
@@ -5818,8 +5822,8 @@ export namespace Prisma {
     id?: StringWithAggregatesFilter<"meeting"> | string
     userId?: StringWithAggregatesFilter<"meeting"> | string
     title?: StringNullableWithAggregatesFilter<"meeting"> | string | null
-    startTime?: DateTimeWithAggregatesFilter<"meeting"> | Date | string
-    endTime?: DateTimeWithAggregatesFilter<"meeting"> | Date | string
+    startTime?: DateTimeNullableWithAggregatesFilter<"meeting"> | Date | string | null
+    endTime?: DateTimeNullableWithAggregatesFilter<"meeting"> | Date | string | null
   }
 
   export type mediaChunksWhereInput = {
@@ -5828,7 +5832,7 @@ export namespace Prisma {
     NOT?: mediaChunksWhereInput | mediaChunksWhereInput[]
     id?: StringFilter<"mediaChunks"> | string
     meetingId?: StringFilter<"mediaChunks"> | string
-    bucketLink?: StringNullableListFilter<"mediaChunks">
+    bucketLink?: StringFilter<"mediaChunks"> | string
     meeting?: XOR<MeetingScalarRelationFilter, meetingWhereInput>
   }
 
@@ -5841,13 +5845,13 @@ export namespace Prisma {
 
   export type mediaChunksWhereUniqueInput = Prisma.AtLeast<{
     id?: string
-    meetingId?: string
     AND?: mediaChunksWhereInput | mediaChunksWhereInput[]
     OR?: mediaChunksWhereInput[]
     NOT?: mediaChunksWhereInput | mediaChunksWhereInput[]
-    bucketLink?: StringNullableListFilter<"mediaChunks">
+    meetingId?: StringFilter<"mediaChunks"> | string
+    bucketLink?: StringFilter<"mediaChunks"> | string
     meeting?: XOR<MeetingScalarRelationFilter, meetingWhereInput>
-  }, "id" | "meetingId">
+  }, "id">
 
   export type mediaChunksOrderByWithAggregationInput = {
     id?: SortOrder
@@ -5864,7 +5868,7 @@ export namespace Prisma {
     NOT?: mediaChunksScalarWhereWithAggregatesInput | mediaChunksScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"mediaChunks"> | string
     meetingId?: StringWithAggregatesFilter<"mediaChunks"> | string
-    bucketLink?: StringNullableListFilter<"mediaChunks">
+    bucketLink?: StringWithAggregatesFilter<"mediaChunks"> | string
   }
 
   export type FinalRecordingWhereInput = {
@@ -5997,8 +6001,8 @@ export namespace Prisma {
   export type meetingCreateInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     user: UserCreateNestedOneWithoutMeetingsInput
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
@@ -6008,8 +6012,8 @@ export namespace Prisma {
     id?: string
     userId: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
@@ -6017,8 +6021,8 @@ export namespace Prisma {
   export type meetingUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
@@ -6028,8 +6032,8 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     userId?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
@@ -6038,64 +6042,64 @@ export namespace Prisma {
     id?: string
     userId: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
   }
 
   export type meetingUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type meetingUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     userId?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type mediaChunksCreateInput = {
     id?: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
     meeting: meetingCreateNestedOneWithoutRawChunksInput
   }
 
   export type mediaChunksUncheckedCreateInput = {
     id?: string
     meetingId: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
   }
 
   export type mediaChunksUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
     meeting?: meetingUpdateOneRequiredWithoutRawChunksNestedInput
   }
 
   export type mediaChunksUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     meetingId?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type mediaChunksCreateManyInput = {
     id?: string
     meetingId: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
   }
 
   export type mediaChunksUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type mediaChunksUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     meetingId?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type FinalRecordingCreateInput = {
@@ -6293,6 +6297,17 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
+  export type DateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
+  }
+
   export type UserScalarRelationFilter = {
     is?: UserWhereInput
     isNot?: UserWhereInput
@@ -6342,12 +6357,18 @@ export namespace Prisma {
     endTime?: SortOrder
   }
 
-  export type StringNullableListFilter<$PrismaModel = never> = {
-    equals?: string[] | ListStringFieldRefInput<$PrismaModel> | null
-    has?: string | StringFieldRefInput<$PrismaModel> | null
-    hasEvery?: string[] | ListStringFieldRefInput<$PrismaModel>
-    hasSome?: string[] | ListStringFieldRefInput<$PrismaModel>
-    isEmpty?: boolean
+  export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
   }
 
   export type MeetingScalarRelationFilter = {
@@ -6364,11 +6385,13 @@ export namespace Prisma {
   export type mediaChunksMaxOrderByAggregateInput = {
     id?: SortOrder
     meetingId?: SortOrder
+    bucketLink?: SortOrder
   }
 
   export type mediaChunksMinOrderByAggregateInput = {
     id?: SortOrder
     meetingId?: SortOrder
+    bucketLink?: SortOrder
   }
 
   export type EnumformatFilter<$PrismaModel = never> = {
@@ -6520,6 +6543,10 @@ export namespace Prisma {
     connect?: FinalRecordingWhereUniqueInput | FinalRecordingWhereUniqueInput[]
   }
 
+  export type NullableDateTimeFieldUpdateOperationsInput = {
+    set?: Date | string | null
+  }
+
   export type UserUpdateOneRequiredWithoutMeetingsNestedInput = {
     create?: XOR<UserCreateWithoutMeetingsInput, UserUncheckedCreateWithoutMeetingsInput>
     connectOrCreate?: UserCreateOrConnectWithoutMeetingsInput
@@ -6584,19 +6611,10 @@ export namespace Prisma {
     deleteMany?: FinalRecordingScalarWhereInput | FinalRecordingScalarWhereInput[]
   }
 
-  export type mediaChunksCreatebucketLinkInput = {
-    set: string[]
-  }
-
   export type meetingCreateNestedOneWithoutRawChunksInput = {
     create?: XOR<meetingCreateWithoutRawChunksInput, meetingUncheckedCreateWithoutRawChunksInput>
     connectOrCreate?: meetingCreateOrConnectWithoutRawChunksInput
     connect?: meetingWhereUniqueInput
-  }
-
-  export type mediaChunksUpdatebucketLinkInput = {
-    set?: string[]
-    push?: string | string[]
   }
 
   export type meetingUpdateOneRequiredWithoutRawChunksNestedInput = {
@@ -6738,6 +6756,31 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
+  export type NestedDateTimeNullableFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
+  }
+
+  export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
+    in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    notIn?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
+    lt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    lte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gt?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    gte?: Date | string | DateTimeFieldRefInput<$PrismaModel>
+    not?: NestedDateTimeNullableWithAggregatesFilter<$PrismaModel> | Date | string | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedDateTimeNullableFilter<$PrismaModel>
+    _max?: NestedDateTimeNullableFilter<$PrismaModel>
+  }
+
   export type NestedEnumformatFilter<$PrismaModel = never> = {
     equals?: $Enums.format | EnumformatFieldRefInput<$PrismaModel>
     in?: $Enums.format[] | ListEnumformatFieldRefInput<$PrismaModel>
@@ -6775,8 +6818,8 @@ export namespace Prisma {
   export type meetingCreateWithoutUserInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
   }
@@ -6784,8 +6827,8 @@ export namespace Prisma {
   export type meetingUncheckedCreateWithoutUserInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
@@ -6823,8 +6866,8 @@ export namespace Prisma {
     id?: StringFilter<"meeting"> | string
     userId?: StringFilter<"meeting"> | string
     title?: StringNullableFilter<"meeting"> | string | null
-    startTime?: DateTimeFilter<"meeting"> | Date | string
-    endTime?: DateTimeFilter<"meeting"> | Date | string
+    startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
   }
 
   export type UserCreateWithoutMeetingsInput = {
@@ -6852,12 +6895,12 @@ export namespace Prisma {
 
   export type mediaChunksCreateWithoutMeetingInput = {
     id?: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
   }
 
   export type mediaChunksUncheckedCreateWithoutMeetingInput = {
     id?: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
   }
 
   export type mediaChunksCreateOrConnectWithoutMeetingInput = {
@@ -6947,7 +6990,7 @@ export namespace Prisma {
     NOT?: mediaChunksScalarWhereInput | mediaChunksScalarWhereInput[]
     id?: StringFilter<"mediaChunks"> | string
     meetingId?: StringFilter<"mediaChunks"> | string
-    bucketLink?: StringNullableListFilter<"mediaChunks">
+    bucketLink?: StringFilter<"mediaChunks"> | string
   }
 
   export type FinalRecordingUpsertWithWhereUniqueWithoutMeetingInput = {
@@ -6981,8 +7024,8 @@ export namespace Prisma {
   export type meetingCreateWithoutRawChunksInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     user: UserCreateNestedOneWithoutMeetingsInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
   }
@@ -6991,8 +7034,8 @@ export namespace Prisma {
     id?: string
     userId: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
 
@@ -7015,8 +7058,8 @@ export namespace Prisma {
   export type meetingUpdateWithoutRawChunksInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
   }
@@ -7025,16 +7068,16 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     userId?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingCreateWithoutFinalRecordingInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     user: UserCreateNestedOneWithoutMeetingsInput
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
   }
@@ -7043,8 +7086,8 @@ export namespace Prisma {
     id?: string
     userId: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
   }
 
@@ -7067,8 +7110,8 @@ export namespace Prisma {
   export type meetingUpdateWithoutFinalRecordingInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
   }
@@ -7077,23 +7120,23 @@ export namespace Prisma {
     id?: StringFieldUpdateOperationsInput | string
     userId?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingCreateManyUserInput = {
     id?: string
     title?: string | null
-    startTime: Date | string
-    endTime: Date | string
+    startTime?: Date | string | null
+    endTime?: Date | string | null
   }
 
   export type meetingUpdateWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
   }
@@ -7101,8 +7144,8 @@ export namespace Prisma {
   export type meetingUncheckedUpdateWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
@@ -7110,13 +7153,13 @@ export namespace Prisma {
   export type meetingUncheckedUpdateManyWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
     title?: NullableStringFieldUpdateOperationsInput | string | null
-    startTime?: DateTimeFieldUpdateOperationsInput | Date | string
-    endTime?: DateTimeFieldUpdateOperationsInput | Date | string
+    startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   }
 
   export type mediaChunksCreateManyMeetingInput = {
     id?: string
-    bucketLink?: mediaChunksCreatebucketLinkInput | string[]
+    bucketLink: string
   }
 
   export type FinalRecordingCreateManyMeetingInput = {
@@ -7129,17 +7172,17 @@ export namespace Prisma {
 
   export type mediaChunksUpdateWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type mediaChunksUncheckedUpdateWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type mediaChunksUncheckedUpdateManyWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: mediaChunksUpdatebucketLinkInput | string[]
+    bucketLink?: StringFieldUpdateOperationsInput | string
   }
 
   export type FinalRecordingUpdateWithoutMeetingInput = {

@@ -28,18 +28,18 @@ model meeting {
   id             String           @id @default(uuid())
   userId         String
   title          String?          @default("Meeting")
-  startTime      DateTime
-  endTime        DateTime
+  startTime      DateTime?
+  endTime        DateTime?
   user           User             @relation(fields: [userId], references: [id])
   rawChunks      mediaChunks[]
   finalRecording FinalRecording[]
 }
 
 model mediaChunks {
-  id         String   @id @default(uuid())
-  meetingId  String   @unique
-  bucketLink String[]
-  meeting    meeting  @relation(fields: [meetingId], references: [id])
+  id         String  @id @default(uuid())
+  meetingId  String
+  bucketLink String
+  meeting    meeting @relation(fields: [meetingId], references: [id])
 }
 
 model FinalRecording {
