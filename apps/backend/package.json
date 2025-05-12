@@ -5,7 +5,8 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
-    "@repo/db": "workspace:*"
+    "@repo/db": "workspace:*",
+    "@repo/types": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -13,8 +14,10 @@
   "dependencies": {
     "@google-cloud/cloud-sdk": "^0.0.4",
     "@google-cloud/storage": "^7.16.0",
+    "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
