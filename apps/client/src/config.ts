@@ -1,0 +1,1 @@
+export const JITSI_DOMAIN = import.meta.env.VITE_PUBLIC_JITSI_DOMAIN;
