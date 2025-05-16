@@ -19,6 +19,10 @@ export default {
 		},
 		extend: {
 			colors: {
+				"studio-dark": "#000000",
+				"studio-gray": "#2a2a2a",
+				"studio-highlight": "#4f46e5",
+				"studio-accent": "#6366f1",
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

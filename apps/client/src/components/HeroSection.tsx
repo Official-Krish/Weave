@@ -1,9 +1,10 @@
 
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
-import { Video, MoveUpRight } from "lucide-react";
+import { MoveUpRight } from "lucide-react";
 
 const HeroSection = () => {
+  
   return (
     <section className="relative min-h-screen pt-28 pb-20 overflow-hidden">
       {/* Background elements */}
@@ -50,7 +51,7 @@ const HeroSection = () => {
               className="mb-4 inline-block"
             >
               <span className="px-3 py-1 text-xs font-semibold tracking-wider uppercase bg-white/10 rounded-full">
-                New Technology
+                New Technology v1.0
               </span>
             </motion.div>
             
@@ -82,10 +83,10 @@ const HeroSection = () => {
               transition={{ delay: 0.8, duration: 0.6 }}
             >
               <Button size="lg" className="bg-white text-background hover:bg-white/80 px-8 font-medium">
-                Start Free Trial <MoveUpRight className="ml-2 h-4 w-4" />
+                Join Waitlist <MoveUpRight className="ml-2 h-4 w-4" />
               </Button>
               <Button variant="outline" size="lg" className="px-8 font-medium border-white/20 backdrop-blur-sm">
-                <Video className="mr-2 h-4 w-4" /> Watch Demo
+                Dashboard
               </Button>
             </motion.div>
             

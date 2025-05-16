@@ -2,10 +2,22 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import jwt from 'jsonwebtoken'
+
+
+interface JWT_PAYLOAD {
+  exp: number;
+  iat: number;
+  userId: string;
+  name: string;
+}
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  let token = localStorage.getItem("token");
   
   useEffect(() => {
     const handleScroll = () => {
@@ -20,6 +32,32 @@ const Navbar = () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, [scrolled]);
+
+  useEffect(() => {
+    verifyToken(token);
+  }
+  , [token]);
+
+  function verifyToken(token: string | null): boolean {
+    if (!token) return false;
+    try {
+      const actualToken = token.split(" ")[1];
+      const decoded = jwt.decode(actualToken) as JWT_PAYLOAD;
+      const isExpired = decoded && decoded.exp && Date.now() >= decoded.exp * 1000;
+      if (isExpired) {
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Token verification failed:", err);
+      return false;
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    window.location.href = "/";
+  }
 
   return (
     <motion.header
@@ -36,6 +74,7 @@ const Navbar = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
+          onClick={() => window.location.href = "/"}
         >
           <a href="#" className="text-2xl font-bold text-white">
             River<span className="text-gradient">Side</span>
@@ -61,26 +100,49 @@ const Navbar = () => {
             </a>
           </motion.div>
 
-          <motion.div
-            className="flex items-center space-x-3"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="border-white/20 hover:bg-white/10"
+          {!verifyToken(token) && (
+            <motion.div
+              className="flex items-center space-x-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
             >
-              Log In
-            </Button>
-            <Button 
-              size="sm" 
-              className="bg-white text-background hover:bg-white/90"
-            >
-              Get Started
-            </Button>
-          </motion.div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-white/20 hover:bg-white/10"
+                onClick={() => (window.location.href = "/signin")}
+              >
+                Log In
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-white text-background hover:bg-white/90"
+                onClick={() => window.location.href = "/signup"}
+              >
+                Get Started
+              </Button>
+            </motion.div>
+          )}
+          {verifyToken(token) && (
+            <div>
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                <Avatar>
+                  <AvatarImage src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUNHKAVZoBojcGHuniIn5xcE7pyr7dyPgasg&s" />
+                  <AvatarFallback>You</AvatarFallback>
+                </Avatar>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="cursor-pointer">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer">Billing</DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>Logout</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
