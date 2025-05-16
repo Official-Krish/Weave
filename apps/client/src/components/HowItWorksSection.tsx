@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 import { motion, useInView, useAnimation } from "framer-motion";
 import { ArrowDown, ArrowUpRight, ArrowRight, Play } from "lucide-react";
@@ -90,7 +89,7 @@ const HowItWorksSection = () => {
           </p>
         </motion.div>
 
-        {/* Flowing timeline design instead of boxes */}
+        {/* Flowing timeline design with proper spacing */}
         <div className="max-w-5xl mx-auto relative">
           {/* Center line for desktop */}
           <div className="hidden md:block absolute left-1/2 top-10 bottom-10 w-px bg-gradient-to-b from-white/5 via-white/30 to-white/5"></div>
@@ -108,94 +107,99 @@ const HowItWorksSection = () => {
                   transition: { duration: 0.6, delay: step.delay }
                 }
               }}
-              className={`flex items-center gap-6 mb-24 last:mb-0 ${
-                index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'
-              } flex-col`}
+              className="mb-10 last:mb-0 relative"
             >
-              {/* Step number with animated circle */}
-              <motion.div 
-                className="relative flex-shrink-0"
-                whileHover={{ scale: 1.1 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
+              {/* Content placement based on even/odd */}
+              <div className={`flex flex-col ${index % 2 === 0 ? 'md:ml-0 md:mr-auto md:items-start' : 'md:ml-auto md:mr-0 md:items-end'} items-center`}>
+                {/* Step number with animated circle */}
                 <motion.div 
-                  className="w-20 h-20 rounded-full bg-white/5 border border-white/20 flex items-center justify-center relative z-10"
-                  whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                  animate={{
-                    boxShadow: [
-                      "0 0 0 rgba(255,255,255,0.1)",
-                      "0 0 20px rgba(255,255,255,0.2)",
-                      "0 0 0 rgba(255,255,255,0.1)"
-                    ]
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    repeatType: "reverse"
-                  }}
+                  className="relative mb-6"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
-                  <span className="text-2xl font-bold">{index + 1}</span>
-                </motion.div>
-                {index < steps.length - 1 && (
-                  <motion.div
-                    className="absolute top-full left-1/2 transform -translate-x-1/2 h-16 w-px bg-gradient-to-b from-white/40 to-transparent md:hidden"
-                    animate={{ 
-                      height: [50, 60, 50],
-                      opacity: [0.5, 1, 0.5]
+                  <motion.div 
+                    className="w-20 h-20 rounded-full bg-white/5 border border-white/20 flex items-center justify-center relative z-10"
+                    whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                    animate={{
+                      boxShadow: [
+                        "0 0 0 rgba(255,255,255,0.1)",
+                        "0 0 20px rgba(255,255,255,0.2)",
+                        "0 0 0 rgba(255,255,255,0.1)"
+                      ]
                     }}
                     transition={{
                       duration: 2,
                       repeat: Infinity,
                       repeatType: "reverse"
                     }}
-                  />
-                )}
-              </motion.div>
-              
-              {/* Content */}
-              <motion.div 
-                className={`flex-1 ${index % 2 === 0 ? 'text-left md:text-left' : 'text-left md:text-right'}`}
-                whileHover={{ y: -5 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="flex items-center mb-4 gap-3 text-white">
-                  <motion.div 
-                    className={`h-10 w-10 rounded-full bg-white/10 flex items-center justify-center border border-white/10 ${
-                      index % 2 !== 0 ? 'md:order-last' : ''
-                    }`}
-                    whileHover={{ 
-                      rotate: 15,
-                      scale: 1.1,
-                      backgroundColor: "rgba(255,255,255,0.15)" 
-                    }}
                   >
-                    {step.icon}
+                    <span className="text-2xl font-bold">{index + 1}</span>
                   </motion.div>
-                  <h3 className="text-2xl font-bold">{step.title}</h3>
-                </div>
-                <p className="text-muted-foreground text-lg">{step.description}</p>
+                </motion.div>
                 
-                {/* Flowing arrow for desktop */}
-                {index < steps.length - 1 && (
-                  <motion.div
-                    className={`hidden md:flex justify-center mt-8 ${
-                      index % 2 === 0 ? 'justify-end' : 'justify-start'
-                    }`}
-                    animate={{ 
-                      x: index % 2 === 0 ? [0, 10, 0] : [0, -10, 0],
-                      transition: { 
+                {/* Content block - title and description grouped together */}
+                <div className={`max-w-xs md:max-w-sm ${index % 2 === 0 ? 'text-left' : 'text-right'}`}>
+                  {/* Title with icon */}
+                  <div className={`flex items-center mb-3 gap-3 text-white ${
+                    index % 2 !== 0 ? 'justify-end' : ''
+                  }`}>
+                    <motion.div 
+                      className={`h-10 w-10 rounded-full bg-white/10 flex items-center justify-center border border-white/10 ${
+                        index % 2 !== 0 ? 'order-last' : ''
+                      }`}
+                      whileHover={{ 
+                        rotate: 15,
+                        scale: 1.1,
+                        backgroundColor: "rgba(255,255,255,0.15)" 
+                      }}
+                    >
+                      {step.icon}
+                    </motion.div>
+                    <h3 className="text-2xl font-bold">{step.title}</h3>
+                  </div>
+                  
+                  {/* Description directly below its title */}
+                  <p className="text-muted-foreground text-lg">{step.description}</p>
+                  
+                  {/* Flowing arrow between steps */}
+                  {index < steps.length - 1 && (
+                    <motion.div
+                      className={`hidden md:flex mt-6 ${
+                        index % 2 === 0 ? 'justify-end' : 'justify-start'
+                      }`}
+                      animate={{ 
+                        x: index % 2 === 0 ? [0, 10, 0] : [0, -10, 0],
+                        opacity: [0.5, 1, 0.5]
+                      }}
+                      transition={{ 
                         duration: 2, 
                         repeat: Infinity,
                         repeatType: "reverse" 
-                      }
-                    }}
-                  >
-                    <ArrowRight className={`h-6 w-6 text-white/50 transform ${
-                      index % 2 !== 0 ? 'rotate-180' : ''
-                    }`} />
-                  </motion.div>
-                )}
-              </motion.div>
+                      }}
+                    >
+                      <ArrowRight className={`h-6 w-6 text-white/50 transform ${
+                        index % 2 !== 0 ? 'rotate-180' : ''
+                      }`} />
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Vertical connector for mobile */}
+              {index < steps.length - 1 && (
+                <motion.div
+                  className="absolute left-1/2 transform -translate-x-1/2 top-24 h-16 w-px bg-gradient-to-b from-white/40 to-transparent md:hidden"
+                  animate={{ 
+                    height: [50, 60, 50],
+                    opacity: [0.5, 1, 0.5]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    repeatType: "reverse"
+                  }}
+                />
+              )}
             </motion.div>
           ))}
         </div>
@@ -209,7 +213,7 @@ const HowItWorksSection = () => {
           }}
           className="mt-32 mx-auto max-w-4xl"
         >
-          <div className="relative">
+          <div className="relative bg-gradient-to-b from-background via-black/50 to-background">
             <motion.div 
               className="absolute -inset-0.5 bg-white/10 rounded-xl blur-xl"
               animate={{
@@ -223,7 +227,7 @@ const HowItWorksSection = () => {
             ></motion.div>
             
             <div className="backdrop-blur-lg p-1 rounded-xl overflow-hidden relative">
-              <div className="bg-black/60 rounded-lg aspect-video">
+              <div className="bg-black rounded-lg aspect-video">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="backdrop-blur-sm p-8 rounded-lg max-w-md text-center">
                     <h3 className="text-xl font-semibold mb-3">See it in action</h3>
