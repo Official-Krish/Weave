@@ -1,5 +1,5 @@
 "use client";
-import { JITSI_DOMAIN } from '@/config';
+import { JITSI_DOMAIN } from '../config';
 import { JitsiMeeting } from '@jitsi/react-sdk';
 
 export default function Test() {
