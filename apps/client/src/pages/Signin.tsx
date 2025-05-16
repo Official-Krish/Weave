@@ -9,6 +9,7 @@ import { useToast } from "../components/ui/use-toast";
 import AuthLayout from "../components/layouts/Auth-layout";
 import axios from "axios";
 import { BACKEND_URL } from "../config";
+import { ToastAction } from "../components/ui/toast"
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +50,7 @@ const SignIn = () => {
         title: "Sign in failed",
         description: "Please check your credentials and try again.",
         variant: "destructive",
+        action: <ToastAction altText="Try again">Try again</ToastAction>,
       });
       setIsLoading(false);
       return;

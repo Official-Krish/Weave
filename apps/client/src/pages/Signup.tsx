@@ -10,6 +10,7 @@ import { useToast } from "../components/ui/use-toast";
 import AuthLayout from "../components/layouts/Auth-layout";
 import axios from "axios";
 import { BACKEND_URL } from "../config";
+import { ToastAction } from "../components/ui/toast"
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -50,6 +51,7 @@ const SignUp = () => {
         title: "Error",
         description: "An error occurred while creating your account.",
         variant: "destructive",
+        action: <ToastAction altText="Try again">Try again</ToastAction>,
       });
       setIsLoading(false);
     }
