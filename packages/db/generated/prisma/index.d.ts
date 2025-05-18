@@ -287,8 +287,8 @@ export namespace Prisma {
   export import Exact = $Public.Exact
 
   /**
-   * Prisma Client JS version: 6.7.0
-   * Query Engine version: 3cff47a7f5d65c3ea74883f1d736e41d68ce91ed
+   * Prisma Client JS version: 6.8.2
+   * Query Engine version: 2060c79ba17c6bb9f5823312b6f6b7f4a845738e
    */
   export type PrismaVersion = {
     client: string
@@ -2338,52 +2338,72 @@ export namespace Prisma {
 
   export type MeetingMinAggregateOutputType = {
     id: string | null
+    passcode: string | null
     userId: string | null
-    title: string | null
+    roomName: string | null
+    date: Date | null
     startTime: Date | null
     endTime: Date | null
+    isHost: boolean | null
   }
 
   export type MeetingMaxAggregateOutputType = {
     id: string | null
+    passcode: string | null
     userId: string | null
-    title: string | null
+    roomName: string | null
+    date: Date | null
     startTime: Date | null
     endTime: Date | null
+    isHost: boolean | null
   }
 
   export type MeetingCountAggregateOutputType = {
     id: number
+    passcode: number
     userId: number
-    title: number
+    roomName: number
+    date: number
     startTime: number
     endTime: number
+    participants: number
+    isHost: number
     _all: number
   }
 
 
   export type MeetingMinAggregateInputType = {
     id?: true
+    passcode?: true
     userId?: true
-    title?: true
+    roomName?: true
+    date?: true
     startTime?: true
     endTime?: true
+    isHost?: true
   }
 
   export type MeetingMaxAggregateInputType = {
     id?: true
+    passcode?: true
     userId?: true
-    title?: true
+    roomName?: true
+    date?: true
     startTime?: true
     endTime?: true
+    isHost?: true
   }
 
   export type MeetingCountAggregateInputType = {
     id?: true
+    passcode?: true
     userId?: true
-    title?: true
+    roomName?: true
+    date?: true
     startTime?: true
     endTime?: true
+    participants?: true
+    isHost?: true
     _all?: true
   }
 
@@ -2461,10 +2481,14 @@ export namespace Prisma {
 
   export type MeetingGroupByOutputType = {
     id: string
+    passcode: string | null
     userId: string
-    title: string | null
+    roomName: string | null
+    date: Date
     startTime: Date | null
     endTime: Date | null
+    participants: string[]
+    isHost: boolean
     _count: MeetingCountAggregateOutputType | null
     _min: MeetingMinAggregateOutputType | null
     _max: MeetingMaxAggregateOutputType | null
@@ -2486,10 +2510,14 @@ export namespace Prisma {
 
   export type meetingSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    passcode?: boolean
     userId?: boolean
-    title?: boolean
+    roomName?: boolean
+    date?: boolean
     startTime?: boolean
     endTime?: boolean
+    participants?: boolean
+    isHost?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
     rawChunks?: boolean | meeting$rawChunksArgs<ExtArgs>
     finalRecording?: boolean | meeting$finalRecordingArgs<ExtArgs>
@@ -2498,31 +2526,43 @@ export namespace Prisma {
 
   export type meetingSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    passcode?: boolean
     userId?: boolean
-    title?: boolean
+    roomName?: boolean
+    date?: boolean
     startTime?: boolean
     endTime?: boolean
+    participants?: boolean
+    isHost?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["meeting"]>
 
   export type meetingSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
+    passcode?: boolean
     userId?: boolean
-    title?: boolean
+    roomName?: boolean
+    date?: boolean
     startTime?: boolean
     endTime?: boolean
+    participants?: boolean
+    isHost?: boolean
     user?: boolean | UserDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["meeting"]>
 
   export type meetingSelectScalar = {
     id?: boolean
+    passcode?: boolean
     userId?: boolean
-    title?: boolean
+    roomName?: boolean
+    date?: boolean
     startTime?: boolean
     endTime?: boolean
+    participants?: boolean
+    isHost?: boolean
   }
 
-  export type meetingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "userId" | "title" | "startTime" | "endTime", ExtArgs["result"]["meeting"]>
+  export type meetingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "passcode" | "userId" | "roomName" | "date" | "startTime" | "endTime" | "participants" | "isHost", ExtArgs["result"]["meeting"]>
   export type meetingInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     user?: boolean | UserDefaultArgs<ExtArgs>
     rawChunks?: boolean | meeting$rawChunksArgs<ExtArgs>
@@ -2545,10 +2585,14 @@ export namespace Prisma {
     }
     scalars: $Extensions.GetPayloadResult<{
       id: string
+      passcode: string | null
       userId: string
-      title: string | null
+      roomName: string | null
+      date: Date
       startTime: Date | null
       endTime: Date | null
+      participants: string[]
+      isHost: boolean
     }, ExtArgs["result"]["meeting"]>
     composites: {}
   }
@@ -2976,10 +3020,14 @@ export namespace Prisma {
    */
   interface meetingFieldRefs {
     readonly id: FieldRef<"meeting", 'String'>
+    readonly passcode: FieldRef<"meeting", 'String'>
     readonly userId: FieldRef<"meeting", 'String'>
-    readonly title: FieldRef<"meeting", 'String'>
+    readonly roomName: FieldRef<"meeting", 'String'>
+    readonly date: FieldRef<"meeting", 'DateTime'>
     readonly startTime: FieldRef<"meeting", 'DateTime'>
     readonly endTime: FieldRef<"meeting", 'DateTime'>
+    readonly participants: FieldRef<"meeting", 'String[]'>
+    readonly isHost: FieldRef<"meeting", 'Boolean'>
   }
     
 
@@ -5573,10 +5621,14 @@ export namespace Prisma {
 
   export const MeetingScalarFieldEnum: {
     id: 'id',
+    passcode: 'passcode',
     userId: 'userId',
-    title: 'title',
+    roomName: 'roomName',
+    date: 'date',
     startTime: 'startTime',
-    endTime: 'endTime'
+    endTime: 'endTime',
+    participants: 'participants',
+    isHost: 'isHost'
   };
 
   export type MeetingScalarFieldEnum = (typeof MeetingScalarFieldEnum)[keyof typeof MeetingScalarFieldEnum]
@@ -5657,6 +5709,13 @@ export namespace Prisma {
    * Reference to a field of type 'DateTime[]'
    */
   export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
+    
+
+
+  /**
+   * Reference to a field of type 'Boolean'
+   */
+  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -5770,10 +5829,14 @@ export namespace Prisma {
     OR?: meetingWhereInput[]
     NOT?: meetingWhereInput | meetingWhereInput[]
     id?: StringFilter<"meeting"> | string
+    passcode?: StringNullableFilter<"meeting"> | string | null
     userId?: StringFilter<"meeting"> | string
-    title?: StringNullableFilter<"meeting"> | string | null
+    roomName?: StringNullableFilter<"meeting"> | string | null
+    date?: DateTimeFilter<"meeting"> | Date | string
     startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
     endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    participants?: StringNullableListFilter<"meeting">
+    isHost?: BoolFilter<"meeting"> | boolean
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
     rawChunks?: MediaChunksListRelationFilter
     finalRecording?: FinalRecordingListRelationFilter
@@ -5781,10 +5844,14 @@ export namespace Prisma {
 
   export type meetingOrderByWithRelationInput = {
     id?: SortOrder
+    passcode?: SortOrderInput | SortOrder
     userId?: SortOrder
-    title?: SortOrderInput | SortOrder
+    roomName?: SortOrderInput | SortOrder
+    date?: SortOrder
     startTime?: SortOrderInput | SortOrder
     endTime?: SortOrderInput | SortOrder
+    participants?: SortOrder
+    isHost?: SortOrder
     user?: UserOrderByWithRelationInput
     rawChunks?: mediaChunksOrderByRelationAggregateInput
     finalRecording?: FinalRecordingOrderByRelationAggregateInput
@@ -5795,10 +5862,14 @@ export namespace Prisma {
     AND?: meetingWhereInput | meetingWhereInput[]
     OR?: meetingWhereInput[]
     NOT?: meetingWhereInput | meetingWhereInput[]
+    passcode?: StringNullableFilter<"meeting"> | string | null
     userId?: StringFilter<"meeting"> | string
-    title?: StringNullableFilter<"meeting"> | string | null
+    roomName?: StringNullableFilter<"meeting"> | string | null
+    date?: DateTimeFilter<"meeting"> | Date | string
     startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
     endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    participants?: StringNullableListFilter<"meeting">
+    isHost?: BoolFilter<"meeting"> | boolean
     user?: XOR<UserScalarRelationFilter, UserWhereInput>
     rawChunks?: MediaChunksListRelationFilter
     finalRecording?: FinalRecordingListRelationFilter
@@ -5806,10 +5877,14 @@ export namespace Prisma {
 
   export type meetingOrderByWithAggregationInput = {
     id?: SortOrder
+    passcode?: SortOrderInput | SortOrder
     userId?: SortOrder
-    title?: SortOrderInput | SortOrder
+    roomName?: SortOrderInput | SortOrder
+    date?: SortOrder
     startTime?: SortOrderInput | SortOrder
     endTime?: SortOrderInput | SortOrder
+    participants?: SortOrder
+    isHost?: SortOrder
     _count?: meetingCountOrderByAggregateInput
     _max?: meetingMaxOrderByAggregateInput
     _min?: meetingMinOrderByAggregateInput
@@ -5820,10 +5895,14 @@ export namespace Prisma {
     OR?: meetingScalarWhereWithAggregatesInput[]
     NOT?: meetingScalarWhereWithAggregatesInput | meetingScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"meeting"> | string
+    passcode?: StringNullableWithAggregatesFilter<"meeting"> | string | null
     userId?: StringWithAggregatesFilter<"meeting"> | string
-    title?: StringNullableWithAggregatesFilter<"meeting"> | string | null
+    roomName?: StringNullableWithAggregatesFilter<"meeting"> | string | null
+    date?: DateTimeWithAggregatesFilter<"meeting"> | Date | string
     startTime?: DateTimeNullableWithAggregatesFilter<"meeting"> | Date | string | null
     endTime?: DateTimeNullableWithAggregatesFilter<"meeting"> | Date | string | null
+    participants?: StringNullableListFilter<"meeting">
+    isHost?: BoolWithAggregatesFilter<"meeting"> | boolean
   }
 
   export type mediaChunksWhereInput = {
@@ -6000,9 +6079,13 @@ export namespace Prisma {
 
   export type meetingCreateInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     user: UserCreateNestedOneWithoutMeetingsInput
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
@@ -6010,19 +6093,27 @@ export namespace Prisma {
 
   export type meetingUncheckedCreateInput = {
     id?: string
+    passcode?: string | null
     userId: string
-    title?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
 
   export type meetingUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
@@ -6030,35 +6121,51 @@ export namespace Prisma {
 
   export type meetingUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
     userId?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingCreateManyInput = {
     id?: string
+    passcode?: string | null
     userId: string
-    title?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
   }
 
   export type meetingUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
   }
 
   export type meetingUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
     userId?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
   }
 
   export type mediaChunksCreateInput = {
@@ -6308,6 +6415,19 @@ export namespace Prisma {
     not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
   }
 
+  export type StringNullableListFilter<$PrismaModel = never> = {
+    equals?: string[] | ListStringFieldRefInput<$PrismaModel> | null
+    has?: string | StringFieldRefInput<$PrismaModel> | null
+    hasEvery?: string[] | ListStringFieldRefInput<$PrismaModel>
+    hasSome?: string[] | ListStringFieldRefInput<$PrismaModel>
+    isEmpty?: boolean
+  }
+
+  export type BoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type UserScalarRelationFilter = {
     is?: UserWhereInput
     isNot?: UserWhereInput
@@ -6335,26 +6455,36 @@ export namespace Prisma {
 
   export type meetingCountOrderByAggregateInput = {
     id?: SortOrder
+    passcode?: SortOrder
     userId?: SortOrder
-    title?: SortOrder
+    roomName?: SortOrder
+    date?: SortOrder
     startTime?: SortOrder
     endTime?: SortOrder
+    participants?: SortOrder
+    isHost?: SortOrder
   }
 
   export type meetingMaxOrderByAggregateInput = {
     id?: SortOrder
+    passcode?: SortOrder
     userId?: SortOrder
-    title?: SortOrder
+    roomName?: SortOrder
+    date?: SortOrder
     startTime?: SortOrder
     endTime?: SortOrder
+    isHost?: SortOrder
   }
 
   export type meetingMinOrderByAggregateInput = {
     id?: SortOrder
+    passcode?: SortOrder
     userId?: SortOrder
-    title?: SortOrder
+    roomName?: SortOrder
+    date?: SortOrder
     startTime?: SortOrder
     endTime?: SortOrder
+    isHost?: SortOrder
   }
 
   export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
@@ -6369,6 +6499,14 @@ export namespace Prisma {
     _count?: NestedIntNullableFilter<$PrismaModel>
     _min?: NestedDateTimeNullableFilter<$PrismaModel>
     _max?: NestedDateTimeNullableFilter<$PrismaModel>
+  }
+
+  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type MeetingScalarRelationFilter = {
@@ -6509,6 +6647,10 @@ export namespace Prisma {
     deleteMany?: meetingScalarWhereInput | meetingScalarWhereInput[]
   }
 
+  export type meetingCreateparticipantsInput = {
+    set: string[]
+  }
+
   export type UserCreateNestedOneWithoutMeetingsInput = {
     create?: XOR<UserCreateWithoutMeetingsInput, UserUncheckedCreateWithoutMeetingsInput>
     connectOrCreate?: UserCreateOrConnectWithoutMeetingsInput
@@ -6545,6 +6687,15 @@ export namespace Prisma {
 
   export type NullableDateTimeFieldUpdateOperationsInput = {
     set?: Date | string | null
+  }
+
+  export type meetingUpdateparticipantsInput = {
+    set?: string[]
+    push?: string | string[]
+  }
+
+  export type BoolFieldUpdateOperationsInput = {
+    set?: boolean
   }
 
   export type UserUpdateOneRequiredWithoutMeetingsNestedInput = {
@@ -6767,6 +6918,11 @@ export namespace Prisma {
     not?: NestedDateTimeNullableFilter<$PrismaModel> | Date | string | null
   }
 
+  export type NestedBoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
@@ -6779,6 +6935,14 @@ export namespace Prisma {
     _count?: NestedIntNullableFilter<$PrismaModel>
     _min?: NestedDateTimeNullableFilter<$PrismaModel>
     _max?: NestedDateTimeNullableFilter<$PrismaModel>
+  }
+
+  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type NestedEnumformatFilter<$PrismaModel = never> = {
@@ -6817,18 +6981,26 @@ export namespace Prisma {
 
   export type meetingCreateWithoutUserInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
   }
 
   export type meetingUncheckedCreateWithoutUserInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
@@ -6864,10 +7036,14 @@ export namespace Prisma {
     OR?: meetingScalarWhereInput[]
     NOT?: meetingScalarWhereInput | meetingScalarWhereInput[]
     id?: StringFilter<"meeting"> | string
+    passcode?: StringNullableFilter<"meeting"> | string | null
     userId?: StringFilter<"meeting"> | string
-    title?: StringNullableFilter<"meeting"> | string | null
+    roomName?: StringNullableFilter<"meeting"> | string | null
+    date?: DateTimeFilter<"meeting"> | Date | string
     startTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
     endTime?: DateTimeNullableFilter<"meeting"> | Date | string | null
+    participants?: StringNullableListFilter<"meeting">
+    isHost?: BoolFilter<"meeting"> | boolean
   }
 
   export type UserCreateWithoutMeetingsInput = {
@@ -7023,19 +7199,27 @@ export namespace Prisma {
 
   export type meetingCreateWithoutRawChunksInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     user: UserCreateNestedOneWithoutMeetingsInput
     finalRecording?: FinalRecordingCreateNestedManyWithoutMeetingInput
   }
 
   export type meetingUncheckedCreateWithoutRawChunksInput = {
     id?: string
+    passcode?: string | null
     userId: string
-    title?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     finalRecording?: FinalRecordingUncheckedCreateNestedManyWithoutMeetingInput
   }
 
@@ -7057,37 +7241,53 @@ export namespace Prisma {
 
   export type meetingUpdateWithoutRawChunksInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingUncheckedUpdateWithoutRawChunksInput = {
     id?: StringFieldUpdateOperationsInput | string
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
     userId?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingCreateWithoutFinalRecordingInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     user: UserCreateNestedOneWithoutMeetingsInput
     rawChunks?: mediaChunksCreateNestedManyWithoutMeetingInput
   }
 
   export type meetingUncheckedCreateWithoutFinalRecordingInput = {
     id?: string
+    passcode?: string | null
     userId: string
-    title?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
     rawChunks?: mediaChunksUncheckedCreateNestedManyWithoutMeetingInput
   }
 
@@ -7109,52 +7309,76 @@ export namespace Prisma {
 
   export type meetingUpdateWithoutFinalRecordingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     user?: UserUpdateOneRequiredWithoutMeetingsNestedInput
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingUncheckedUpdateWithoutFinalRecordingInput = {
     id?: StringFieldUpdateOperationsInput | string
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
     userId?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingCreateManyUserInput = {
     id?: string
-    title?: string | null
+    passcode?: string | null
+    roomName?: string | null
+    date?: Date | string
     startTime?: Date | string | null
     endTime?: Date | string | null
+    participants?: meetingCreateparticipantsInput | string[]
+    isHost: boolean
   }
 
   export type meetingUpdateWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     rawChunks?: mediaChunksUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingUncheckedUpdateWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
     rawChunks?: mediaChunksUncheckedUpdateManyWithoutMeetingNestedInput
     finalRecording?: FinalRecordingUncheckedUpdateManyWithoutMeetingNestedInput
   }
 
   export type meetingUncheckedUpdateManyWithoutUserInput = {
     id?: StringFieldUpdateOperationsInput | string
-    title?: NullableStringFieldUpdateOperationsInput | string | null
+    passcode?: NullableStringFieldUpdateOperationsInput | string | null
+    roomName?: NullableStringFieldUpdateOperationsInput | string | null
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
     startTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     endTime?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    participants?: meetingUpdateparticipantsInput | string[]
+    isHost?: BoolFieldUpdateOperationsInput | boolean
   }
 
   export type mediaChunksCreateManyMeetingInput = {

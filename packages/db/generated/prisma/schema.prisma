@@ -26,10 +26,14 @@ model User {
 
 model meeting {
   id             String           @id @default(uuid())
+  passcode       String?
   userId         String
-  title          String?          @default("Meeting")
+  roomName       String?
+  date           DateTime         @default(now())
   startTime      DateTime?
   endTime        DateTime?
+  participants   String[]
+  isHost         Boolean
   user           User             @relation(fields: [userId], references: [id])
   rawChunks      mediaChunks[]
   finalRecording FinalRecording[]
