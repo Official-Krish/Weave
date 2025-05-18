@@ -12,6 +12,6 @@ app.use("/api/v1/user", userRouter);
 app.use("/api/v1", uploadRouter);
 app.use("/api/v1/meeting", meetingRouter);
 
-app.listen(9000, () => {
-    console.log('Backend server is running on port 9000');
+app.listen(3000, () => {
+    console.log('Backend server is running on port 3000');
 });

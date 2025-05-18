@@ -1,3 +1,4 @@
+require("dotenv").config();
 import { Router } from "express";
 import { Storage } from "@google-cloud/storage";
 import { prisma } from "@repo/db/client";
@@ -9,7 +10,7 @@ export const uploadRouter = Router();
 const storage = new Storage({
     projectId: process.env.PROJECT_ID,
 });
-const bucket = storage.bucket('portfoilio'); 
+const bucket = storage.bucket(process.env.BUCKET_NAME!); 
 const upload = multer({ storage: multer.memoryStorage() });
 
 uploadRouter.post('/upload-chunk', upload.single("video"), authMiddleware, async (req, res) => {
