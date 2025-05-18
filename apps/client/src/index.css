@@ -131,6 +131,11 @@
   .stagger-fade-in > *:nth-child(4) {
     animation-delay: 0.3s;
   }
+  .input-field {
+    @apply w-full px-4 py-3 bg-primary-900/50 rounded-lg
+      text-white placeholder:text-primary-400
+      focus:outline-none focus:ring-1 focus:ring-white/30;
+  }
 
 }
 

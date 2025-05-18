@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Users } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Users, Mail, Lock, X } from 'lucide-react';
 import { Input } from './ui/input';
-import { JITSI_URL } from '../config';
+import { BACKEND_URL, JITSI_URL } from '../config';
+import { motion } from 'framer-motion';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from './ui/select';
+import axios from 'axios';
 
 interface Participant {
     id: string;
@@ -14,6 +17,11 @@ interface RemoteTracks {
     [participantId: string]: any[]; 
 }
 
+interface Joinee {
+    email: string;
+}
+
+
 const Meeting = (page: "Join" | "Create") => {
     const [isConnecting, setIsConnecting] = useState<boolean>(false);
     const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -21,6 +29,10 @@ const Meeting = (page: "Join" | "Create") => {
     const [displayName, setDisplayName] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [jitsiLoaded, setJitsiLoaded] = useState<boolean>(false);
+    const [password, setPassword] = useState<string>('');
+    const [email, setEmail] = useState<string>('');
+    const [joinees, setJoinees] = useState<Joinee[]>([]);
+    const [passcode, setPasscode] = useState<string>('');
     
     // Participant/tracks state
     const [localTracks, setLocalTracks] = useState<any[]>([]); 
@@ -35,6 +47,113 @@ const Meeting = (page: "Join" | "Create") => {
     const conferenceRef = useRef<any>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenshareTrackRef = useRef<any>(null);
+
+
+
+    const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+
+    useEffect(() => {
+        const fetchCameras = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                setCameras(videoDevices);
+            } catch (error) {
+                console.error('Error fetching cameras:', error);
+            }
+        };
+
+        fetchCameras();
+    }, []);
+
+
+
+    const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+
+    useEffect(() => {
+        const fetchMicrophones = async () => {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioDevices = devices.filter(device => device.kind === 'audioinput');
+                setMicrophones(audioDevices);
+            } catch (error) {
+                console.error('Error fetching microphones:', error);
+            }
+        };
+
+        fetchMicrophones();
+    }, []);
+
+
+    const videoRef = useRef<HTMLVideoElement>(localVideoRef.current);
+    
+    useEffect(() => {
+        let videoTrack;
+        const getTracks = async () => {
+            try {
+                const tracks = await window.JitsiMeetJS.createLocalTracks({
+                    devices: ['video']
+                });
+                videoTrack = tracks[0];
+                setLocalTracks(tracks);
+            } catch (error) {
+                console.error('Error creating local video track:', error);
+            }
+        }
+        getTracks();
+        
+        if (videoTrack && videoRef.current) {
+            try {
+                videoTrack.attach(videoRef.current);
+            } catch (e) {
+                console.error('Error attaching local video track:', e);
+            }
+        }
+        return () => {
+            if (videoTrack && videoRef.current) {
+                try {
+                    videoTrack.detach(videoRef.current);
+                } catch (e) {
+                    console.error('Error detaching local video track:', e);
+                }
+            }
+        };
+    }, []);
+
+    const handleAddParticipant = () => {
+        if (email && email.includes('@')) {
+          setJoinees([...joinees, { email }]);
+          setEmail('');
+        }
+    };
+    
+    const handleRemoveParticipant = (emailToRemove: string) => {
+        setJoinees(joinees.filter(p => p.email !== emailToRemove));
+    };
+
+    const CreateMeet = async () => {
+        try {
+            const response = await axios.post(`${BACKEND_URL}/meeting/create`, {
+                roomName,
+                participants: joinees.map(p => p.email),
+                passcode
+            });
+            if (response.status === 200) {
+                console.log('Meeting created successfully:', response.data);
+                setRoomName(response.data);
+                setPasscode(response.data.passcode);
+                connect(response.data.id, displayName);
+                setIsConnected(true);
+            } else {
+                console.error('Error creating meeting:', response.data);
+                setError('Failed to create meeting. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error creating meeting:', error);
+            setError('Failed to create meeting. Please try again.');
+        }
+    }
+
 
     // Initialize JitsiMeetJS on component mount
     useEffect(() => {
@@ -93,11 +212,11 @@ const Meeting = (page: "Join" | "Create") => {
         // Dispose local tracks
         localTracks.forEach(track => {
             try {
-            if (track && typeof track.dispose === 'function') {
-                track.dispose();
-            }
+                if (track && typeof track.dispose === 'function') {
+                    track.dispose();
+                }
             } catch (e) {
-            console.error('Error disposing local track:', e);
+                console.error('Error disposing local track:', e);
             }
         });
         
@@ -138,25 +257,25 @@ const Meeting = (page: "Join" | "Create") => {
 
     // Add local video to DOM when local tracks change
     useEffect(() => {
-    const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
-    
-    if (videoTrack && localVideoRef.current) {
-        try {
-        videoTrack.attach(localVideoRef.current);
-        } catch (e) {
-        console.error('Error attaching local video track:', e);
-        }
-    }
-    
-    return () => {
+        const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
+        
         if (videoTrack && localVideoRef.current) {
-        try {
-            videoTrack.detach(localVideoRef.current);
-        } catch (e) {
-            console.error('Error detaching local video track:', e);
+            try {
+                videoTrack.attach(localVideoRef.current);
+            } catch (e) {
+                console.error('Error attaching local video track:', e);
+            }
         }
-        }
-    };
+        
+        return () => {
+            if (videoTrack && localVideoRef.current) {
+                try {
+                    videoTrack.detach(localVideoRef.current);
+                } catch (e) {
+                    console.error('Error detaching local video track:', e);
+                }
+            }
+        };
     }, [localTracks]);
 
     const connect = async (roomName: string, displayName: string) => {
@@ -613,81 +732,165 @@ const Meeting = (page: "Join" | "Create") => {
     }
 
     // Render login screen if not yet connected
-    if (!isConnected) {
+    if (!isConnected || page === "Join" || page === "Create") {
         return (
-            <div className="flex justify-center items-center min-h-screen bg-gray-50">
-                <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg">
-                    <div className="text-center">
-                        <h2 className="text-3xl font-extrabold text-gray-900">Video Conference</h2>
-                        <p className="mt-2 text-sm text-gray-600">Enter details to join a conference</p>
+            <div className="max-w-5xl mx-auto p-6 mt-16">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-12"
+                >
+                    {/* Hero Section */}
+                    <div className="text-center space-y-4">
+                        <h1 className="text-5xl font-light">Create Meeting</h1>
+                        <p className="text-xl text-primary-400 max-w-2xl mx-auto">
+                            Experience premium video conferencing with crystal-clear quality and automatic local recording.
+                            Perfect for professional meetings, webinars, and team collaborations.
+                        </p>
                     </div>
-                    
-                    <div className="mt-8 space-y-6">
-                        <div className="rounded-md shadow-sm space-y-4">
-                            <div>
-                                <label htmlFor="room-name" className="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
-                                <Input
-                                    id="roomName"
-                                    name="roomName"
-                                    type="text"
-                                    required
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="Room Name"
-                                    value={roomName}
-                                    onChange={e => setRoomName(e.target.value)}
-                                    disabled={isConnecting}
+
+                    <div className="grid md:grid-cols-2 gap-8">
+                        {/* Media Preview */}
+                        <div className="space-y-6">
+                            <div className="relative aspect-video bg-primary-900/50 rounded-xl overflow-hidden">
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className="w-full h-full object-cover"
                                 />
+                                <div className="absolute bottom-4 left-4 right-4 flex gap-2">
+                                    <Select>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Select Camera Device" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                <SelectLabel>{localVideoRef.current ? 'Local Video' : 'No Video Available'}</SelectLabel>
+                                                {cameras.map(camera => (
+                                                    <SelectItem key={camera.deviceId} value={camera.deviceId}>
+                                                        {camera.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Select Microphone Device" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                <SelectLabel>{localVideoRef.current ? 'Local Audio' : 'No Audio Available'}</SelectLabel>
+                                                {microphones.map(mic => (
+                                                    <SelectItem key={mic.deviceId} value={mic.deviceId}>
+                                                        {mic.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
-                        
-                            <div className='text-black'>
-                                <label htmlFor="display-name" className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                        </div>
+
+                        {/* Meeting Setup Form */}
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm text-primary-400">Room Name</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={roomName}
+                                        onChange={(e) => setRoomName(e.target.value)}
+                                        placeholder="team-sync-room"
+                                        className="input-field"
+                                    />
+                                    <Users className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
+                                </div>
+                            </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-primary-400">Room Password (Optional)</label>
+                            <div className="relative">
                                 <input
-                                    id="displayName"
-                                    name="displayName"
-                                    type="text"
-                                    required
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="Your Name"
-                                    value={displayName}
-                                    onChange={e => setDisplayName(e.target.value)}
-                                    disabled={isConnecting}
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Set a password to lock the room"
+                                className="input-field"
                                 />
+                                <Lock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
                             </div>
                         </div>
 
-                        {error && (
-                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                                {error}
-                            </div>
-                        )}
+                            <div className="space-y-4">
+                                <label className="text-sm text-primary-400">Invite Participants</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="Enter email address"
+                                            className="input-field"
+                                            onKeyPress={(e) => e.key === 'Enter' && handleAddParticipant()}
+                                        />
+                                        <Mail className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
+                                    </div>
+                                    <button
+                                        onClick={handleAddParticipant}
+                                        disabled={!email.includes('@')}
+                                        className="bg-white text-gray-800 font-normal py-2 px-4 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
 
-                        <div>
-                            <button
-                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isConnecting || !roomName || !displayName || !jitsiLoaded}
-                                onClick={() => {
-                                    if (!roomName || !displayName) {
-                                        alert('Please enter both room name and your name.');
-                                        return;
-                                    }
-                                    connect(roomName, displayName);
-                                }}
-                                >
-                                {isConnecting ? (
-                                    <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Connecting...
-                                    </>
-                                ) : (
-                                    'Join Conference'
+                                {joinees.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-primary-400">Participants ({joinees.length})</p>
+                                        <div className="space-y-2">
+                                            {joinees.map((participant) => (
+                                                <motion.div
+                                                    key={participant.email}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 20 }}
+                                                    className="flex items-center justify-between p-3 bg-primary-900/50 rounded-xl"
+                                                >
+                                                    <span className="text-sm">{participant.email}</span>
+                                                    <button
+                                                    onClick={() => handleRemoveParticipant(participant.email)}
+                                                    className="p-1 hover:bg-primary-800 rounded-full"
+                                                    >
+                                                    <X className="h-4 w-4" />
+                                                    </button>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 )}
-                            </button>
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                                    {error}
+                                </div>
+                            )}
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => CreateMeet()}
+                                disabled={isConnecting || !roomName || !displayName || !jitsiLoaded}
+                                className="w-full bg-white text-gray-800 font-normal py-3 px-4 rounded-xl shadow-md hover:bg-gray-100 transition duration-200 cursor-pointer"
+                                >
+                                Create Meeting
+                            </motion.button>
                         </div>
                     </div>
-                </div>
+                </motion.div>
             </div>
         );
     }
