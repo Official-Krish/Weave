@@ -4,6 +4,17 @@ import { prisma } from "@repo/db/client";
 
 const meetingRouter = Router();
 
+const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+function generateString() {
+    let result = ' ';
+    const charactersLength = characters.length;
+    for ( let i = 0; i < 10; i++ ) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+
+    return result;
+}
+
 meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
     const userId = req.userId;
     try{
@@ -77,10 +88,23 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
     const { roomName, participants, passcode } = req.body;
 
     try {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+        });
+
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
         const randomPascode = Math.random().toString(36).slice(2, 10);
         const newMeeting = await prisma.meeting.create({
             data: {
                 roomName: roomName,
+                // only lowercase letters
+                meetingId: generateString().toLowerCase(),
                 userId,
                 passcode: passcode ? passcode : randomPascode,
                 startTime: new Date(),
@@ -88,7 +112,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
                 participants: participants
             }
         });
-        res.status(200).json({ id: newMeeting.id, passcode: newMeeting.passcode });
+        res.status(200).json({ id: newMeeting.meetingId, passcode: newMeeting.passcode, name: user.name });
     } catch (error) {
         console.error("Error creating meeting:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -102,7 +126,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
     try {
         const meeting = await prisma.meeting.findFirst({
             where: {
-                id: meetingId,
+                meetingId: meetingId,
             },
         });
         if (!meeting) {
@@ -121,11 +145,24 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             return;
         }
 
+        const ifUserAlreadyJoined = await prisma.meeting.findFirst({
+            where: {
+                meetingId: meetingId,
+                userId: userId as string,
+            },
+        });
+
+        if (ifUserAlreadyJoined) {
+            res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+            return;
+        }
+
         if (!passcode){
             const checkIfParticipant = meeting.participants.find((participant) => participant === user.email);
             if (checkIfParticipant) {
                 await prisma.meeting.create({
                     data: {
+                        meetingId: meeting.meetingId,
                         roomName: meeting.roomName,
                         userId: userId as string,
                         passcode: meeting.passcode,
@@ -134,7 +171,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         participants: meeting.participants
                     }
                 });
-                res.status(200).json({ id: meeting.id });
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
             } else {
                 res.status(403).json({ message: "You are not a participant of this meeting" });
             }
@@ -143,16 +180,17 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             if (meeting.passcode === passcode) {
                 await prisma.meeting.create({
                     data: {
+                        meetingId: meeting.meetingId,
                         roomName: meeting.roomName,
                         userId: userId as string,
                         passcode: meeting.passcode,
                         startTime: new Date(),
                         isHost: false,
-                        participants: meeting.participants
+                        participants: [...meeting.participants, user.email!]
                     }
                 });
-                res.status(200).json({ id: meeting.id });
-            } else{
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+            } else {
                 res.status(403).json({ message: "Invalid passcode" });
             }
         }
