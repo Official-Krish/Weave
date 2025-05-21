@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Users, Mail, Lock, X } from 'lucide-react';
-import { Input } from './ui/input';
 import { BACKEND_URL, JITSI_URL } from '../config';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from './ui/select';
@@ -21,18 +20,13 @@ interface Joinee {
     email: string;
 }
 
-
-const Meeting = (page: "Join" | "Create") => {
+const Meeting = ({ page }: { page: "create" | "join" }) => {
     const [isConnecting, setIsConnecting] = useState<boolean>(false);
     const [isConnected, setIsConnected] = useState<boolean>(false);
-    const [roomName, setRoomName] = useState<string>('');
+    const [roomName, setRoomName] = useState<string>("");
     const [displayName, setDisplayName] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [jitsiLoaded, setJitsiLoaded] = useState<boolean>(false);
-    const [password, setPassword] = useState<string>('');
-    const [email, setEmail] = useState<string>('');
-    const [joinees, setJoinees] = useState<Joinee[]>([]);
-    const [passcode, setPasscode] = useState<string>('');
     
     // Participant/tracks state
     const [localTracks, setLocalTracks] = useState<any[]>([]); 
@@ -49,9 +43,14 @@ const Meeting = (page: "Join" | "Create") => {
     const screenshareTrackRef = useRef<any>(null);
 
 
-
+    const [email, setEmail] = useState<string>('');
+    const [joinees, setJoinees] = useState<Joinee[]>([]);
+    const [passcode, setPasscode] = useState<string>('');
     const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+    const [roomId, setRoomId] = useState<string>('');
 
+
+    // Create a new meeting
     useEffect(() => {
         const fetchCameras = async () => {
             try {
@@ -85,40 +84,47 @@ const Meeting = (page: "Join" | "Create") => {
     }, []);
 
 
-    const videoRef = useRef<HTMLVideoElement>(localVideoRef.current);
+    const videoRef = useRef<HTMLVideoElement>(null);
     
     useEffect(() => {
-        let videoTrack;
+        let videoTrack: JitsiMeetJS.JitsiTrack;
+        
         const getTracks = async () => {
             try {
                 const tracks = await window.JitsiMeetJS.createLocalTracks({
                     devices: ['video']
                 });
                 videoTrack = tracks[0];
-                setLocalTracks(tracks);
+                
+                // Attach the track after it's created
+                if (videoTrack && videoRef.current) {
+                    try {
+                        videoTrack.attach(videoRef.current);
+                    } catch (e) {
+                        console.error('Error attaching local video track:', e);
+                    }
+                }
             } catch (error) {
                 console.error('Error creating local video track:', error);
             }
         }
-        getTracks();
         
-        if (videoTrack && videoRef.current) {
-            try {
-                videoTrack.attach(videoRef.current);
-            } catch (e) {
-                console.error('Error attaching local video track:', e);
-            }
+        // Only create tracks if Jitsi is loaded
+        if (window.JitsiMeetJS && jitsiLoaded) {
+            getTracks();
         }
+        
         return () => {
             if (videoTrack && videoRef.current) {
                 try {
                     videoTrack.detach(videoRef.current);
+                    videoTrack.dispose(); // Don't forget to dispose the track
                 } catch (e) {
-                    console.error('Error detaching local video track:', e);
+                    console.error('Error detaching/disposing local video track:', e);
                 }
             }
         };
-    }, []);
+    }, [jitsiLoaded]);
 
     const handleAddParticipant = () => {
         if (email && email.includes('@')) {
@@ -137,13 +143,16 @@ const Meeting = (page: "Join" | "Create") => {
                 roomName,
                 participants: joinees.map(p => p.email),
                 passcode
+            }, {
+                headers: {
+                    "Authorization": `${localStorage.getItem('token')}`
+                }
             });
             if (response.status === 200) {
                 console.log('Meeting created successfully:', response.data);
-                setRoomName(response.data);
                 setPasscode(response.data.passcode);
-                connect(response.data.id, displayName);
-                setIsConnected(true);
+                await connect(response.data.id, response.data.name);
+                window.history.pushState(null, '', `/meeting/${response.data.id}`);
             } else {
                 console.error('Error creating meeting:', response.data);
                 setError('Failed to create meeting. Please try again.');
@@ -155,7 +164,35 @@ const Meeting = (page: "Join" | "Create") => {
     }
 
 
-    // Initialize JitsiMeetJS on component mount
+    // Join an existing meeting
+    const JoinMeet = async () => {
+        console.log('Joining meeting with ID:', roomId);
+        try {
+            const response = await axios.post(`${BACKEND_URL}/meeting/join/${roomId}`, {
+                passcode
+            }, {
+                headers: {
+                    "Authorization": `${localStorage.getItem('token')}`
+                }
+            });
+            if (response.status === 200) {
+                console.log('Meeting joined successfully:', response.data);
+                setPasscode(response.data.passcode);
+                await connect(response.data.id, response.data.name);
+                setIsConnecting(false);
+                window.history.pushState(null, '', `/meeting/${response.data.id}`);
+            } else {
+                console.error('Error joining meeting:', response.data);
+                setError('Failed to join meeting. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error joining meeting:', error);
+            setError('Failed to join meeting. Please try again.');
+        }
+    };
+
+
+    // Setup jitsi library
     useEffect(() => {
         if (window.JitsiMeetJS) {
             initJitsi();
@@ -223,20 +260,20 @@ const Meeting = (page: "Join" | "Create") => {
         // Dispose screenshare track
         if (screenshareTrackRef.current) {
             try {
-            screenshareTrackRef.current.dispose();
-            screenshareTrackRef.current = null;
+                screenshareTrackRef.current.dispose();
+                screenshareTrackRef.current = null;
             } catch (e) {
-            console.error('Error disposing screenshare track:', e);
+                console.error('Error disposing screenshare track:', e);
             }
         }
         
         // Leave conference
         if (conferenceRef.current) {
             try {
-            conferenceRef.current.leave();
-            conferenceRef.current = null;
+                conferenceRef.current.leave();
+                conferenceRef.current = null;
             } catch (e) {
-            console.error('Error leaving conference:', e);
+                console.error('Error leaving conference:', e);
             }
         }
         
@@ -253,6 +290,7 @@ const Meeting = (page: "Join" | "Create") => {
         setLocalTracks([]);
         setRemoteTracks({});
         setParticipants({});
+        setIsConnected(false);
     };
 
     // Add local video to DOM when local tracks change
@@ -278,10 +316,26 @@ const Meeting = (page: "Join" | "Create") => {
         };
     }, [localTracks]);
 
-    const connect = async (roomName: string, displayName: string) => {
-        setDisplayName(displayName);
-        setRoomName(roomName);
-        if (!roomName || !displayName) {
+    // Check if audio is muted when local tracks change
+    useEffect(() => {
+        const audioTrack = localTracks.find(track => track && track.getType && track.getType() === 'audio');
+        if (audioTrack) {
+            setIsMuted(audioTrack.isMuted());
+        }
+    }, [localTracks]);
+
+    // Check if video is muted when local tracks change
+    useEffect(() => {
+        const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
+        if (videoTrack) {
+            setIsVideoOff(videoTrack.isMuted());
+        }
+    }, [localTracks]);
+
+    const connect = async (roomNameParam: string, displayNameParam: string) => {
+        console.log('Connecting to Jitsi with room name:', roomNameParam, 'and display name:', displayNameParam);
+        
+        if (!roomNameParam || !displayNameParam) {
             setError('Room name and display name are required');
             return;
         }
@@ -293,14 +347,16 @@ const Meeting = (page: "Join" | "Create") => {
         
         setIsConnecting(true);
         setError('');
+        setRoomName(roomNameParam);
+        setDisplayName(displayNameParam);
         
         try {
             console.log('Creating new JitsiConnection...');
             const connection = new window.JitsiMeetJS.JitsiConnection(null, null, {
-            hosts: {
-                domain: JITSI_URL,
-                muc: `conference.${JITSI_URL}`, 
-            },
+                hosts: {
+                    domain: JITSI_URL,
+                    muc: `conference.${JITSI_URL}`, 
+                },
                 serviceUrl: `wss://${JITSI_URL}/xmpp-websocket`,
                 clientNode: 'http://jitsi.org/jitsimeet'
             });
@@ -310,7 +366,7 @@ const Meeting = (page: "Join" | "Create") => {
             // Set up connection event listeners
             connection.addEventListener(
                 window.JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
-                onConnectionSuccess
+                () => onConnectionSuccess(roomNameParam, displayNameParam)
             );
             connection.addEventListener(
                 window.JitsiMeetJS.events.connection.CONNECTION_FAILED,
@@ -330,7 +386,7 @@ const Meeting = (page: "Join" | "Create") => {
         }
     };
 
-    const onConnectionSuccess = async () => {
+    const onConnectionSuccess = async (roomNameParam: string, displayNameParam: string) => {
         console.log('Connection established successfully!');
         
         try {
@@ -338,10 +394,11 @@ const Meeting = (page: "Join" | "Create") => {
                 throw new Error('No connection established');
             }
 
+            // Set connected flag
             setIsConnected(true);
             
-            console.log('Initializing conference for room:', roomName);
-            const conference = connectionRef.current.initJitsiConference(roomName, {
+            console.log('Initializing conference for room:', roomNameParam);
+            const conference = connectionRef.current.initJitsiConference(roomNameParam, {
                 openBridgeChannel: true
             });
             
@@ -386,19 +443,21 @@ const Meeting = (page: "Join" | "Create") => {
                 
                 console.log(`Created ${tracks.length} local tracks`);
                 
+                // Add tracks to conference and update state
                 tracks.forEach(track => {
                     console.log(`Adding ${track.getType()} track to conference`);
                     conference.addTrack(track);
                 });
                 
+                // Save local tracks in state
                 setLocalTracks(tracks);
-                } catch (tracksError) {
+            } catch (tracksError) {
                 console.error('Error creating local tracks:', tracksError);
                 setError(`Camera/microphone error: ${tracksError instanceof Error ? tracksError.message : 'Permission denied or device unavailable'}`);
             }
             
             // Set display name and join the conference
-            conference.setDisplayName(displayName);
+            conference.setDisplayName(displayNameParam);
             console.log('Joining conference...');
             conference.join();
         } catch (error) {
@@ -412,7 +471,7 @@ const Meeting = (page: "Join" | "Create") => {
     };
 
     // Handler for connection failure
-    const onConnectionFailed = (error) => {
+    const onConnectionFailed = (error: any) => {
         console.error('Connection failed:', error);
         setError(`Connection to server failed: ${error || 'Unknown error'}`);
         setIsConnecting(false);
@@ -433,7 +492,7 @@ const Meeting = (page: "Join" | "Create") => {
     };
 
     // Handler for remote track being added
-    const onRemoteTrackAdded = (track) => {
+    const onRemoteTrackAdded = (track: any) => {
         if (!track || track.isLocal()) {
             return;
         }
@@ -445,7 +504,7 @@ const Meeting = (page: "Join" | "Create") => {
             const newTracks = { ...prevTracks };
             
             if (!newTracks[participantId]) {
-            newTracks[participantId] = [];
+                newTracks[participantId] = [];
             }
             
             newTracks[participantId] = [...newTracks[participantId], track];
@@ -454,7 +513,7 @@ const Meeting = (page: "Join" | "Create") => {
     };
 
     // Handler for remote track being removed
-    const onRemoteTrackRemoved = (track) => {
+    const onRemoteTrackRemoved = (track: any) => {
         if (!track || track.isLocal()) {
             return;
         }
@@ -480,21 +539,32 @@ const Meeting = (page: "Join" | "Create") => {
     };
 
     // Handler for user joining
-    const onUserJoined = (id, user) => {
+    const onUserJoined = (id: string, user: any) => {
         console.log(`User joined: ${id}, name: ${user.getDisplayName() || 'Unnamed'}`);
-        setParticipants(prevParticipants => ({
-            ...prevParticipants,
-            [id]: {
-            id,
-            displayName: user.getDisplayName() || 'Unnamed Participant',
-            isAudioMuted: true,
-            isVideoMuted: true
-            }
-        }));
+        
+        // Debug
+        console.log('Current participants before adding:', participants);
+        
+        setParticipants(prevParticipants => {
+            const newParticipants = {
+                ...prevParticipants,
+                [id]: {
+                    id,
+                    displayName: user.getDisplayName() || 'Unnamed Participant',
+                    isAudioMuted: true,
+                    isVideoMuted: true
+                }
+            };
+            
+            // Debug
+            console.log('New participants state:', newParticipants);
+            
+            return newParticipants;
+        });
     };
     
-        // Handler for user leaving
-    const onUserLeft = (id) => {
+    // Handler for user leaving
+    const onUserLeft = (id: string) => {
         console.log(`User left: ${id}`);
         setParticipants(prevParticipants => {
             const newParticipants = { ...prevParticipants };
@@ -504,7 +574,7 @@ const Meeting = (page: "Join" | "Create") => {
     };
 
     // Handler for track mute status changes
-    const onTrackMuteChanged = (track) => {
+    const onTrackMuteChanged = (track: any) => {
         if (!track) return;
         
         const participantId = track.getParticipantId();
@@ -515,79 +585,127 @@ const Meeting = (page: "Join" | "Create") => {
         
         if (track.isLocal()) {
             if (trackType === 'audio') {
-            setIsMuted(isMuted);
+                setIsMuted(isMuted);
             } else if (trackType === 'video') {
-            setIsVideoOff(isMuted);
+                setIsVideoOff(isMuted);
             }
         } else {
             setParticipants(prevParticipants => {
-            if (!prevParticipants[participantId]) {
-                return prevParticipants;
-            }
-            
-            return {
-                ...prevParticipants,
-                [participantId]: {
-                ...prevParticipants[participantId],
-                isAudioMuted: trackType === 'audio' ? isMuted : prevParticipants[participantId].isAudioMuted,
-                isVideoMuted: trackType === 'video' ? isMuted : prevParticipants[participantId].isVideoMuted
+                if (!prevParticipants[participantId]) {
+                    return prevParticipants;
                 }
-            };
+                
+                return {
+                    ...prevParticipants,
+                    [participantId]: {
+                        ...prevParticipants[participantId],
+                        isAudioMuted: trackType === 'audio' ? isMuted : prevParticipants[participantId].isAudioMuted,
+                        isVideoMuted: trackType === 'video' ? isMuted : prevParticipants[participantId].isVideoMuted
+                    }
+                };
             });
         }
     };
 
     // Handler for display name changes
-    const onDisplayNameChanged = (id, displayName) => {
+    const onDisplayNameChanged = (id: string, displayName: string) => {
         console.log(`Display name changed for ${id}: ${displayName}`);
         setParticipants(prevParticipants => {
             if (!prevParticipants[id]) {
-            return prevParticipants;
+                return prevParticipants;
             }
             
             return {
-            ...prevParticipants,
-            [id]: {
-                ...prevParticipants[id],
-                displayName: displayName || 'Unnamed Participant'
-            }
+                ...prevParticipants,
+                [id]: {
+                    ...prevParticipants[id],
+                    displayName: displayName || 'Unnamed Participant'
+                }
             };
         });
     };
 
-        // Toggle audio mute status
+    // Toggle audio mute status
     const toggleAudio = () => {
         const audioTrack = localTracks.find(track => track && track.getType && track.getType() === 'audio');
         
         if (audioTrack) {
             console.log(`${audioTrack.isMuted() ? 'Unmuting' : 'Muting'} audio`);
-            if (audioTrack.isMuted()) {
-            audioTrack.unmute();
-            } else {
-            audioTrack.mute();
+            try {
+                if (audioTrack.isMuted()) {
+                    audioTrack.unmute();
+                } else {
+                    audioTrack.mute();
+                }
+            } catch (e) {
+                console.error("Error toggling audio:", e);
+                setError(`Failed to toggle audio: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
         } else {
             console.warn('No audio track found to toggle');
+            // Try to recreate audio track if missing
+            if (conferenceRef.current && window.JitsiMeetJS) {
+                try {
+                    window.JitsiMeetJS.createLocalTracks({
+                        devices: ['audio']
+                    }).then(tracks => {
+                        if (tracks && tracks.length > 0) {
+                            const audioTrack = tracks[0];
+                            conferenceRef.current.addTrack(audioTrack);
+                            setLocalTracks(prevTracks => [...prevTracks, audioTrack]);
+                            console.log("Created new audio track");
+                        }
+                    }).catch(e => {
+                        console.error("Failed to create audio track:", e);
+                    });
+                } catch (e) {
+                    console.error("Error creating audio track:", e);
+                }
+            }
         }
     };
 
-        // Toggle video mute status
+    // Toggle video mute status
     const toggleVideo = () => {
         const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
         
         if (videoTrack) {
             console.log(`${videoTrack.isMuted() ? 'Unmuting' : 'Muting'} video`);
-            if (videoTrack.isMuted()) {
-            videoTrack.unmute();
-            } else {
-            videoTrack.mute();
+            try {
+                if (videoTrack.isMuted()) {
+                    videoTrack.unmute();
+                } else {
+                    videoTrack.mute();
+                }
+            } catch (e) {
+                console.error("Error toggling video:", e);
+                setError(`Failed to toggle video: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
         } else {
             console.warn('No video track found to toggle');
+            // Try to recreate video track if missing
+            if (conferenceRef.current && window.JitsiMeetJS) {
+                try {
+                    window.JitsiMeetJS.createLocalTracks({
+                        devices: ['video']
+                    }).then(tracks => {
+                        if (tracks && tracks.length > 0) {
+                            const videoTrack = tracks[0];
+                            conferenceRef.current.addTrack(videoTrack);
+                            setLocalTracks(prevTracks => [...prevTracks, videoTrack]);
+                            console.log("Created new video track");
+                        }
+                    }).catch(e => {
+                        console.error("Failed to create video track:", e);
+                    });
+                } catch (e) {
+                    console.error("Error creating video track:", e);
+                }
+            }
         }
     };
 
-        // Toggle screen sharing
+    // Toggle screen sharing
     const toggleScreenShare = async () => {
         if (!window.JitsiMeetJS) {
             setError('JitsiMeetJS is not available');
@@ -610,7 +728,7 @@ const Meeting = (page: "Join" | "Create") => {
             }
         } else {
             try {
-            // Start screen sharing
+                // Start screen sharing
                 console.log('Starting screen sharing...');
                 const desktopTrack = await window.JitsiMeetJS.createLocalTracks({
                     devices: ['desktop']
@@ -623,14 +741,14 @@ const Meeting = (page: "Join" | "Create") => {
                     
                     // Set up listener for when user stops sharing via browser UI
                     desktopTrack[0].addEventListener(
-                    window.JitsiMeetJS.events.conference.LOCAL_TRACK_STOPPED,
+                        window.JitsiMeetJS.events.conference.LOCAL_TRACK_STOPPED,
                         () => {
                             console.log('Screen sharing stopped via browser UI');
                             if (screenshareTrackRef.current) {
-                            conferenceRef.current.removeTrack(screenshareTrackRef.current);
-                            screenshareTrackRef.current.dispose();
-                            screenshareTrackRef.current = null;
-                            setIsScreenSharing(false);
+                                conferenceRef.current.removeTrack(screenshareTrackRef.current);
+                                screenshareTrackRef.current.dispose();
+                                screenshareTrackRef.current = null;
+                                setIsScreenSharing(false);
                             }
                         }
                     );
@@ -648,51 +766,80 @@ const Meeting = (page: "Join" | "Create") => {
         cleanup();
     };
 
-    const RemoteParticipant = ({ tracks, participant }) => {
+    // Get participant counts for debugging
+    const getDebugInfo = () => {
+        return {
+            remoteTracksCount: Object.keys(remoteTracks).length,
+            participantsCount: Object.keys(participants).length,
+            localTracksCount: localTracks.length,
+            conferenceActive: !!conferenceRef.current,
+            connectionActive: !!connectionRef.current
+        };
+    };
+
+    // Debug logging
+    useEffect(() => {
+        const debugInfo = getDebugInfo();
+        console.log("Meeting component - Debug info:", debugInfo);
+        console.log("Participants:", participants);
+        console.log("Remote tracks:", remoteTracks);
+    }, [participants, remoteTracks]);
+
+    const RemoteParticipant = ({ participantId, tracks, participant }) => {
         const videoRef = useRef<HTMLVideoElement>(null);
         const audioRef = useRef<HTMLAudioElement>(null);
         
         useEffect(() => {
-        // Check if tracks exist before trying to find video/audio
-        if (!tracks || !tracks.length) return;
-        
-        const videoTrack = tracks.find(t => t && t.getType && t.getType() === 'video');
-        const audioTrack = tracks.find(t => t && t.getType && t.getType() === 'audio');
-        
-        if (videoTrack && videoRef.current) {
-            try {
-                videoTrack.attach(videoRef.current);
-            } catch (e) {
-                console.error('Error attaching remote video track:', e);
+            console.log(`Setting up remote participant ${participantId} with tracks:`, tracks);
+            
+            if (!tracks || !tracks.length) {
+                console.log(`No tracks for participant ${participantId}`);
+                return;
             }
-        }
-        
-        if (audioTrack && audioRef.current) {
-            try {
-            audioTrack.attach(audioRef.current);
-            } catch (e) {
-            console.error('Error attaching remote audio track:', e);
-            }
-        }
-        
-        return () => {
+            
+            const videoTrack = tracks.find(t => t && t.getType && t.getType() === 'video');
+            const audioTrack = tracks.find(t => t && t.getType && t.getType() === 'audio');
+            
+            console.log(`Found video track: ${!!videoTrack}, audio track: ${!!audioTrack} for participant ${participantId}`);
+            
             if (videoTrack && videoRef.current) {
                 try {
-                    videoTrack.detach(videoRef.current);
+                    console.log(`Attaching video track for participant ${participantId}`);
+                    videoTrack.attach(videoRef.current);
                 } catch (e) {
-                    console.error('Error detaching remote video track:', e);
+                    console.error(`Error attaching remote video track for participant ${participantId}:`, e);
                 }
             }
             
             if (audioTrack && audioRef.current) {
                 try {
-                    audioTrack.detach(audioRef.current);
+                    console.log(`Attaching audio track for participant ${participantId}`);
+                    audioTrack.attach(audioRef.current);
                 } catch (e) {
-                    console.error('Error detaching remote audio track:', e);
+                    console.error(`Error attaching remote audio track for participant ${participantId}:`, e);
                 }
             }
-        };
-        }, [tracks]);
+            
+            return () => {
+                console.log(`Cleaning up tracks for participant ${participantId}`);
+                
+                if (videoTrack && videoRef.current) {
+                    try {
+                        videoTrack.detach(videoRef.current);
+                    } catch (e) {
+                        console.error(`Error detaching remote video track for participant ${participantId}:`, e);
+                    }
+                }
+                
+                if (audioTrack && audioRef.current) {
+                    try {
+                        audioTrack.detach(audioRef.current);
+                    } catch (e) {
+                        console.error(`Error detaching remote audio track for participant ${participantId}:`, e);
+                    }
+                }
+            };
+        }, [participantId, tracks]);
 
         return (
             <div className="flex flex-col bg-gray-800 rounded-lg overflow-hidden">
@@ -701,14 +848,12 @@ const Meeting = (page: "Join" | "Create") => {
                         ref={videoRef}
                         autoPlay
                         playsInline
-                        muted
                         className="w-full h-full object-cover"
                     />
                     <audio ref={audioRef} autoPlay />
-                    
                     <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md flex items-center space-x-2">
-                        <span className="text-white text-sm truncate max-w-xs">
-                            {participant?.displayName || 'Unnamed Participant'}
+                        <span className="text-white text-sm">
+                            {participant?.displayName || 'Unknown'}
                         </span>
                         {participant?.isAudioMuted && (
                             <MicOff size={16} className="text-red-500" />
@@ -719,7 +864,7 @@ const Meeting = (page: "Join" | "Create") => {
         );
     };
 
-    // Render loading indicator while Jitsi loads
+    // Render loading state if Jitsi is not loaded yet
     if (!jitsiLoaded && !error) {
         return (
             <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -731,8 +876,8 @@ const Meeting = (page: "Join" | "Create") => {
         );
     }
 
-    // Render login screen if not yet connected
-    if (!isConnected || page === "Join" || page === "Create") {
+    // Create / Join meeting UI
+    if (!isConnected) {
         return (
             <div className="max-w-5xl mx-auto p-6 mt-16">
                 <motion.div
@@ -742,7 +887,11 @@ const Meeting = (page: "Join" | "Create") => {
                 >
                     {/* Hero Section */}
                     <div className="text-center space-y-4">
-                        <h1 className="text-5xl font-light">Create Meeting</h1>
+                        {page === "create" ? (
+                            <h1 className="text-5xl font-light">Create Meeting</h1>
+                        ) : (
+                            <h1 className="text-5xl font-light">Join Meeting</h1>
+                        )}  
                         <p className="text-xl text-primary-400 max-w-2xl mx-auto">
                             Experience premium video conferencing with crystal-clear quality and automatic local recording.
                             Perfect for professional meetings, webinars, and team collaborations.
@@ -769,7 +918,7 @@ const Meeting = (page: "Join" | "Create") => {
                                             <SelectGroup>
                                                 <SelectLabel>{localVideoRef.current ? 'Local Video' : 'No Video Available'}</SelectLabel>
                                                 {cameras.map(camera => (
-                                                    <SelectItem key={camera.deviceId} value={camera.deviceId}>
+                                                    <SelectItem key={camera.deviceId} value={camera.deviceId || `camera-${Math.random()}`}>
                                                         {camera.label}
                                                     </SelectItem>
                                                 ))}
@@ -784,7 +933,7 @@ const Meeting = (page: "Join" | "Create") => {
                                             <SelectGroup>
                                                 <SelectLabel>{localVideoRef.current ? 'Local Audio' : 'No Audio Available'}</SelectLabel>
                                                 {microphones.map(mic => (
-                                                    <SelectItem key={mic.deviceId} value={mic.deviceId}>
+                                                    <SelectItem key={mic.deviceId} value={mic.deviceId || `mic-${Math.random()}`}>
                                                         {mic.label}
                                                     </SelectItem>
                                                 ))}
@@ -798,12 +947,22 @@ const Meeting = (page: "Join" | "Create") => {
                         {/* Meeting Setup Form */}
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-sm text-primary-400">Room Name</label>
+                                {page === "create" ? (
+                                    <label className="text-sm text-primary-400">Room Name</label>
+                                ) : (
+                                    <label className="text-sm text-primary-400">Room Id</label>
+                                )}
                                 <div className="relative">
                                     <input
                                         type="text"
-                                        value={roomName}
-                                        onChange={(e) => setRoomName(e.target.value)}
+                                        value={page === "create" ? roomName : roomId}
+                                        onChange={(e) => {
+                                            if (page === "create") {
+                                                setRoomName(e.target.value)
+                                            } else {
+                                                setRoomId(e.target.value)
+                                            }
+                                        }}
                                         placeholder="team-sync-room"
                                         className="input-field"
                                     />
@@ -811,82 +970,95 @@ const Meeting = (page: "Join" | "Create") => {
                                 </div>
                             </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm text-primary-400">Room Password (Optional)</label>
-                            <div className="relative">
-                                <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Set a password to lock the room"
-                                className="input-field"
-                                />
-                                <Lock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
-                            </div>
-                        </div>
-
-                            <div className="space-y-4">
-                                <label className="text-sm text-primary-400">Invite Participants</label>
-                                <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                        <input
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            placeholder="Enter email address"
-                                            className="input-field"
-                                            onKeyPress={(e) => e.key === 'Enter' && handleAddParticipant()}
-                                        />
-                                        <Mail className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
-                                    </div>
-                                    <button
-                                        onClick={handleAddParticipant}
-                                        disabled={!email.includes('@')}
-                                        className="bg-white text-gray-800 font-normal py-2 px-4 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
-                                    >
-                                        Add
-                                    </button>
-                                </div>
-
-                                {joinees.length > 0 && (
-                                    <div className="space-y-2">
-                                        <p className="text-sm text-primary-400">Participants ({joinees.length})</p>
-                                        <div className="space-y-2">
-                                            {joinees.map((participant) => (
-                                                <motion.div
-                                                    key={participant.email}
-                                                    initial={{ opacity: 0, x: -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    exit={{ opacity: 0, x: 20 }}
-                                                    className="flex items-center justify-between p-3 bg-primary-900/50 rounded-xl"
-                                                >
-                                                    <span className="text-sm">{participant.email}</span>
-                                                    <button
-                                                    onClick={() => handleRemoveParticipant(participant.email)}
-                                                    className="p-1 hover:bg-primary-800 rounded-full"
-                                                    >
-                                                    <X className="h-4 w-4" />
-                                                    </button>
-                                                </motion.div>
-                                            ))}
-                                        </div>
-                                    </div>
+                            <div className="space-y-2">
+                                {page === "create" ? (
+                                    <label className="text-sm text-primary-400">Room Password (Optional)</label>
+                                ) : (
+                                    <label className="text-sm text-primary-400">Room Password (If You are not added as a participant)</label>
                                 )}
+                                <div className="relative">
+                                    <input
+                                    type="password"
+                                    value={passcode}
+                                    onChange={(e) => setPasscode(e.target.value)}
+                                    placeholder="Set a password to lock the room"
+                                    className="input-field"
+                                    />
+                                    <Lock className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
+                                </div>
                             </div>
+                            
+                            {page === "create" && 
+                                <div className="space-y-4">
+                                    <label className="text-sm text-primary-400">Invite Participants</label>
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <input
+                                                type="email"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="Enter email address"
+                                                className="input-field"
+                                                onKeyPress={(e) => e.key === 'Enter' && handleAddParticipant()}
+                                            />
+                                            <Mail className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary-400" />
+                                        </div>
+                                        <button
+                                            onClick={handleAddParticipant}
+                                            disabled={!email.includes('@')}
+                                            className="bg-white text-gray-800 font-normal py-2 px-4 shadow-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+
+                                    {joinees.length > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-primary-400">Participants ({joinees.length})</p>
+                                            <div className="space-y-2">
+                                                {joinees.map((participant) => (
+                                                    <motion.div
+                                                        key={participant.email}
+                                                        initial={{ opacity: 0, x: -20 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, x: 20 }}
+                                                        className="flex items-center justify-between p-3 bg-primary-900/50 rounded-xl"
+                                                    >
+                                                        <span className="text-sm">{participant.email}</span>
+                                                        <button
+                                                        onClick={() => handleRemoveParticipant(participant.email)}
+                                                        className="p-1 hover:bg-primary-800 rounded-full"
+                                                        >
+                                                        <X className="h-4 w-4" />
+                                                        </button>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            }
 
                             {error && (
                                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
                                     {error}
                                 </div>
                             )}
+
                             <motion.button
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => CreateMeet()}
-                                disabled={isConnecting || !roomName || !displayName || !jitsiLoaded}
+                                onClick={async () => {
+                                    if (page === "create") {
+                                        await CreateMeet();
+                                    } else {
+                                        await JoinMeet();
+                                    }
+                                }}
+                                disabled={page === "create" ? !roomName : !roomId}
                                 className="w-full bg-white text-gray-800 font-normal py-3 px-4 rounded-xl shadow-md hover:bg-gray-100 transition duration-200 cursor-pointer"
-                                >
-                                Create Meeting
+                            >
+                                {page === "create" ? "Create Meeting" : "Join Meeting"}
                             </motion.button>
                         </div>
                     </div>
@@ -938,7 +1110,8 @@ const Meeting = (page: "Join" | "Create") => {
                     {Object.keys(participants).map(participantId => (
                         <RemoteParticipant
                             key={participantId}
-                            tracks={remoteTracks[participantId]}
+                            participantId={participantId}
+                            tracks={remoteTracks[participantId] || []}
                             participant={participants[participantId]}
                         />
                     ))}

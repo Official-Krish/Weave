@@ -1,10 +1,8 @@
-import Meeting from "../components/Meeting";
+import Meeting from "../components/Meeting"
 
-
-const JoinMeeting = () => {
+export const JoinMeeting = () => {
     return (
-        Meeting("Join")
+        <Meeting page="join" />
     )
 }
-
-export default JoinMeeting;
+export default JoinMeeting

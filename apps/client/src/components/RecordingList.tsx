@@ -20,7 +20,11 @@ const RecordingsList = () => {
 
   useEffect(() => {
     const fetchRecordings = async () => {
-      const response = await axios.get(`${BACKEND_URL}/meeting/getAll`)
+      const response = await axios.get(`${BACKEND_URL}/meeting/getAll`, {
+        headers: {
+          "Authorization": `${localStorage.getItem("token")}`,
+        }
+      })
       setRecordings(response.data);
     };
 
