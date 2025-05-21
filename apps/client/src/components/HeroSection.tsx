@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { MoveUpRight } from "lucide-react";
+import { verifyToken } from "../utils/verifyToken";
 
 const HeroSection = () => {
   
@@ -85,7 +86,16 @@ const HeroSection = () => {
               <Button size="lg" className="bg-white text-background hover:bg-white/80 px-8 font-medium">
                 Join Waitlist <MoveUpRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button variant="outline" size="lg" className="px-8 font-medium border-white/20 backdrop-blur-sm">
+              <Button variant="outline" size="lg" className="px-8 font-medium border-white/20 backdrop-blur-sm"
+                onClick={() => {
+                  const verify = verifyToken(localStorage.getItem("token"));
+                  if (verify) {
+                    window.location.href = "/dashboard";
+                  } else {
+                    window.location.href = "/signin";
+                  }
+                }}
+              >
                 Dashboard
               </Button>
             </motion.div>

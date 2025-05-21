@@ -4,13 +4,15 @@ import { BACKEND_URL, JITSI_URL } from '../config';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from './ui/select';
 import axios from 'axios';
+import { VideoChat } from './Room/Main';
+import { Participant } from '../types/videoChat';
 
-interface Participant {
-    id: string;
-    displayName: string;
-    isAudioMuted: boolean;
-    isVideoMuted: boolean;
-}
+// interface Participant {
+//     id: string;
+//     displayName: string;
+//     isAudioMuted: boolean;
+//     isVideoMuted: boolean;
+// }
   
 interface RemoteTracks {
     [participantId: string]: any[]; 
@@ -550,9 +552,13 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
                 ...prevParticipants,
                 [id]: {
                     id,
-                    displayName: user.getDisplayName() || 'Unnamed Participant',
-                    isAudioMuted: true,
-                    isVideoMuted: true
+                    name: user.getDisplayName() || 'Unnamed',
+                    isScreenSharing: false,
+                    isMuted: false,
+                    isVideoOff: false,
+                    stream: null,
+                    screenStream: null,
+                    tracks: remoteTracks[id],
                 }
             };
             
@@ -599,8 +605,8 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
                     ...prevParticipants,
                     [participantId]: {
                         ...prevParticipants[participantId],
-                        isAudioMuted: trackType === 'audio' ? isMuted : prevParticipants[participantId].isAudioMuted,
-                        isVideoMuted: trackType === 'video' ? isMuted : prevParticipants[participantId].isVideoMuted
+                        isAudioMuted: trackType === 'audio' ? isMuted : prevParticipants[participantId].isMuted,
+                        isVideoMuted: trackType === 'video' ? isMuted : prevParticipants[participantId].isVideoOff
                     }
                 };
             });
@@ -1067,93 +1073,115 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
         );
     }
 
+    if (localTracks.length === 0) {
+        return (
+            <div className="flex justify-center items-center min-h-screen bg-gray-50">
+                <div className="text-center p-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p className="text-gray-700">Setting up local tracks...</p>
+                </div>
+            </div>
+        );
+    }
+    const localParticipant = {
+        id: "local",
+        name: displayName,
+        isScreenSharing: false,
+        isMuted: false,
+        isVideoOff: false,
+        stream: null,
+        screenStream: null,
+        tracks: localTracks ?? "Nothing",
+    };
+
     // Main conference view
     return (
-        <div className="flex flex-col h-screen bg-gray-900">
-            <header className="bg-gray-800 shadow px-4 py-2">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-xl font-semibold text-white">Room: {roomName}</h1>
-                    <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-300">
-                        Participants: {Object.keys(participants).length + 1}
-                    </span>
-                    <Users size={16} className="text-gray-300" />
-                    </div>
-                </div>
-            </header>
+            <VideoChat participants={participants} toggleMute={toggleAudio} toggleVideo={toggleVideo} toggleScreenShare={toggleScreenShare} localParticipant={localParticipant} leaveConfrence={leaveConference} screenShareRef={screenshareTrackRef} />
+        // <div className="flex flex-col h-screen bg-gray-900">
+        //     <header className="bg-gray-800 shadow px-4 py-2">
+        //         <div className="flex justify-between items-center">
+        //             <h1 className="text-xl font-semibold text-white">Room: {roomName}</h1>
+        //             <div className="flex items-center space-x-2">
+        //                 <span className="text-sm text-gray-300">
+        //                     Participants: {Object.keys(participants).length + 1}
+        //                 </span>
+        //                 <Users size={16} className="text-gray-300" />
+        //             </div>
+        //         </div>
+        //     </header>
             
-            <div className="flex-grow p-4 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {/* Local video */}
-                    <div className="flex flex-col bg-gray-800 rounded-lg overflow-hidden">
-                        <div className="relative">
-                            <video
-                                ref={localVideoRef}
-                                autoPlay
-                                playsInline
-                                muted
-                                className="w-full h-full object-cover"
-                            />
+        //     <div className="flex-grow p-4 overflow-y-auto">
+        //         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        //             {/* Local video */}
+        //             <div className="flex flex-col bg-gray-800 rounded-lg overflow-hidden">
+        //                 <div className="relative">
+        //                     <video
+        //                         ref={localVideoRef}
+        //                         autoPlay
+        //                         playsInline
+        //                         muted
+        //                         className="w-full h-full object-cover"
+        //                     />
                             
-                                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md flex items-center space-x-2">
-                                <span className="text-white text-sm">
-                                    {displayName} (You)
-                                </span>
-                                {isMuted && (
-                                    <MicOff size={16} className="text-red-500" />
-                                )}
-                            </div>
-                        </div>
-                    </div>
+        //                         <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md flex items-center space-x-2">
+        //                         <span className="text-white text-sm">
+        //                             {displayName} (You)
+        //                         </span>
+        //                         {isMuted && (
+        //                             <MicOff size={16} className="text-red-500" />
+        //                         )}
+        //                     </div>
+        //                 </div>
+        //             </div>
                 
-                    {/* Remote participants */}
-                    {Object.keys(participants).map(participantId => (
-                        <RemoteParticipant
-                            key={participantId}
-                            participantId={participantId}
-                            tracks={remoteTracks[participantId] || []}
-                            participant={participants[participantId]}
-                        />
-                    ))}
-                </div>
-            </div>
+        //             {/* Remote participants */}
+        //             {Object.keys(participants).map(participantId => (
+        //                 <RemoteParticipant
+        //                     key={participantId}
+        //                     participantId={participantId}
+        //                     tracks={remoteTracks[participantId] || []}
+        //                     participant={participants[participantId]}
+        //                 />
+        //             ))}
+        //         </div>
+        //     </div>
             
-            <div className="bg-gray-800 py-3 px-4">
-                <div className="flex justify-center space-x-4">
-                    <button 
-                        onClick={toggleAudio}
-                        className={`flex flex-col items-center justify-center p-2 rounded-full ${isMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                        title={isMuted ? "Unmute" : "Mute"}
-                    >
-                        {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                    </button>
+        //     <div className="bg-gray-800 py-3 px-4">
+        //         <div className="flex justify-center space-x-4">
+        //             <button 
+        //                 onClick={toggleAudio}
+        //                 className={`flex flex-col items-center justify-center p-2 rounded-full ${isMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+        //                 title={isMuted ? "Unmute" : "Mute"}
+        //             >
+        //                 {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+        //             </button>
                     
-                    <button 
-                        onClick={toggleVideo}
-                        className={`flex flex-col items-center justify-center p-2 rounded-full ${isVideoOff ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                        title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
-                        >
-                        {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
-                    </button>
+        //             <button 
+        //                 onClick={toggleVideo}
+        //                 className={`flex flex-col items-center justify-center p-2 rounded-full ${isVideoOff ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+        //                 title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
+        //                 >
+        //                 {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+        //             </button>
                     
-                    <button 
-                        onClick={toggleScreenShare}
-                        className={`flex flex-col items-center justify-center p-2 rounded-full ${isScreenSharing ? 'bg-green-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                        title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
-                    >
-                        <Monitor size={20} />
-                    </button>
+        //             <button 
+        //                 onClick={toggleScreenShare}
+        //                 className={`flex flex-col items-center justify-center p-2 rounded-full ${isScreenSharing ? 'bg-green-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+        //                 title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
+        //             >
+        //                 <Monitor size={20} />
+        //             </button>
                     
-                    <button 
-                        onClick={leaveConference}
-                        className="flex flex-col items-center justify-center p-2 rounded-full bg-red-600 text-white hover:bg-red-700"
-                        title="Leave Conference"
-                    >
-                        <PhoneOff size={20} />
-                    </button>
-                </div>
-            </div>
-        </div>
+        //             <button 
+        //                 onClick={leaveConference}
+        //                 className="flex flex-col items-center justify-center p-2 rounded-full bg-red-600 text-white hover:bg-red-700"
+        //                 title="Leave Conference"
+        //             >
+        //                 <PhoneOff size={20} />
+        //             </button>
+        //         </div>
+        //     </div>
+        // </div>
     );
 }
 export default Meeting;

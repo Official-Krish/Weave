@@ -4,20 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import jwt from 'jsonwebtoken'
+import { verifyToken } from "../utils/verifyToken";
 
-
-interface JWT_PAYLOAD {
-  exp: number;
-  iat: number;
-  userId: string;
-  name: string;
-}
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   let token = localStorage.getItem("token");
+  const currentPath = window.location.pathname;
   
   useEffect(() => {
     const handleScroll = () => {
@@ -38,25 +32,12 @@ const Navbar = () => {
   }
   , [token]);
 
-  function verifyToken(token: string | null): boolean {
-    if (!token) return false;
-    try {
-      const actualToken = token.split(" ")[1];
-      const decoded = jwt.decode(actualToken) as JWT_PAYLOAD;
-      const isExpired = decoded && decoded.exp && Date.now() >= decoded.exp * 1000;
-      if (isExpired) {
-        return false;
-      }
-      return true;
-    } catch (err) {
-      console.error("Token verification failed:", err);
-      return false;
-    }
-  }
-
   function handleLogout() {
     localStorage.removeItem("token");
     window.location.href = "/";
+  }
+  if (currentPath.includes("/meeting")) {
+    return null; // Don't show the navbar on the meeting page
   }
 
   return (

@@ -26,6 +26,11 @@ export default {
 				"studio-gray": "#2a2a2a",
 				"studio-highlight": "#4f46e5",
 				"studio-accent": "#6366f1",
+				videochat: {
+					bg: '#000000',
+					text: '#FFFFFF',
+					accent: '#9F9EA1',
+				},
 				primary: {
 					50: '#FAFAFA',
 					100: '#F5F5F5',

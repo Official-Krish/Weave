@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useAnimation } from "framer-motion";
 import { ArrowDown, ArrowUpRight, ArrowRight, Play } from "lucide-react";
 
@@ -33,6 +33,8 @@ const HowItWorksSection = () => {
   const controls = useAnimation();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+
+  const [demo, setDemo] = useState(false);
   
   useEffect(() => {
     if (isInView) {
@@ -228,6 +230,7 @@ const HowItWorksSection = () => {
             
             <div className="backdrop-blur-lg p-1 rounded-xl overflow-hidden relative">
               <div className="bg-black rounded-lg aspect-video">
+                {!demo ? (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="backdrop-blur-sm p-8 rounded-lg max-w-md text-center">
                     <h3 className="text-xl font-semibold mb-3">See it in action</h3>
@@ -238,14 +241,19 @@ const HowItWorksSection = () => {
                       className="inline-flex items-center justify-center rounded-full bg-white text-background hover:bg-white/90 transition-colors px-6 py-3 text-sm font-medium"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
+                      onClick={() => setDemo(!demo)}
                     >
                       <Play className="mr-2 h-4 w-4" /> Watch Demo
                     </motion.button>
                   </div>
                 </div>
+              ): (
+                <img src="https://storage.googleapis.com/portfoilio/81723220-d89f-4329-8dbb-2b76f0aa292b.png" alt="Demo" className="w-full h-full object-cover" />
+              )}
               </div>
             </div>
           </div>
+          
         </motion.div>
       </div>
     </section>
