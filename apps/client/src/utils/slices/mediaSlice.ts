@@ -13,6 +13,7 @@ interface MediaState {
   selectedMicrophone: string | null;
   screenShareRef?: React.RefObject<HTMLDivElement>; 
   videoTrack: any | null;
+  audioTrack?: any | null;
 }
 
 const initialState: MediaState = {
@@ -106,6 +107,9 @@ export const mediaSlice = createSlice({
     setVideoTrack: (state, action: PayloadAction<any>) => {
       state.videoTrack = action.payload;
     },
+    setAudioTrack: (state, action: PayloadAction<any>) => {
+      state.audioTrack = action.payload;
+    },
   },
 });
 
@@ -126,6 +130,7 @@ export const {
   selectMicrophone,
   resetMediaState,
   setVideoTrack,
+  setAudioTrack,
 } = mediaSlice.actions;
 
 export default mediaSlice.reducer;

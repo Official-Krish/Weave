@@ -19,6 +19,7 @@ import {
   selectMicrophone,
   resetMediaState,
   removeLocalTrack,
+  setAudioTrack,
 } from '../utils/slices/mediaSlice';
 import {
   setConnecting,
@@ -142,33 +143,49 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
   };
 
   // Media control functions
-  const toggleAudio = () => {
+  const toggleAudio = async () => {
     console.log('Toggling audio');
+    
+    // If we have an audio track, toggle its mute state
     if (audioTrack) {
       try {
         if (audioTrack.isMuted()) {
-          audioTrack.unmute();
+          await audioTrack.unmute();
           dispatch(setMute(false));
         } else {
-          audioTrack.mute();
+          await audioTrack.mute();
           dispatch(setMute(true));
         }
+        return;
       } catch (e) {
         console.error("Error toggling audio:", e);
         dispatch(setError('Failed to toggle audio'));
       }
-    } else {
-      // Try to recreate audio track if missing
-      if (conferenceRef.current && window.JitsiMeetJS) {
-        window.JitsiMeetJS.createLocalTracks({ devices: ['audio'] })
-          .then(tracks => {
-            if (tracks?.[0]) {
-              conferenceRef.current.addTrack(tracks[0]);
-              dispatch(addLocalTrack(tracks[0]));
-            }
-          })
-          .catch(e => console.error("Failed to create audio track:", e));
+    }
+    
+    // If no audio track exists, create one
+    try {
+      const tracks = await window.JitsiMeetJS.createLocalTracks({ 
+        devices: ['audio'],
+        micDeviceId: selectedMicrophone 
+      });
+      
+      if (tracks && tracks.length > 0) {
+        const newAudioTrack = tracks[0];
+        dispatch(setAudioTrack(newAudioTrack));
+        dispatch(addLocalTrack(newAudioTrack));
+        
+        if (conferenceRef.current) {
+          conferenceRef.current.addTrack(newAudioTrack);
+        }
+        
+        // Start unmuted by default
+        await newAudioTrack.unmute();
+        dispatch(setMute(false));
       }
+    } catch (error) {
+      console.error("Failed to create audio track:", error);
+      dispatch(setError('Failed to access microphone. Please check permissions.'));
     }
   };
 
@@ -213,8 +230,9 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
       }
       
       const tracks = await window.JitsiMeetJS.createLocalTracks({
-        devices: ['video'],
-        cameraDeviceId: selectedCamera
+        devices: ['video', 'audio'],
+        cameraDeviceId: selectedCamera,
+        micDeviceId: selectedMicrophone
       });
       
       if (tracks && tracks.length > 0) {
@@ -288,19 +306,60 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
     console.log('Remote track added:', track);
     const participantId = track.getParticipantId();
     dispatch(addRemoteTrack({ participantId, track }));
-    dispatch(updateParticipant({
+    const currentParticipant = participants[participantId];
+
+    const currentTracks = currentParticipant?.tracks || [];
+  
+    // Check if this track already exists (avoid duplicates)
+    const trackExists = currentTracks.some(existingTrack => 
+      existingTrack && existingTrack.getId && existingTrack.getId() === track.getId()
+    );
+    
+    if (!trackExists) {
+      // Update participant with new track
+      dispatch(updateParticipant({
         id: participantId,
         changes: {
-          tracks: [...(participants[participantId]?.tracks || []), track]
+          tracks: [...currentTracks, track],
+          // Update mute states based on track type and state
+          ...(track.getType() === 'audio' && { isMuted: track.isMuted() }),
+          ...(track.getType() === 'video' && { isVideoOff: track.isMuted() })
         }
-    }));
-    console.log('Remote track added to Redux state:', { participantId, track });
+      }));
+      
+      console.log('Remote track added to participant:', { 
+        participantId, 
+        trackType: track.getType(), 
+        trackId: track.getId(),
+        isMuted: track.isMuted()
+      });
+    } else {
+      console.log('Track already exists for participant:', participantId);
+    }
   };
 
   const onRemoteTrackRemoved = (track: any) => {
     if (!track || track.isLocal()) return;
     const participantId = track.getParticipantId();
-    dispatch(removeRemoteTrack({ participantId, trackId: track.getId() }));
+    const trackId = track.getId();
+
+    dispatch(removeRemoteTrack({ participantId, trackId: trackId }));
+    const currentParticipant = participants[participantId];
+    if (currentParticipant && currentParticipant.tracks) {
+      const updatedTracks = currentParticipant.tracks.filter(t => 
+        !t || !t.getId || t.getId() !== trackId
+      );
+      
+      dispatch(updateParticipant({
+        id: participantId,
+        changes: {
+          tracks: updatedTracks
+        }
+      }));
+      
+      console.log('Remote track removed from participant:', { participantId, trackId });
+    }
+
   };
 
   const onUserJoined = (id: string, user: any) => {
@@ -580,12 +639,21 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
           devices: ['audio', 'video'],
           cameraDeviceId: selectedCamera,
           micDeviceId: selectedMicrophone
-        });
+        }, 5000);
         
         tracks.forEach(track => {
           conference.addTrack(track);
             if (track.getType() === 'video') {
                 dispatch(setVideoTrack(track)); // Store the video track reference
+            }
+            if (track.getType() === 'audio') {
+                dispatch(setAudioTrack(track)); // Store the audio track reference
+                try {
+                  track.unmute();
+                } catch (e) {
+                  console.error('Error unmuting audio:', e);
+                }
+                dispatch(setMute(false));
             }
         });
         
@@ -762,7 +830,33 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
                   </Select>
                   <Select
                     value={selectedMicrophone || ''}
-                    onValueChange={(value) => dispatch(selectMicrophone(value))}
+                    onValueChange={async (value) => {
+                      dispatch(selectMicrophone(value));
+                      
+                      // Recreate audio track with new device
+                      if (conferenceRef.current && audioTrack) {
+                        try {
+                          // Remove old track
+                          conferenceRef.current.removeTrack(audioTrack);
+                          audioTrack.dispose();
+                          
+                          // Create new track
+                          const tracks = await window.JitsiMeetJS.createLocalTracks({
+                            devices: ['audio'],
+                            micDeviceId: value
+                          });
+                          
+                          if (tracks && tracks.length > 0) {
+                            const newAudioTrack = tracks[0];
+                            conferenceRef.current.addTrack(newAudioTrack);
+                            dispatch(setAudioTrack(newAudioTrack));
+                            dispatch(addLocalTrack(newAudioTrack));
+                          }
+                        } catch (error) {
+                          console.error('Error switching microphone:', error);
+                        }
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Select Microphone" />

@@ -26,6 +26,8 @@ interface VideoChatProps {
   toggleAudio: () => void;
 }
 
+
+
 export const VideoChat = ({ 
   toggleMute,  
   leaveConference, 
@@ -45,14 +47,16 @@ export const VideoChat = ({
     isScreenSharing,
     isMuted,
     isVideoOff,
-    displayName
+    displayName,
+    remoteTracks
   } = useSelector((state: RootState) => ({
     participants: state.participants.participants,
     localTracks: state.media.localTracks,
     isScreenSharing: state.media.isScreenSharing,
     isMuted: state.media.isMuted,
     isVideoOff: state.media.isVideoOff,
-    displayName: state.meeting.displayName
+    displayName: state.meeting.displayName,
+    remoteTracks: state.media.remoteTracks
   }));
 
   const {
@@ -84,6 +88,16 @@ export const VideoChat = ({
     ...participants, 
     [localParticipant.id]: localParticipant 
   };
+
+  const getParticipantTracks = (participantId: string) => {
+    if (participantId === "local") {
+      return localTracks;
+    } else {
+      // Get tracks from remoteTracks in media slice, not from participant object
+      return remoteTracks[participantId] || [];
+    }
+  };
+
   
   // Responsive window size tracking
   useEffect(() => {
@@ -211,7 +225,7 @@ export const VideoChat = ({
                   key={participant.id}
                   participant={participant}
                   onClick={() => handleParticipantClick(participant.id)}
-                  tracks={participant.tracks}
+                  tracks={getParticipantTracks(participant.id)}
                 />
               ))}
             </div>
@@ -242,7 +256,7 @@ export const VideoChat = ({
               participant={focusedParticipant}
               isLarge
               onClick={() => handleParticipantClick(focusedParticipant.id)}
-              tracks={focusedParticipant.tracks}
+              tracks={getParticipantTracks(focusedParticipant.id)}
             />
           </div>
           
@@ -262,7 +276,7 @@ export const VideoChat = ({
                   key={participant.id}
                   participant={participant}
                   onClick={() => handleParticipantClick(participant.id)}
-                  tracks={participant.tracks}
+                  tracks={getParticipantTracks(participant.id)}
                 />
               ))}
             </div>
@@ -274,7 +288,7 @@ export const VideoChat = ({
       const { cols } = calculateGridLayout(participantCount);
 
       return (
-        <div className={`w-full h-full ${getSpacingClass()}`}>
+        <div className={`w-full min-h-screen ${getSpacingClass()}`}>
           <div 
             className="grid h-full"
             style={{ 
@@ -287,7 +301,7 @@ export const VideoChat = ({
                 key={participant.id}
                 participant={participant}
                 onClick={() => handleParticipantClick(participant.id)}
-                tracks={participant.tracks}
+                tracks={getParticipantTracks(participant.id)}
               />
             ))}
           </div>
