@@ -12,62 +12,56 @@ interface VideoTileProps {
   tracks?: any;
 }
 
-export const VideoTile = ({ participant, isLarge = false, onClick, tracks}: VideoTileProps) => {
+export const VideoTile = ({ participant, isLarge = false, onClick, tracks }: VideoTileProps) => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  if (!tracks){
+    console.error('No tracks provided for participant:', participant.name);
+    return null;
+  }
   
   useEffect(() => {
-    console.log(`Setting up remote participant ${participant.id} with tracks:`, tracks);
-    
-    if (!tracks || !tracks.length) {
-        console.log(`No tracks for participant ${participant.id}`);
-        return;
-    }
-    
-    const videoTrack = tracks.find(t => t && t.getType && t.getType() === 'video');
-    const audioTrack = tracks.find(t => t && t.getType && t.getType() === 'audio');
-    
-    console.log(`Found video track: ${!!videoTrack}, audio track: ${!!audioTrack} for participant ${participant.id}`);
+    const videoTrack = tracks.find(t => t?.getType?.() === 'video');
+    const audioTrack = tracks.find(t => t?.getType?.() === 'audio');
+
+    console.log('VideoTrack:', participant.name, videoTrack);
+    console.log('AudioTrack:', participant.name, audioTrack);
     
     if (videoTrack && videoRef.current) {
-        try {
-            console.log(`Attaching video track for participant ${participant.id}`);
-            videoTrack.attach(videoRef.current);
-        } catch (e) {
-            console.error(`Error attaching remote video track for participant ${participant.id}:`, e);
-        }
+      try {
+        videoTrack.attach(videoRef.current);
+      } catch (e) {
+        console.error('Error attaching video track:', e);
+      }
     }
     
     if (audioTrack && audioRef.current) {
-        try {
-            console.log(`Attaching audio track for participant ${participant.id}`);
-            audioTrack.attach(audioRef.current);
-        } catch (e) {
-            console.error(`Error attaching remote audio track for participant ${participant.id}:`, e);
-        }
+      try {
+        audioTrack.attach(audioRef.current);
+      } catch (e) {
+        console.error('Error attaching audio track:', e);
+      }
     }
-    
+
     return () => {
-        console.log(`Cleaning up tracks for participant ${participant.id}`);
-        
-        if (videoTrack && videoRef.current) {
-            try {
-                videoTrack.detach(videoRef.current);
-            } catch (e) {
-                console.error(`Error detaching remote video track for participant ${participant.id}:`, e);
-            }
+      if (videoTrack && videoRef.current) {
+        try {
+          videoTrack.detach(videoRef.current);
+        } catch (e) {
+          console.error('Error detaching video track:', e);
         }
-        
-        if (audioTrack && audioRef.current) {
-            try {
-                audioTrack.detach(audioRef.current);
-            } catch (e) {
-                console.error(`Error detaching remote audio track for participant ${participant.id}:`, e);
-            }
+      }
+      if (audioTrack && audioRef.current) {
+        try {
+          audioTrack.detach(audioRef.current);
+        } catch (e) {
+          console.error('Error detaching audio track:', e);
         }
+      }
     };
-}, [participant.id, tracks]);
+  }, [tracks]);
 
   return (
     <motion.div

@@ -36,7 +36,7 @@ const Navbar = () => {
     localStorage.removeItem("token");
     window.location.href = "/";
   }
-  if (currentPath.includes("/meeting")) {
+  if (currentPath.includes("/meeting/")) {
     return null; // Don't show the navbar on the meeting page
   }
 

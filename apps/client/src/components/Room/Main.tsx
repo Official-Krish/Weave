@@ -1,56 +1,90 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, AppDispatch } from "../../utils/store";
 import { VideoTile } from "./Video";
 import { ScreenShareTile } from "./ScreenShare";
 import { VideoControls } from "./VideoControls";
 import { ParticipantsSidebar } from "./ParticipantSidebar";
 import { MeetingInfo } from "./MeetingInfo";
-import { Participant, VideoLayout } from "../../types/videoChat";
+import { 
+  setLayout,
+  setActiveScreenShareId,
+  setFocusedParticipantId,
+  toggleParticipantsSidebar
+} from "../../utils/slices/videoChatSlice";
+
 
 interface VideoChatProps {
-  participants: Record<string, Participant>; 
   toggleMute: () => void;
   toggleVideo: () => void;
   toggleScreenShare: () => void;
-  localParticipant: Participant;
-  leaveConfrence: () => void;
+  leaveConference: () => void;
   screenShareRef?: React.RefObject<HTMLVideoElement>;
-  userPreferences?: {
-    focusedViewRatio?: number; // Percentage for focused participant (50-90)
-    gridMaxColumns?: number;   // Maximum columns in grid view
-    screenShareRatio?: number; // Percentage for screen share (50-90)
-    compactView?: boolean;     // Use more compact spacing
-  };
+  meetingId: string;
+  passcode: string;
+  toggleAudio: () => void;
 }
 
 export const VideoChat = ({ 
+  toggleMute,  
+  leaveConference, 
+  screenShareRef,
+  meetingId,
+  passcode,
+  toggleVideo,
+  toggleScreenShare
+}: VideoChatProps) => {
+
+  const dispatch = useDispatch<AppDispatch>();
+  
+  // Select state from Redux
+  const {
     participants,
-    toggleMute, 
-    toggleVideo, 
-    toggleScreenShare, 
-    localParticipant, 
-    leaveConfrence, 
-    screenShareRef,
-    userPreferences = {} // Default to empty object if not provided
-  } : VideoChatProps) => {
+    localTracks,
+    isScreenSharing,
+    isMuted,
+    isVideoOff,
+    displayName
+  } = useSelector((state: RootState) => ({
+    participants: state.participants.participants,
+    localTracks: state.media.localTracks,
+    isScreenSharing: state.media.isScreenSharing,
+    isMuted: state.media.isMuted,
+    isVideoOff: state.media.isVideoOff,
+    displayName: state.meeting.displayName
+  }));
 
-  // Default values merged with user preferences
-  const preferences = {
-    focusedViewRatio: userPreferences.focusedViewRatio || 70,
-    gridMaxColumns: userPreferences.gridMaxColumns || 4,
-    screenShareRatio: userPreferences.screenShareRatio || 70,
-    compactView: userPreferences.compactView || false
-  };
+  const {
+    layout,
+    activeScreenShareId,
+    focusedParticipantId,
+    showParticipantsSidebar,
+    userPreferences
+  } = useSelector((state: RootState) => state.videoChat);
 
-  const [layout, setLayout] = useState<VideoLayout>("grid");
-  const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
-  const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
-  const [showParticipantsSidebar, setShowParticipantsSidebar] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0
   });
 
+  const localParticipant = {
+    id: "local",
+    displayName,
+    isAudioMuted: isMuted,
+    isVideoMuted: isVideoOff,
+    isScreenSharing,
+    tracks: localTracks,
+    name: displayName, 
+    isMuted: isMuted,  
+    isVideoOff: isVideoOff 
+  };
+
+  const allParticipants = { 
+    ...participants, 
+    [localParticipant.id]: localParticipant 
+  };
+  
   // Responsive window size tracking
   useEffect(() => {
     const handleResize = () => {
@@ -64,82 +98,69 @@ export const VideoChat = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const allParticipants = { 
-    ...participants, 
-    [localParticipant.id]: localParticipant 
-  };
-  
   // Get all screen sharing participants
-  const screenSharingParticipants = Object.values(allParticipants).filter(participant => participant.isScreenSharing);
+  const screenSharingParticipants = Object.values(allParticipants).filter(
+    participant => participant.isScreenSharing
+  );
   
   // Determine the layout based on screen sharing status
   useEffect(() => {
     if (screenSharingParticipants.length > 0) {
-      setLayout("screenShare");
-      setActiveScreenShareId(screenSharingParticipants[0].id);
+      dispatch(setLayout("screenShare"));
+      dispatch(setActiveScreenShareId(screenSharingParticipants[0].id));
     } else if (focusedParticipantId) {
-      setLayout("focus");
+      dispatch(setLayout("focus"));
     } else {
-      setLayout("grid");
+      dispatch(setLayout("grid"));
     }
-  }, [screenSharingParticipants.length, focusedParticipantId]);
+  }, [screenSharingParticipants.length, focusedParticipantId, dispatch]);
 
   const handleParticipantClick = (id: string) => {
     if (layout === "screenShare") {
-      // If in screen share mode and clicked on a participant that is sharing,
-      // make that participant's screen share active
       const participant = allParticipants[id];
       if (participant?.isScreenSharing) {
-        setActiveScreenShareId(id);
+        dispatch(setActiveScreenShareId(id));
       }
     } else if (layout === "grid") {
-      // If in grid mode, focus on the clicked participant
-      setFocusedParticipantId(id);
+      dispatch(setFocusedParticipantId(id));
     } else if (layout === "focus" && id === focusedParticipantId) {
-      // If already focused on this participant, go back to grid
-      setFocusedParticipantId(null);
+      dispatch(setFocusedParticipantId(null));
     } else if (layout === "focus") {
-      // If already in focus mode but on a different participant, switch focus
-      setFocusedParticipantId(id);
+      dispatch(setFocusedParticipantId(id));
     }
   };
 
   // Dynamic grid calculation based on participant count and screen size
-  const calculateGridLayout = (count) => {
-    // Base calculation on window size
+  const calculateGridLayout = (count: number) => {
     const isSmallScreen = windowSize.width < 768;
     const isMediumScreen = windowSize.width >= 768 && windowSize.width < 1280;
     
-    // Calculate columns based on screen width and participant count
     let cols;
     if (isSmallScreen) {
-      cols = count <= 1 ? 1 : 2; // Max 2 columns on small screens
+      cols = count <= 1 ? 1 : 2;
     } else if (isMediumScreen) {
       if (count <= 1) cols = 1;
       else if (count <= 4) cols = 2;
-      else cols = 3; // Max 3 columns on medium screens
+      else cols = 3;
     } else {
-      // Large screens
       if (count < 2) cols = 1;
       else if (count <= 4) cols = 2;
       else if (count <= 9) cols = 3;
-      else cols = Math.min(Math.ceil(Math.sqrt(count)), preferences.gridMaxColumns);
+      else cols = Math.min(Math.ceil(Math.sqrt(count)), userPreferences.gridMaxColumns);
     }
     
-    // Calculate rows based on columns and count
     const rows = Math.ceil(count / cols);
-    
     return { cols, rows };
   };
 
-  // Get spacing class based on compact view preference
   const getSpacingClass = () => {
-    return preferences.compactView ? "gap-1 p-1" : "gap-2 p-2";
+    return userPreferences.compactView ? "gap-1 p-1" : "gap-2 p-2";
   };
 
-  // Get dimension styles for focused/screenshare views
-  const getDimensionStyles = (isMainView) => {
-    const ratio = layout === "screenShare" ? preferences.screenShareRatio : preferences.focusedViewRatio;
+  const getDimensionStyles = (isMainView: boolean) => {
+    const ratio = layout === "screenShare" 
+      ? userPreferences.screenShareRatio 
+      : userPreferences.focusedViewRatio;
     
     if (isMainView) {
       return {
@@ -156,26 +177,30 @@ export const VideoChat = ({
 
   const renderLayout = () => {
     if (layout === "screenShare") {
-      // Screen sharing layout
-      const sharingParticipant = Object.values(allParticipants).find(p => p.id === activeScreenShareId);
+      const sharingParticipant = Object.values(allParticipants).find(
+        p => p.id === activeScreenShareId
+      );
       
       if (!sharingParticipant) return null;
       
-      const otherParticipants = Object.values(allParticipants).filter(p => p.id !== activeScreenShareId);
+      const otherParticipants = Object.values(allParticipants).filter(
+        p => p.id !== activeScreenShareId
+      );
       const mainDimensions = getDimensionStyles(true);
       const sideDimensions = getDimensionStyles(false);
 
       return (
         <div className="w-full h-full flex">
-          {/* Main screen share */}
           <div 
             className={`${getSpacingClass()}`}
             style={{ width: mainDimensions.width, height: mainDimensions.height }}
           >
-            <ScreenShareTile participant={sharingParticipant} screenShareRef={screenShareRef} />
+            <ScreenShareTile 
+              participant={sharingParticipant} 
+              screenShareRef={screenShareRef} 
+            />
           </div>
           
-          {/* Participants column */}
           <div 
             className={`overflow-y-auto ${getSpacingClass()}`}
             style={{ width: sideDimensions.width, height: sideDimensions.height }}
@@ -194,129 +219,120 @@ export const VideoChat = ({
         </div>
       );
     } else if (layout === "focus") {
-      // Focus layout
-        const focusedParticipant = Object.values(allParticipants).find(p => p.id === focusedParticipantId);
-        const otherParticipants = Object.values(allParticipants).filter(p => p.id !== focusedParticipantId);
-        
-        if (!focusedParticipant) return null;
+      const focusedParticipant = Object.values(allParticipants).find(
+        p => p.id === focusedParticipantId
+      );
+      const otherParticipants = Object.values(allParticipants).filter(
+        p => p.id !== focusedParticipantId
+      );
+      
+      if (!focusedParticipant) return null;
 
-        const mainDimensions = getDimensionStyles(true);
-        const sideDimensions = getDimensionStyles(false);
-        
-        // Calculate grid for other participants
-        const participantCount = otherParticipants.length;
-        const { cols } = calculateGridLayout(participantCount);
+      const mainDimensions = getDimensionStyles(true);
+      const sideDimensions = getDimensionStyles(false);
+      const { cols } = calculateGridLayout(otherParticipants.length);
 
-        return (
-            <div className="w-full h-full flex flex-col">
-                {/* Main focused participant */}
-                <div 
-                  className={getSpacingClass()}
-                  style={{ height: mainDimensions.height, width: mainDimensions.width }}
-                >
-                    <VideoTile
-                        participant={focusedParticipant}
-                        isLarge
-                        onClick={() => handleParticipantClick(focusedParticipant.id)}
-                        tracks={focusedParticipant.tracks}
-                    />
-                </div>
-                
-                {/* Other participants row */}
-                <div 
-                  className={getSpacingClass()}
-                  style={{ height: sideDimensions.height, width: sideDimensions.width }}
-                >
-                    <div 
-                      className="grid h-full"
-                      style={{ 
-                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                        gap: preferences.compactView ? '4px' : '8px'
-                      }}
-                    >
-                        {otherParticipants.map(participant => (
-                            <VideoTile
-                              key={participant.id}
-                              participant={participant}
-                              onClick={() => handleParticipantClick(participant.id)}
-                              tracks={participant.tracks}
-                            />
-                        ))}
-                    </div>
-                </div>
+      return (
+        <div className="w-full h-full flex flex-col">
+          <div 
+            className={getSpacingClass()}
+            style={{ height: mainDimensions.height, width: mainDimensions.width }}
+          >
+            <VideoTile
+              participant={focusedParticipant}
+              isLarge
+              onClick={() => handleParticipantClick(focusedParticipant.id)}
+              tracks={focusedParticipant.tracks}
+            />
+          </div>
+          
+          <div 
+            className={getSpacingClass()}
+            style={{ height: sideDimensions.height, width: sideDimensions.width }}
+          >
+            <div 
+              className="grid h-full"
+              style={{ 
+                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                gap: userPreferences.compactView ? '4px' : '8px'
+              }}
+            >
+              {otherParticipants.map(participant => (
+                <VideoTile
+                  key={participant.id}
+                  participant={participant}
+                  onClick={() => handleParticipantClick(participant.id)}
+                  tracks={participant.tracks}
+                />
+              ))}
             </div>
-        );
+          </div>
+        </div>
+      );
     } else {
-      // Default grid layout - dynamically adjust based on number of participants and screen size
       const participantCount = Object.keys(allParticipants).length;
       const { cols } = calculateGridLayout(participantCount);
 
       return (
-          <div className={`w-full h-full ${getSpacingClass()}`}>
-              <div 
-                  className="grid h-full"
-                  style={{ 
-                    gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                    gap: preferences.compactView ? '4px' : '8px'
-                  }}
-              >
-                  {Object.values(allParticipants).map(participant => (
-                      <VideoTile
-                          key={participant.id}
-                          participant={participant}
-                          onClick={() => handleParticipantClick(participant.id)}
-                          tracks={participant.tracks}
-                      />
-                  ))}
-              </div>
+        <div className={`w-full h-full ${getSpacingClass()}`}>
+          <div 
+            className="grid h-full"
+            style={{ 
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gap: userPreferences.compactView ? '4px' : '8px'
+            }}
+          >
+            {Object.values(allParticipants).map(participant => (
+              <VideoTile
+                key={participant.id}
+                participant={participant}
+                onClick={() => handleParticipantClick(participant.id)}
+                tracks={participant.tracks}
+              />
+            ))}
           </div>
+        </div>
       );
     }
   };
 
   return (
-      <div className="relative w-full h-full bg-videochat-bg overflow-hidden">
-          {/* Meeting Info Floating Component */}
-          <MeetingInfo 
-              meetingId={"12"}
-              password={"1234"}
-              hostName={Object.keys(allParticipants).find(key => {
-                const participant = allParticipants[key];
-                return participant.id === "local";
-              }) ? allParticipants[Object.keys(allParticipants).find(key => allParticipants[key].id === "local")!].name : undefined}
-              participantCount={Object.keys(allParticipants).length}
-          />
-          
-          <LayoutGroup>
-              <motion.div
-                layout
-                className="w-full h-full"
-                transition={{ duration: 0.3 }}
-              >
-                <AnimatePresence mode="wait">
-                    {renderLayout()}
-                </AnimatePresence>
-              </motion.div>
-          </LayoutGroup>
+    <div className="relative w-full h-full bg-videochat-bg overflow-hidden">
+      <MeetingInfo 
+        meetingId={meetingId}
+        password={passcode}
+        hostName={localParticipant.displayName}
+        participantCount={Object.keys(allParticipants).length}
+      />
+      
+      <LayoutGroup>
+        <motion.div
+          layout
+          className="w-full h-full"
+          transition={{ duration: 0.3 }}
+        >
+          <AnimatePresence mode="wait">
+            {renderLayout()}
+          </AnimatePresence>
+        </motion.div>
+      </LayoutGroup>
 
-          {/* Controls - will auto-hide */}
-          <VideoControls
-              isMuted={localParticipant.isMuted}
-              isVideoOff={localParticipant.isVideoOff}
-              isScreenSharing={localParticipant.isScreenSharing}
-              onToggleMute={toggleMute}
-              onToggleVideo={toggleVideo}
-              onToggleScreenShare={toggleScreenShare}
-              onShowParticipants={() => setShowParticipantsSidebar(true)}
-              onLeaveCall={() => leaveConfrence()}
-          />
+      <VideoControls
+        isMuted={localParticipant.isAudioMuted}
+        isVideoOff={localParticipant.isVideoMuted}
+        isScreenSharing={localParticipant.isScreenSharing}
+        onToggleMute={toggleMute}
+        onToggleVideo={toggleVideo}
+        onToggleScreenShare={toggleScreenShare}
+        onShowParticipants={() => dispatch(toggleParticipantsSidebar())}
+        onLeaveCall={leaveConference}
+      />
 
-          {/* Participants Sidebar */}
-          <ParticipantsSidebar
-              participants={Object.values(allParticipants)}
-              isOpen={showParticipantsSidebar}
-              onClose={() => setShowParticipantsSidebar(false)}
-          />
-      </div>
+      <ParticipantsSidebar
+        participants={Object.values(allParticipants)}
+        isOpen={showParticipantsSidebar}
+        onClose={() => dispatch(toggleParticipantsSidebar())}
+      />
+    </div>
   );
 };
