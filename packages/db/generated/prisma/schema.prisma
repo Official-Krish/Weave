@@ -26,12 +26,14 @@ model User {
 
 model meeting {
   id             String           @id @default(uuid())
+  meetingId      String
   passcode       String?
   userId         String
   roomName       String?
   date           DateTime         @default(now())
   startTime      DateTime?
   endTime        DateTime?
+  isEnded        Boolean          @default(false)
   participants   String[]
   isHost         Boolean
   user           User             @relation(fields: [userId], references: [id])
