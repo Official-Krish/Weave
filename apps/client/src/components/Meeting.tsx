@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Monitor, Users, Mail, Lock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -32,6 +32,7 @@ import {
   setJitsiLoaded,
   setEmail,
   resetMeetingState,
+  setIsEnded,
 } from '../utils/slices/meetingSlice';
 import {
   addParticipant,
@@ -43,6 +44,8 @@ import {
 } from '../utils/slices/participantsSlice';
 import { BACKEND_URL, JITSI_URL } from '../config';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from './ui/select';
+import { Link } from 'react-router-dom';
+import { MeetingEnd } from './MeetingEnd';
 
 const Meeting = ({ page }: { page: "create" | "join" }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -68,6 +71,7 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
     error,
     jitsiLoaded,
     email,
+    isEnded,
   } = useSelector((state: RootState) => state.meeting);
   
   const {
@@ -81,6 +85,10 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
     state.media.localTracks.find(track => track?.getType?.() === 'audio')
   );
   const selectedMicrophone = useSelector((state: RootState) => state.media.selectedMicrophone);
+
+  // Meeting End State
+  const [Participants, setParticipants] = useState(0);
+  const [Duration, setDuration] = useState("");
 
 
   // Refs
@@ -632,6 +640,10 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
         window.JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED,
         onDisplayNameChanged
       );
+      conference.on(
+        window.JitsiMeetJS.events.conference.END_CONFERENCE,
+        onConferenceEnded
+      )
       
       // Create local tracks
       try {
@@ -686,6 +698,14 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
 
   const onConferenceJoined = () => {
     dispatch(setConnecting(false));
+  };
+
+  const onConferenceEnded = () => {
+    dispatch(setConnected(false));
+    if (connectionRef.current) {
+      connectionRef.current.disconnect();
+      connectionRef.current = null;
+    }
   };
 
   // Add local video to DOM when local tracks change
@@ -760,9 +780,29 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
     dispatch(resetParticipantsState());
   };
 
+  // Cleanup function on component unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
+
   // Leave the conference
-  const leaveConference = () => {
-    cleanup();
+  const leaveConference = async () => {
+    const res = await axios.post(`${BACKEND_URL}/meeting/end/${roomId}`,{}, {
+      headers: {
+        "Authorization": `${localStorage.getItem('token')}`
+      }
+    });
+    setParticipants(res.data.participants);
+    setDuration(res.data.duration);
+
+    dispatch(setIsEnded(true));
+
+    if (res.status === 200) {
+      conferenceRef.current?.end();
+      console.log('Meeting ended successfully');
+    }
   };
 
   // Render loading state if Jitsi is not loaded yet
@@ -1017,6 +1057,11 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
     );
   }
 
+  if (isEnded) {
+    return (
+      <MeetingEnd Duration={Duration} Participants={Participants} MeetingId={roomId} />
+    );
+  }
 
   // Main conference view
   return (

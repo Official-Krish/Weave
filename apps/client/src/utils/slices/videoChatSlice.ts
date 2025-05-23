@@ -1,4 +1,3 @@
-// slices/videoChatSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { VideoLayout } from '../../types/videoChat';
 

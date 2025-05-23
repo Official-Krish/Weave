@@ -1,4 +1,3 @@
-// stores/useMediaStore.ts
 import { create } from 'zustand';
 
 interface MediaState {

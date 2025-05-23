@@ -1,4 +1,3 @@
-// store.ts
 import { configureStore } from '@reduxjs/toolkit';
 import mediaReducer from './slices/mediaSlice';
 import meetingReducer from './slices/meetingSlice';

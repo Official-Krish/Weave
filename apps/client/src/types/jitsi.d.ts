@@ -15,6 +15,7 @@ declare namespace JitsiMeetJS {
         const TRACK_MUTE_CHANGED = "conference.trackMuteChanged";
         const DISPLAY_NAME_CHANGED = "conference.displayNameChanged";
         const LOCAL_TRACK_STOPPED = "track.stopped";
+        const END_CONFERENCE = "conference.ended";
       }
     }
 
@@ -48,6 +49,7 @@ declare namespace JitsiMeetJS {
       on(event: string, listener: Function): void;
       off(event: string, listener: Function): void;
       setDisplayName(name: string): void;
+      ednConference(): void;
     }
   
     interface JitsiTrack {

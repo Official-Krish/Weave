@@ -1,4 +1,3 @@
-// slices/mediaSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface MediaState {

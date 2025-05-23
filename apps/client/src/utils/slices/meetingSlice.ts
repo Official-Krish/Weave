@@ -1,4 +1,3 @@
-// slices/meetingSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface MeetingState {
@@ -12,6 +11,7 @@ interface MeetingState {
   jitsiLoaded: boolean;
   email: string;
   leaveConference: boolean;
+  isEnded: boolean;
 }
 
 const initialState: MeetingState = {
@@ -25,6 +25,7 @@ const initialState: MeetingState = {
   jitsiLoaded: false,
   leaveConference: false,
   email: "",
+  isEnded: false,
 };
 
 export const meetingSlice = createSlice({
@@ -62,6 +63,9 @@ export const meetingSlice = createSlice({
     setLeaveConference: (state, action: PayloadAction<boolean>) => {
       state.leaveConference = action.payload;
     },
+    setIsEnded: (state, action: PayloadAction<boolean>) => {
+      state.isEnded = action.payload;
+    },
   },
 });
 
@@ -76,6 +80,7 @@ export const {
   setJitsiLoaded,
   setEmail,
   resetMeetingState,
+  setIsEnded,
 } = meetingSlice.actions;
 
 export default meetingSlice.reducer;
