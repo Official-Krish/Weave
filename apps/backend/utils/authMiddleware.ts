@@ -26,15 +26,9 @@ export async function authMiddleware(
       return;
     }
 
-    // Debug logs
-    console.log("Received token:", token);
-
-    console.log("JWT secret:", process.env.JWT_SECRET);
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "mysecret", {
       algorithms: ["HS256"],
     });
-
-    console.log("Decoded token:", decoded);
 
     // Extract user ID from the decoded token
     const userId = (decoded as any).userId;

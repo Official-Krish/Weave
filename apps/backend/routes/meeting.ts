@@ -103,13 +103,12 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
         const newMeeting = await prisma.meeting.create({
             data: {
                 roomName: roomName,
-                // only lowercase letters
                 meetingId: generateString().toLowerCase(),
                 userId,
                 passcode: passcode ? passcode : randomPascode,
                 startTime: new Date(),
                 isHost: true,
-                participants: participants
+                participants: [user.email!, ...(participants || [])],
             }
         });
         res.status(200).json({ id: newMeeting.meetingId, passcode: newMeeting.passcode, name: user.name });
@@ -129,8 +128,8 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                 meetingId: meetingId,
             },
         });
-        if (!meeting) {
-            res.status(404).json({ message: "Meeting not found" });
+        if (!meeting || meeting.isEnded) {
+            res.status(404).json({ message: "Meeting not found or meeting is ended" });
             return;
         }
         
@@ -152,8 +151,11 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             },
         });
 
-        if (ifUserAlreadyJoined) {
+        if (!ifUserAlreadyJoined?.isEnded) {
             res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+            return;
+        } if (ifUserAlreadyJoined?.isEnded) {
+            res.status(200).json("Meeting ended");
             return;
         }
 
@@ -194,6 +196,46 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                 res.status(403).json({ message: "Invalid passcode" });
             }
         }
+    } catch (error) {
+        console.error("Error fetching meeting:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const meetingId = req.params.id;
+    try {
+        const meetings = await prisma.meeting.findMany({
+            where: {
+                meetingId: meetingId,
+            },
+        });
+
+        const meeting = meetings.find((meeting) => meeting.userId === userId);
+
+        if (!meeting?.isHost) {
+            res.status(201).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
+            return;
+        }
+
+        if (!meetings ) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+
+        meetings.forEach(async (meeting) => {
+            await prisma.meeting.update({
+                where: {
+                    id: meeting.id,
+                },
+                data: {
+                    isEnded: true,
+                    endTime: new Date(),
+                },
+            });
+        });
+        res.status(200).json({ message: "Meeting ended successfully", participants: meeting?.participants.length, duration: Number (meeting?.endTime?.getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
     } catch (error) {
         console.error("Error fetching meeting:", error);
         res.status(500).json({ message: "Internal server error" });
