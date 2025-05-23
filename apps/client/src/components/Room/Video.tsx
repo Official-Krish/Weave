@@ -9,9 +9,10 @@ interface VideoTileProps {
   isLarge?: boolean;
   onClick?: () => void;
   tracks?: any;
+  fullHeight?: boolean;
 }
 
-export const VideoTile = ({ participant, isLarge = false, onClick, tracks }: VideoTileProps) => {
+export const VideoTile = ({ participant, onClick, tracks, fullHeight }: VideoTileProps) => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -88,8 +89,7 @@ export const VideoTile = ({ participant, isLarge = false, onClick, tracks }: Vid
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.3 }}
       className={cn(
-        "relative rounded-lg overflow-hidden bg-videochat-bg border border-videochat-accent/20 cursor-pointer hover:border-videochat-accent/40 transition-colors",
-        isLarge ? "w-full h-full" : "aspect-video"
+        "relative rounded-lg overflow-hidden bg-videochat-bg border border-videochat-accent/20 cursor-pointer hover:border-videochat-accent/40 transition-colors h-full",
       )}
       onClick={onClick}
     >

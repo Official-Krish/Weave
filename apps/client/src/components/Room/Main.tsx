@@ -35,7 +35,7 @@ export const VideoChat = ({
   meetingId,
   passcode,
   toggleVideo,
-  toggleScreenShare
+  toggleScreenShare,
 }: VideoChatProps) => {
 
   const dispatch = useDispatch<AppDispatch>();
@@ -146,6 +146,9 @@ export const VideoChat = ({
 
   // Dynamic grid calculation based on participant count and screen size
   const calculateGridLayout = (count: number) => {
+    if (count === 2) {
+      return { cols: 2, rows: 1 };
+    }
     const isSmallScreen = windowSize.width < 768;
     const isMediumScreen = windowSize.width >= 768 && windowSize.width < 1280;
     
@@ -171,22 +174,20 @@ export const VideoChat = ({
     return userPreferences.compactView ? "gap-1 p-1" : "gap-2 p-2";
   };
 
-  const getDimensionStyles = (isMainView: boolean) => {
-    const ratio = layout === "screenShare" 
-      ? userPreferences.screenShareRatio 
-      : userPreferences.focusedViewRatio;
+  // Calculate sidebar tile dimensions based on participant count (like Google Meet)
+  const calculateSidebarTileHeight = (participantCount: number) => {
+    const containerHeight = window.innerHeight - 200; // Account for controls, meeting info, and padding
+    const maxTileHeight = 140; // Maximum height per tile
+    const minTileHeight = 90;  // Minimum height per tile
     
-    if (isMainView) {
-      return {
-        width: layout === "focus" ? "100%" : `${ratio}%`,
-        height: layout === "focus" ? `${ratio}%` : "100%"
-      };
-    } else {
-      return {
-        width: layout === "focus" ? "100%" : `${100 - ratio}%`,
-        height: layout === "focus" ? `${100 - ratio}%` : "100%"
-      };
-    }
+    // Calculate how many tiles can fit vertically
+    const availableHeight = containerHeight * 0.85; // Use 85% of available height
+    const calculatedHeight = Math.max(
+      minTileHeight, 
+      Math.min(maxTileHeight, availableHeight / participantCount)
+    );
+    
+    return calculatedHeight;
   };
 
   const renderLayout = () => {
@@ -200,14 +201,15 @@ export const VideoChat = ({
       const otherParticipants = Object.values(allParticipants).filter(
         p => p.id !== activeScreenShareId
       );
-      const mainDimensions = getDimensionStyles(true);
-      const sideDimensions = getDimensionStyles(false);
+
+      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length);
 
       return (
-        <div className="w-full h-full flex">
+        <div className="w-full h-screen flex">
+          {/* Main screen share - 75% width */}
           <div 
             className={`${getSpacingClass()}`}
-            style={{ width: mainDimensions.width, height: mainDimensions.height }}
+            style={{ width: "75%", height: "100vh" }}
           >
             <ScreenShareTile 
               participant={sharingParticipant} 
@@ -215,18 +217,27 @@ export const VideoChat = ({
             />
           </div>
           
+          {/* Other participants sidebar - 25% width */}
           <div 
-            className={`overflow-y-auto ${getSpacingClass()}`}
-            style={{ width: sideDimensions.width, height: sideDimensions.height }}
+            className={`overflow-y-auto ${getSpacingClass()} flex flex-col`}
+            style={{ width: "25%", height: "100vh" }}
           >
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {otherParticipants.map(participant => (
-                <VideoTile
+                <div
                   key={participant.id}
-                  participant={participant}
-                  onClick={() => handleParticipantClick(participant.id)}
-                  tracks={getParticipantTracks(participant.id)}
-                />
+                  style={{ 
+                    height: `${sidebarTileHeight}px`,
+                    minHeight: '90px',
+                    maxHeight: '140px'
+                  }}
+                >
+                  <VideoTile
+                    participant={participant}
+                    onClick={() => handleParticipantClick(participant.id)}
+                    tracks={getParticipantTracks(participant.id)}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -241,16 +252,28 @@ export const VideoChat = ({
       );
       
       if (!focusedParticipant) return null;
+      
+      if (otherParticipants.length === 0) {
+        return (
+          <div className="w-full h-full flex">
+            <VideoTile
+              participant={focusedParticipant}
+              isLarge
+              onClick={() => handleParticipantClick(focusedParticipant.id)}
+              tracks={getParticipantTracks(focusedParticipant.id)}
+            />
+          </div>
+        );
+      }
 
-      const mainDimensions = getDimensionStyles(true);
-      const sideDimensions = getDimensionStyles(false);
-      const { cols } = calculateGridLayout(otherParticipants.length);
+      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length);
 
       return (
-        <div className="w-full h-full flex flex-col">
+        <div className="w-full h-screen flex">
+          {/* Focused participant - 75% width */}
           <div 
             className={getSpacingClass()}
-            style={{ height: mainDimensions.height, width: mainDimensions.width }}
+            style={{ width: "75%", height: "100vh" }}
           >
             <VideoTile
               participant={focusedParticipant}
@@ -260,24 +283,27 @@ export const VideoChat = ({
             />
           </div>
           
+          {/* Other participants sidebar - 25% width */}
           <div 
-            className={getSpacingClass()}
-            style={{ height: sideDimensions.height, width: sideDimensions.width }}
+            className={`overflow-y-auto ${getSpacingClass()} flex flex-col`}
+            style={{ width: "25%", height: "100vh" }}
           >
-            <div 
-              className="grid h-full"
-              style={{ 
-                gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                gap: userPreferences.compactView ? '4px' : '8px'
-              }}
-            >
+            <div className="flex flex-col gap-2">
               {otherParticipants.map(participant => (
-                <VideoTile
+                <div
                   key={participant.id}
-                  participant={participant}
-                  onClick={() => handleParticipantClick(participant.id)}
-                  tracks={getParticipantTracks(participant.id)}
-                />
+                  style={{ 
+                    height: `${sidebarTileHeight}px`,
+                    minHeight: '90px',
+                    maxHeight: '140px'
+                  }}
+                >
+                  <VideoTile
+                    participant={participant}
+                    onClick={() => handleParticipantClick(participant.id)}
+                    tracks={getParticipantTracks(participant.id)}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -286,11 +312,14 @@ export const VideoChat = ({
     } else {
       const participantCount = Object.keys(allParticipants).length;
       const { cols } = calculateGridLayout(participantCount);
+      const containerClass = participantCount < 3
+      ? "flex h-screen" 
+      : `w-full min-h-screen ${getSpacingClass()}`;
 
       return (
-        <div className={`w-full min-h-screen ${getSpacingClass()}`}>
+        <div className={containerClass}>
           <div 
-            className="grid h-full"
+            className={`grid h-full w-full ${participantCount < 3 ? getSpacingClass() : ''}`}
             style={{ 
               gridTemplateColumns: `repeat(${cols}, 1fr)`,
               gap: userPreferences.compactView ? '4px' : '8px'
@@ -302,6 +331,8 @@ export const VideoChat = ({
                 participant={participant}
                 onClick={() => handleParticipantClick(participant.id)}
                 tracks={getParticipantTracks(participant.id)}
+                // Add fullHeight prop if needed for VideoTile component
+                fullHeight={participantCount < 3}
               />
             ))}
           </div>
@@ -311,7 +342,7 @@ export const VideoChat = ({
   };
 
   return (
-    <div className="relative w-full h-full bg-videochat-bg overflow-hidden">
+    <div className="relative w-full h-screen bg-videochat-bg overflow-hidden">
       <MeetingInfo 
         meetingId={meetingId}
         password={passcode}
@@ -322,7 +353,7 @@ export const VideoChat = ({
       <LayoutGroup>
         <motion.div
           layout
-          className="w-full h-full"
+          className="w-full h-screen"
           transition={{ duration: 0.3 }}
         >
           <AnimatePresence mode="wait">
