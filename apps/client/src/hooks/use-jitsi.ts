@@ -1,647 +1,995 @@
-import { useState } from "react";
-import { useEffect, useRef } from 'react';
-import { JITSI_URL } from '../config';
-
-interface Participant {
-    id: string;
-    displayName: string;
-    isAudioMuted: boolean;
-    isVideoMuted: boolean;
-}
-  
-interface RemoteTracks {
-    [participantId: string]: any[]; 
-}
+import { useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import axios from 'axios';
+import { RootState, AppDispatch } from '../utils/store';
+import { 
+  setMute,
+  setVideoTrack,
+  setVideoOff,
+  setLocalTracks,
+  addLocalTrack,
+  addRemoteTrack,
+  removeRemoteTrack,
+  setCameras,
+  setMicrophones,
+  resetMediaState,
+  removeLocalTrack,
+  setAudioTrack,
+  setSccreenShareTracks,
+} from '../utils/slices/mediaSlice';
+import {
+  setConnecting,
+  setConnected,
+  setRoomName,
+  setDisplayName,
+  setError,
+  setJitsiLoaded,
+  resetMeetingState,
+  setIsEnded,
+} from '../utils/slices/meetingSlice';
+import {
+  addParticipant,
+  removeParticipant,
+  updateParticipant,
+  resetParticipantsState,
+} from '../utils/slices/participantsSlice';
+import { BACKEND_URL, JITSI_URL, WORKER_URL } from '../config';
 
 export const useJitsi = () => {
-    const [isConnecting, setIsConnecting] = useState<boolean>(false);
-    const [isConnected, setIsConnected] = useState<boolean>(false);
-    const [roomName, setRoomName] = useState<string>("");
-    const [displayName, setDisplayName] = useState<string>('');
-    const [error, setError] = useState<string>('');
-    const [jitsiLoaded, setJitsiLoaded] = useState<boolean>(false);
+    const dispatch = useDispatch<AppDispatch>();
+  
+    // Select all state from Redux
+    const {
+      isScreenSharing,
+      localTracks,
+      remoteTracks,
+    } = useSelector((state: RootState) => state.media);
     
-    // Participant/tracks state
-    const [localTracks, setLocalTracks] = useState<any[]>([]); 
-    const [remoteTracks, setRemoteTracks] = useState<RemoteTracks>({});
-    const [participants, setParticipants] = useState<Record<string, Participant>>({});
-    const [isMuted, setIsMuted] = useState<boolean>(false);
-    const [isVideoOff, setIsVideoOff] = useState<boolean>(false);
-    const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
+    const {
+      isConnecting,
+      isConnected,
+      roomName,
+      roomId,
+      passcode,
+      error,
+      jitsiLoaded,
+      email,
+      isEnded,
+    } = useSelector((state: RootState) => state.meeting);
     
+    const {
+      participants,
+      joinees,
+    } = useSelector((state: RootState) => state.participants);
+  
+    const videoTrack = useSelector((state: RootState) => state.media.videoTrack);
+    const selectedCamera = useSelector((state: RootState) => state.media.selectedCamera);
+    const audioTrack = useSelector((state: RootState) => 
+      state.media.localTracks.find(track => track?.getType?.() === 'audio')
+    );
+    const screenshareTrack = useSelector((state: RootState) => state.media.screenShareTrack);
+    const selectedMicrophone = useSelector((state: RootState) => state.media.selectedMicrophone);
+  
+    // Meeting End State
+    const [Participants, setParticipants] = useState(0);
+    const [Duration, setDuration] = useState("");
+  
+  
     // Refs
     const connectionRef = useRef<any>(null);
     const conferenceRef = useRef<any>(null);
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenshareTrackRef = useRef<any>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
+
+    // Recording State
+    const [isRecording, setIsRecording] = useState(false);
+    const recordingIntervalRef = useRef(null);
+    const currentRecorderRef = useRef(null);
+    const currentStreamRef = useRef(null);
+
+
+    const startRecording = async () => {
+      if (!isConnected || !roomId) {
+        console.log('Cannot start recording: not connected or no roomId');
+        return;
+      }
+
+      try {
+        console.log('Starting periodic recording...');
+        
+        // Start first recording immediately
+        await recordAndUpload();
+        
+        // Set up interval for subsequent recordings (5 minutes)
+        recordingIntervalRef.current = setInterval(async () => {
+          await recordAndUpload();
+        }, 60 * 1000); // 60 seconds
+        
+        setIsRecording(true);
+        console.log('Periodic recording started successfully');
+      } catch (error) {
+        console.error('Failed to start recording:', error);
+        dispatch(setError('Failed to start recording'));
+      }
+    };
+
+
+    const recordAndUpload = async () => {
+      try {
+        console.log('Starting new recording chunk...');
+        
+        // Stop any existing recording
+        if (currentRecorderRef.current && currentRecorderRef.current.state === 'recording') {
+          currentRecorderRef.current.stop();
+        }
+
+        // Stop existing stream
+        if (currentStreamRef.current) {
+          currentStreamRef.current.getTracks().forEach(track => track.stop());
+        }
+
+        // Get fresh media stream
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1920 }, 
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 }
+          }, 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        currentStreamRef.current = stream;
+        
+        // Create new recorder
+        const recorder = new MediaRecorder(stream, {
+          mimeType: getSupportedMimeType()
+        });
+        
+        currentRecorderRef.current = recorder;
+        const chunks = [];
+
+        // Set up event handlers
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+
+        recorder.onstop = async () => {
+          console.log('Recording chunk stopped, processing...');
+          
+          try {
+            // Create blob from chunks
+            const blob = new Blob(chunks, { 
+              type: recorder.mimeType || 'video/webm' 
+            });
+            
+            // Stop all tracks to free up camera/mic
+            if (currentStreamRef.current) {
+              currentStreamRef.current.getTracks().forEach(track => track.stop());
+              currentStreamRef.current = null;
+            }
+            
+            // Upload the recording
+            await uploadRecording(blob);
+          } catch (error) {
+            console.error('Error processing recording chunk:', error);
+          }
+        };
+
+        recorder.onerror = (event) => {
+          console.error('Recording error:', event);
+        };
+
+        // Start recording
+        recorder.start();
+        
+        // Record for 30 seconds (you can adjust this duration)
+        setTimeout(() => {
+          if (recorder.state === 'recording') {
+            recorder.stop();
+          }
+        }, 30000); // 30 seconds recording duration
+
+      } catch (error) {
+        console.error('Error during recording:', error);
+        // Don't show error to user for individual chunk failures
+      }
+    };
+
+    const uploadRecording = async (blob) => {
+      try {
+        console.log(`Uploading recording chunk (${(blob.size / 1024 / 1024).toFixed(2)} MB)...`);
+        
+        // Create FormData for file upload
+        const formData = new FormData();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `chunk_${timestamp}.webm`;
+        
+        formData.append('video', blob, filename);
+        formData.append('meetingId', roomId);
+        
+        // Get auth token
+        const token = localStorage.getItem('token');
+        
+        // Upload via axios
+        const response = await axios.post(`${WORKER_URL}/api/v1/upload-chunk`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': token
+          },
+          timeout: 60000, // 60 second timeout
+        });
+        
+        console.log('Upload successful:', response.data);
+        
+      } catch (error) {
+        console.error('Upload failed:', error);
+        
+        // Could implement retry logic here
+        if (error.response?.status === 401) {
+          dispatch(setError('Authentication failed. Please login again.'));
+        } else if (error.response?.status === 404) {
+          console.error('Meeting not found for recording upload');
+        } else {
+          console.error('Failed to upload recording chunk, will retry next cycle');
+        }
+      }
+    };
+
+    const getSupportedMimeType = () => {
+      const types = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus', 
+        'video/webm',
+        'video/mp4'
+      ];
+      
+      for (let type of types) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          return type;
+        }
+      }
+      
+      return 'video/webm'; // fallback
+    };
+
+    // Start recording when connected
+    useEffect(() => {
+      if (isConnected && roomId && !isRecording) {
+        const timer = setTimeout(() => {
+          startRecording();
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+      } else if (!isConnected && isRecording) {
+        stopRecording();
+      }
+    }, [isConnected, roomId]);
+
+    const stopRecording = () => {
+      console.log('Stopping recording...');
+      
+      // Clear interval
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+      
+      // Stop current recording if active
+      if (currentRecorderRef.current && currentRecorderRef.current.state === 'recording') {
+        currentRecorderRef.current.stop();
+      }
+      
+      // Stop current stream
+      if (currentStreamRef.current) {
+        currentStreamRef.current.getTracks().forEach(track => track.stop());
+        currentStreamRef.current = null;
+      }
+      
+      setIsRecording(false);
+      console.log('Recording stopped');
+    };
+
+    // Cleanup recording on unmount or component cleanup
+    useEffect(() => {
+      return () => {
+        stopRecording();
+      };
+    }, []);
+  
+  
+    useEffect(() => {
+      let videoTrack: JitsiMeetJS.JitsiTrack;
+      
+      const getTracks = async () => {
+          try {
+              const tracks = await window.JitsiMeetJS.createLocalTracks({
+                  devices: ['video']
+              });
+              videoTrack = tracks[0];
+              
+              // Attach the track after it's created
+              if (videoTrack && videoRef.current) {
+                  try {
+                      videoTrack.attach(videoRef.current);
+                  } catch (e) {
+                      console.error('Error attaching local video track:', e);
+                  }
+              }
+          } catch (error) {
+              console.error('Error creating local video track:', error);
+          }
+      }
+      
+      // Only create tracks if Jitsi is loaded
+      if (window.JitsiMeetJS && jitsiLoaded) {
+          getTracks();
+      }
+      
+      return () => {
+          if (videoTrack && videoRef.current) {
+              try {
+                  videoTrack.detach(videoRef.current);
+                  videoTrack.dispose(); // Don't forget to dispose the track
+              } catch (e) {
+                  console.error('Error detaching/disposing local video track:', e);
+              }
+          }
+      };
+    }, [jitsiLoaded]);
+  
+    // Media control functions
+    const toggleAudio = async () => {
+      console.log('Toggling audio');
+      
+      // If we have an audio track, toggle its mute state
+      if (audioTrack) {
+        try {
+          if (audioTrack.isMuted()) {
+            await audioTrack.unmute();
+            dispatch(setMute(false));
+          } else {
+            await audioTrack.mute();
+            dispatch(setMute(true));
+          }
+          return;
+        } catch (e) {
+          console.error("Error toggling audio:", e);
+          dispatch(setError('Failed to toggle audio'));
+        }
+      }
+      
+      // If no audio track exists, create one
+      try {
+        const tracks = await window.JitsiMeetJS.createLocalTracks({ 
+          devices: ['audio'],
+          micDeviceId: selectedMicrophone 
+        });
+        
+        if (tracks && tracks.length > 0) {
+          const newAudioTrack = tracks[0];
+          dispatch(setAudioTrack(newAudioTrack));
+          dispatch(addLocalTrack(newAudioTrack));
+          
+          if (conferenceRef.current) {
+            conferenceRef.current.addTrack(newAudioTrack);
+          }
+          
+          // Start unmuted by default
+          await newAudioTrack.unmute();
+          dispatch(setMute(false));
+        }
+      } catch (error) {
+        console.error("Failed to create audio track:", error);
+        dispatch(setError('Failed to access microphone. Please check permissions.'));
+      }
+    };
+  
+    const toggleVideo = async () => {
+      console.log('Toggling video');
+      
+      if (videoTrack) {
+        try {
+          if (videoTrack.isMuted()) {
+            videoTrack.unmute();
+            dispatch(setVideoOff(false));
+          } else {
+            videoTrack.mute();
+            dispatch(setVideoOff(true));
+          }
+        } catch (e) {
+          console.error("Error toggling video:", e);
+          // If there's an error, the track might be disposed, recreate it
+          await createVideoTrack();
+        }
+      } else {
+        // Track doesn't exist, create it
+        await createVideoTrack();
+      }
+    };
+  
+    const createVideoTrack = async () => {
+      try {
+        // First, remove and dispose the old video track
+        if (videoTrack) {
+          // Remove from conference if connected
+          if (conferenceRef.current) {
+            conferenceRef.current.removeTrack(videoTrack);
+          }
+          
+          // Remove from local tracks in Redux
+          const oldTrackId = videoTrack.getId();
+          dispatch(removeLocalTrack(oldTrackId));
+          
+          // Dispose the old track
+          videoTrack.dispose();
+        }
+        
+        const tracks = await window.JitsiMeetJS.createLocalTracks({
+          devices: ['video', 'audio'],
+          cameraDeviceId: selectedCamera,
+          micDeviceId: selectedMicrophone
+        });
+        
+        if (tracks && tracks.length > 0) {
+          const newVideoTrack = tracks[0];
+          
+          // Update Redux state with new track
+          dispatch(setVideoTrack(newVideoTrack));
+          dispatch(addLocalTrack(newVideoTrack));
+          
+          // Add to conference if connected
+          if (conferenceRef.current) {
+            conferenceRef.current.addTrack(newVideoTrack);
+          }
+          
+          // Attach to preview video (setup phase)
+          if (videoRef.current && !isConnected) {
+            newVideoTrack.attach(videoRef.current);
+          }
+          
+          dispatch(setVideoOff(false));
+        }
+      } catch (error) {
+        console.error("Error creating video track:", error);
+        dispatch(setError('Failed to create video track'));
+      }
+    }
+  
+    const toggleScreenShare = async () => {
+      if (!window.JitsiMeetJS) {
+        dispatch(setError('JitsiMeetJS is not available'));
+        return;
+      }
+      
+      if (isScreenSharing) {
+        // Stop screen sharing
+        if (screenshareTrackRef.current) {
+          try {
+            conferenceRef.current?.removeTrack(screenshareTrackRef.current);
+            screenshareTrackRef.current.dispose();
+            screenshareTrackRef.current = null;
+            dispatch(setSccreenShareTracks(null));
+          } catch (e) {
+            console.error('Error stopping screen sharing:', e);
+            dispatch(setError('Failed to stop screen sharing'));
+          }
+        }
+      } else {
+        try {
+          // Create desktop tracks - this might include both audio and video
+          const desktopTracks = await window.JitsiMeetJS.createLocalTracks({
+            devices: ['desktop']
+          });
+          
+          if (desktopTracks && desktopTracks.length > 0) {
+            // Filter to only get the video track for screen sharing
+            // Desktop sharing can include audio, but we don't want to add it to avoid conflicts
+            const videoTrack = desktopTracks.find(track => track.getType() === 'video');
+            const audioTrack = desktopTracks.find(track => track.getType() === 'audio');
+            
+            if (videoTrack) {
+              // Only add the video track to the conference
+              conferenceRef.current?.addTrack(videoTrack);
+              screenshareTrackRef.current = videoTrack;
+              
+              // Dispose of the audio track if it exists (to prevent memory leaks)
+              if (audioTrack) {
+                audioTrack.dispose();
+              }
+              
+              dispatch(setSccreenShareTracks(videoTrack));
+            } else {
+              throw new Error('No video track found in desktop capture');
+            }
+          } else {
+            throw new Error('No tracks created for desktop capture');
+          }
+        } catch (error) {
+          console.error('Screen sharing error:', error);
+          
+          // Handle specific error cases
+          if (error.message && error.message.includes('user_canceled')) {
+            dispatch(setError('Screen sharing was cancelled'));
+          } else if (error.message && error.message.includes('permission')) {
+            dispatch(setError('Screen sharing permission denied'));
+          } else {
+            dispatch(setError('Screen sharing failed. Please try again.'));
+          }
+        }
+      }
+    };
+  
+    // Jitsi event handlers
+    const onRemoteTrackAdded =  (track: any) => {
+      if (!track || track.isLocal()){
+          console.log('Local track added, ignoring');
+          return;
+      }
+      console.log('Remote track added:', track);
+      const participantId = track.getParticipantId();
+      dispatch(addRemoteTrack({ participantId, track }));
+      const currentParticipant = participants[participantId];
+  
+      const currentTracks = currentParticipant?.tracks || [];
+    
+      // Check if this track already exists (avoid duplicates)
+      const trackExists = currentTracks.some(existingTrack => 
+        existingTrack && existingTrack.getId && existingTrack.getId() === track.getId()
+      );
+      
+      if (!trackExists) {
+        // Update participant with new track
+        dispatch(updateParticipant({
+          id: participantId,
+          changes: {
+            tracks: [...currentTracks, track],
+            // Update mute states based on track type and state
+            ...(track.getType() === 'audio' && { isMuted: track.isMuted() }),
+            ...(track.getType() === 'video' && { isVideoOff: track.isMuted() })
+          }
+        }));
+        
+        console.log('Remote track added to participant:', { 
+          participantId, 
+          trackType: track.getType(), 
+          trackId: track.getId(),
+          isMuted: track.isMuted()
+        });
+      } else {
+        console.log('Track already exists for participant:', participantId);
+      }
+    };
+  
+    const onRemoteTrackRemoved = (track: any) => {
+      if (!track || track.isLocal()) return;
+      const participantId = track.getParticipantId();
+      const trackId = track.getId();
+  
+      dispatch(removeRemoteTrack({ participantId, trackId: trackId }));
+      const currentParticipant = participants[participantId];
+      if (currentParticipant && currentParticipant.tracks) {
+        const updatedTracks = currentParticipant.tracks.filter(t => 
+          !t || !t.getId || t.getId() !== trackId
+        );
+        
+        dispatch(updateParticipant({
+          id: participantId,
+          changes: {
+            tracks: updatedTracks
+          }
+        }));
+        
+        console.log('Remote track removed from participant:', { participantId, trackId });
+      }
+  
+    };
+  
+    const onUserJoined = (id: string, user: any) => {
+      console.log("user joines with tracks", remoteTracks[id])
+      dispatch(addParticipant({
+        id,
+        name: user.getDisplayName() || 'Unnamed',
+        isMuted: false,
+        isVideoOff: false,
+        isScreenSharing: false,
+        tracks: [],
+      }));
+    };
+  
+    const onUserLeft = (id: string) => {
+      dispatch(removeParticipant(id));
+    };
+  
+    const onTrackMuteChanged = (track: any) => {
+      if (!track) return;
+      
+      const participantId = track.getParticipantId();
+      const trackType = track.getType();
+      const isMuted = track.isMuted();
+      
+      if (track.isLocal()) {
+        if (trackType === 'audio') {
+          dispatch(setMute(isMuted));
+        } else if (trackType === 'video') {
+          dispatch(setVideoOff(isMuted));
+        }
+      } else {
+        dispatch(updateParticipant({
+          id: participantId,
+          changes: {
+            isMuted: trackType === 'audio' ? isMuted : undefined,
+            isVideoOff: trackType === 'video' ? isMuted : undefined,
+          }
+        }));
+      }
+    };
+  
+    const onDisplayNameChanged = (id: string, displayName: string) => {
+      dispatch(updateParticipant({
+        id,
+        changes: {
+          name: displayName || 'Unnamed Participant'
+        }
+      }));
+    };
+  
+    // Device management
+    useEffect(() => {
+      const fetchDevices = async () => {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput').map(({ deviceId, label, kind, groupId }) => ({ deviceId, label, kind, groupId }));
+          const audioDevices = devices.filter(device => device.kind === 'audioinput').map(({ deviceId, label, kind, groupId }) => ({ deviceId, label, kind, groupId }));        ;
+          
+          dispatch(setCameras(videoDevices));
+          dispatch(setMicrophones(audioDevices));
+        } catch (error) {
+          console.error('Error fetching devices:', error);
+        }
+      };
+  
+      fetchDevices();
+    }, [dispatch]);
+  
     // Setup jitsi library
     useEffect(() => {
-        if (window.JitsiMeetJS) {
-            initJitsi();
-            return;
+      if (window.JitsiMeetJS) {
+        initJitsi();
+        return;
+      }
+  
+      const script = document.createElement('script');
+      script.src = `https://${JITSI_URL}/libs/lib-jitsi-meet.min.js`;
+      script.async = true;
+      
+      script.onload = () => {
+        console.log('JitsiMeetJS loaded successfully');
+        initJitsi();
+      };
+      
+      script.onerror = () => {
+        console.error('Failed to load Jitsi Meet library');
+        dispatch(setError('Failed to load Jitsi Meet library. Please refresh and try again.'));
+      };
+      
+      document.body.appendChild(script);
+  
+      return () => {
+        if (document.body.contains(script)) {
+          document.body.removeChild(script);
         }
-
-        const script = document.createElement('script');
-        script.src = `https://${JITSI_URL}/libs/lib-jitsi-meet.min.js`;
-        script.async = true;
-        
-        script.onload = () => {
-            console.log('JitsiMeetJS loaded successfully');
-            initJitsi();
-        };
-        
-        script.onerror = () => {
-            console.error('Failed to load Jitsi Meet library');
-            setError('Failed to load Jitsi Meet library. Please refresh and try again.');
-        };
-        
-        document.body.appendChild(script);
-
-        return () => {
-            if (document.body.contains(script)) {
-                document.body.removeChild(script);
-            }
-            cleanup();
-        };
+        cleanup();
+      };
     }, []);
-
+  
     const initJitsi = () => {
-        if (!window.JitsiMeetJS) {
-            setError('JitsiMeetJS failed to load properly');
-            return;
-        }
-
-        try {
-            window.JitsiMeetJS.init({
-                disableAudioLevels: true,
-                disableSimulcast: false,
-            });
-            window.JitsiMeetJS.setLogLevel(window.JitsiMeetJS.logLevels.ERROR);
-            setJitsiLoaded(true);
-            console.log('JitsiMeetJS initialized successfully');
-        } catch (e) {
-            console.error('JitsiMeetJS initialization error:', e);
-            setError(`Failed to initialize Jitsi: ${e instanceof Error ? e.message : 'Unknown error'}`);
-        }
+      if (!window.JitsiMeetJS) {
+        dispatch(setError('JitsiMeetJS failed to load properly'));
+        return;
+      }
+  
+      try {
+        window.JitsiMeetJS.init({
+          disableAudioLevels: true,
+          disableSimulcast: false,
+        });
+        window.JitsiMeetJS.setLogLevel(window.JitsiMeetJS.logLevels.ERROR);
+        dispatch(setJitsiLoaded(true));
+        console.log('JitsiMeetJS initialized successfully');
+      } catch (e) {
+        console.error('JitsiMeetJS initialization error:', e);
+        dispatch(setError(`Failed to initialize Jitsi: ${e instanceof Error ? e.message : 'Unknown error'}`));
+      }
     };
-
-    const cleanup = () => {
-        console.log('Cleaning up resources...');
-        
-        // Dispose local tracks
-        localTracks.forEach(track => {
-            try {
-                if (track && typeof track.dispose === 'function') {
-                    track.dispose();
-                }
-            } catch (e) {
-                console.error('Error disposing local track:', e);
-            }
+  
+  
+    const connect = async (roomNameParam: string, displayNameParam: string) => {
+      if (!roomNameParam || !displayNameParam) {
+        dispatch(setError('Room name and display name are required'));
+        return;
+      }
+      
+      if (!window.JitsiMeetJS) {
+        dispatch(setError('Jitsi Meet library is not loaded yet. Please wait or refresh the page.'));
+        return;
+      }
+      
+      dispatch(setConnecting(true));
+      dispatch(setError(''));
+      dispatch(setRoomName(roomNameParam));
+      dispatch(setDisplayName(displayNameParam));
+      
+      try {
+        const connection = new window.JitsiMeetJS.JitsiConnection(null, null, {
+          hosts: {
+            domain: JITSI_URL,
+            muc: `conference.${JITSI_URL}`, 
+          },
+          serviceUrl: `wss://${JITSI_URL}/xmpp-websocket`,
+          clientNode: 'http://jitsi.org/jitsimeet'
         });
         
-        // Dispose screenshare track
-        if (screenshareTrackRef.current) {
-            try {
-                screenshareTrackRef.current.dispose();
-                screenshareTrackRef.current = null;
-            } catch (e) {
-                console.error('Error disposing screenshare track:', e);
-            }
-        }
+        connectionRef.current = connection;
         
-        // Leave conference
-        if (conferenceRef.current) {
-            try {
-                conferenceRef.current.leave();
-                conferenceRef.current = null;
-            } catch (e) {
-                console.error('Error leaving conference:', e);
-            }
-        }
+        // Set up connection event listeners
+        connection.addEventListener(
+          window.JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
+          () => onConnectionSuccess(roomNameParam, displayNameParam)
+        );
+        connection.addEventListener(
+          window.JitsiMeetJS.events.connection.CONNECTION_FAILED,
+          onConnectionFailed
+        );
+        connection.addEventListener(
+          window.JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,
+          onDisconnected
+        );
         
-        // Disconnect
-        if (connectionRef.current) {
-            try {
-                connectionRef.current.disconnect();
-                connectionRef.current = null;
-            } catch (e) {
-                console.error('Error disconnecting:', e);
-            }
-        }
-    
-        setLocalTracks([]);
-        setRemoteTracks({});
-        setParticipants({});
-        setIsConnected(false);
+        connection.connect();
+      } catch (error) {
+        console.error('Connection error:', error);
+        dispatch(setError(`Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        dispatch(setConnecting(false));
+      }
     };
-
+  
+    const onConnectionSuccess = async (roomNameParam: string, displayNameParam: string) => {
+      try {
+        if (!connectionRef.current) {
+          throw new Error('No connection established');
+        }
+  
+        dispatch(setConnected(true));
+        
+        const conference = connectionRef.current.initJitsiConference(roomNameParam, {
+          openBridgeChannel: true
+        });
+        
+        conferenceRef.current = conference;
+        
+        // Set up conference event listeners
+        conference.on(
+          window.JitsiMeetJS.events.conference.TRACK_ADDED,
+          onRemoteTrackAdded
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.TRACK_REMOVED,
+          onRemoteTrackRemoved
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.CONFERENCE_JOINED,
+          onConferenceJoined
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.USER_JOINED,
+          onUserJoined
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.USER_LEFT,
+          onUserLeft
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED,
+          onTrackMuteChanged
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED,
+          onDisplayNameChanged
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.END_CONFERENCE,
+          onConferenceEnded
+        )
+        
+        // Create local tracks
+        try {
+          const tracks = await window.JitsiMeetJS.createLocalTracks({
+            devices: ['audio', 'video'],
+            cameraDeviceId: selectedCamera,
+            micDeviceId: selectedMicrophone
+          }, 5000);
+          
+          tracks.forEach(track => {
+            conference.addTrack(track);
+              if (track.getType() === 'video') {
+                  dispatch(setVideoTrack(track)); // Store the video track reference
+              }
+              if (track.getType() === 'audio') {
+                  dispatch(setAudioTrack(track)); // Store the audio track reference
+                  try {
+                    track.unmute();
+                  } catch (e) {
+                    console.error('Error unmuting audio:', e);
+                  }
+                  dispatch(setMute(false));
+              }
+          });
+          
+          dispatch(setLocalTracks(tracks));
+        } catch (tracksError) {
+          console.error('Error creating local tracks:', tracksError);
+          dispatch(setError(`Camera/microphone error: ${tracksError instanceof Error ? tracksError.message : 'Permission denied or device unavailable'}`));
+        }
+        
+        conference.setDisplayName(displayNameParam);
+        conference.join();
+      } catch (error) {
+        console.error('Conference error:', error);
+        dispatch(setError(`Error joining conference: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        dispatch(setConnecting(false));
+        cleanup();
+      }
+    };
+  
+    const onConnectionFailed = (error: any) => {
+      console.error('Connection failed:', error);
+      dispatch(setError(`Connection to server failed: ${error || 'Unknown error'}`));
+      dispatch(setConnecting(false));
+    };
+  
+    const onDisconnected = () => {
+      dispatch(setConnected(false));
+      dispatch(resetParticipantsState());
+    };
+  
+    const onConferenceJoined = () => {
+      dispatch(setConnecting(false));
+    };
+  
+    const onConferenceEnded = () => {
+      dispatch(setConnected(false));
+      if (connectionRef.current) {
+        connectionRef.current.disconnect();
+        connectionRef.current = null;
+      }
+    };
+  
     // Add local video to DOM when local tracks change
     useEffect(() => {
-        const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
-        
+      const videoTrack = localTracks.find(track => track?.getType?.() === 'video');
+      
+      if (videoTrack && localVideoRef.current) {
+        try {
+          videoTrack.attach(localVideoRef.current);
+        } catch (e) {
+          console.error('Error attaching local video track:', e);
+        }
+      }
+      
+      return () => {
         if (videoTrack && localVideoRef.current) {
-            try {
-                videoTrack.attach(localVideoRef.current);
-            } catch (e) {
-                console.error('Error attaching local video track:', e);
-            }
+          try {
+            videoTrack.detach(localVideoRef.current);
+          } catch (e) {
+            console.error('Error detaching local video track:', e);
+          }
         }
-        
-        return () => {
-            if (videoTrack && localVideoRef.current) {
-                try {
-                    videoTrack.detach(localVideoRef.current);
-                } catch (e) {
-                    console.error('Error detaching local video track:', e);
-                }
-            }
-        };
+      };
     }, [localTracks]);
-
-    // Check if audio is muted when local tracks change
-    useEffect(() => {
-        const audioTrack = localTracks.find(track => track && track.getType && track.getType() === 'audio');
-        if (audioTrack) {
-            setIsMuted(audioTrack.isMuted());
-        }
-    }, [localTracks]);
-
-    // Check if video is muted when local tracks change
-    useEffect(() => {
-        const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
-        if (videoTrack) {
-            setIsVideoOff(videoTrack.isMuted());
-        }
-    }, [localTracks]);
-
-    const connect = async (roomNameParam: string, displayNameParam: string) => {
-        console.log('Connecting to Jitsi with room name:', roomNameParam, 'and display name:', displayNameParam);
-        
-        if (!roomNameParam || !displayNameParam) {
-            setError('Room name and display name are required');
-            return;
-        }
-        
-        if (!jitsiLoaded || !window.JitsiMeetJS) {
-            setError('Jitsi Meet library is not loaded yet. Please wait or refresh the page.');
-            return;
-        }
-        
-        setIsConnecting(true);
-        setError('');
-        setRoomName(roomNameParam);
-        setDisplayName(displayNameParam);
-        
+  
+    // Cleanup function
+    const cleanup = () => {
+      // Dispose local tracks
+      localTracks.forEach(track => {
         try {
-            console.log('Creating new JitsiConnection...');
-            const connection = new window.JitsiMeetJS.JitsiConnection(null, null, {
-                hosts: {
-                    domain: JITSI_URL,
-                    muc: `conference.${JITSI_URL}`, 
-                },
-                serviceUrl: `wss://${JITSI_URL}/xmpp-websocket`,
-                clientNode: 'http://jitsi.org/jitsimeet'
-            });
-            
-            connectionRef.current = connection;
-            
-            // Set up connection event listeners
-            connection.addEventListener(
-                window.JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
-                () => onConnectionSuccess(roomNameParam, displayNameParam)
-            );
-            connection.addEventListener(
-                window.JitsiMeetJS.events.connection.CONNECTION_FAILED,
-                onConnectionFailed
-            );
-            connection.addEventListener(
-                window.JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,
-                onDisconnected
-            );
-            
-            console.log('Connecting to Jitsi server...');
-            connection.connect();
-        } catch (error) {
-            console.error('Connection error:', error);
-            setError(`Failed to connect: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            setIsConnecting(false);
+          if (track && typeof track.dispose === 'function') {
+            track.dispose();
+          }
+        } catch (e) {
+          console.error('Error disposing local track:', e);
         }
-    };
-
-    const onConnectionSuccess = async (roomNameParam: string, displayNameParam: string) => {
-        console.log('Connection established successfully!');
-        
+      });
+      
+      // Dispose screenshare track
+      if (screenshareTrackRef.current) {
         try {
-            if (!connectionRef.current) {
-                throw new Error('No connection established');
-            }
-
-            // Set connected flag
-            setIsConnected(true);
-            
-            console.log('Initializing conference for room:', roomNameParam);
-            const conference = connectionRef.current.initJitsiConference(roomNameParam, {
-                openBridgeChannel: true
-            });
-            
-            conferenceRef.current = conference;
-            
-            // Set up conference event listeners
-            conference.on(
-                window.JitsiMeetJS.events.conference.TRACK_ADDED,
-                onRemoteTrackAdded
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.TRACK_REMOVED,
-                onRemoteTrackRemoved
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.CONFERENCE_JOINED,
-                onConferenceJoined
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.USER_JOINED,
-                onUserJoined
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.USER_LEFT,
-                onUserLeft
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.TRACK_MUTE_CHANGED,
-                onTrackMuteChanged
-            );
-            conference.on(
-                window.JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED,
-                onDisplayNameChanged
-            );
-            
-            // Create local tracks
-            console.log('Creating local audio and video tracks...');
-            try {
-                const tracks = await window.JitsiMeetJS.createLocalTracks({
-                    devices: ['audio', 'video']
-                });
-                
-                console.log(`Created ${tracks.length} local tracks`);
-                
-                // Add tracks to conference and update state
-                tracks.forEach(track => {
-                    console.log(`Adding ${track.getType()} track to conference`);
-                    conference.addTrack(track);
-                });
-                
-                // Save local tracks in state
-                setLocalTracks(tracks);
-            } catch (tracksError) {
-                console.error('Error creating local tracks:', tracksError);
-                setError(`Camera/microphone error: ${tracksError instanceof Error ? tracksError.message : 'Permission denied or device unavailable'}`);
-            }
-            
-            // Set display name and join the conference
-            conference.setDisplayName(displayNameParam);
-            console.log('Joining conference...');
-            conference.join();
-        } catch (error) {
-            console.error('Conference error:', error);
-            setError(`Error joining conference: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            setIsConnecting(false);
-            
-            // Attempt to clean up on error
-            cleanup();
+          screenshareTrackRef.current.dispose();
+          screenshareTrackRef.current = null;
+        } catch (e) {
+          console.error('Error disposing screenshare track:', e);
         }
-    };
-
-    // Handler for connection failure
-    const onConnectionFailed = (error: any) => {
-        console.error('Connection failed:', error);
-        setError(`Connection to server failed: ${error || 'Unknown error'}`);
-        setIsConnecting(false);
-    };
-
-    // Handler for disconnection
-    const onDisconnected = () => {
-        console.log('Connection disconnected');
-        setIsConnected(false);
-        setParticipants({});
-        setRemoteTracks({});
-    };
-
-    // Handler for joining conference
-    const onConferenceJoined = () => {
-        console.log('Conference joined successfully!');
-        setIsConnecting(false);
-    };
-
-    // Handler for remote track being added
-    const onRemoteTrackAdded = (track: any) => {
-        if (!track || track.isLocal()) {
-            return;
+      }
+      
+      // Leave conference
+      if (conferenceRef.current) {
+        try {
+          conferenceRef.current.leave();
+          conferenceRef.current = null;
+        } catch (e) {
+          console.error('Error leaving conference:', e);
         }
-        
-        const participantId = track.getParticipantId();
-        console.log(`Remote track added from participant ${participantId}, type: ${track.getType()}`);
-        
-        setRemoteTracks(prevTracks => {
-            const newTracks = { ...prevTracks };
-            
-            if (!newTracks[participantId]) {
-                newTracks[participantId] = [];
-            }
-            
-            newTracks[participantId] = [...newTracks[participantId], track];
-            return newTracks;
-        });
-    };
-
-    // Handler for remote track being removed
-    const onRemoteTrackRemoved = (track: any) => {
-        if (!track || track.isLocal()) {
-            return;
+      }
+      
+      // Disconnect
+      if (connectionRef.current) {
+        try {
+          connectionRef.current.disconnect();
+          connectionRef.current = null;
+        } catch (e) {
+          console.error('Error disconnecting:', e);
         }
-        
-        const participantId = track.getParticipantId();
-        console.log(`Remote track removed from participant ${participantId}, type: ${track.getType()}`);
-        
-        setRemoteTracks(prevTracks => {
-            const newTracks = { ...prevTracks };
-            
-            if (newTracks[participantId]) {
-                newTracks[participantId] = newTracks[participantId].filter(
-                    t => t.getId() !== track.getId()
-                );
-                
-                if (newTracks[participantId].length === 0) {
-                    delete newTracks[participantId];
-                }
-            }
-            
-            return newTracks;
-        });
-    };
-
-    // Handler for user joining
-    const onUserJoined = (id: string, user: any) => {
-        console.log(`User joined: ${id}, name: ${user.getDisplayName() || 'Unnamed'}`);
-        
-        // Debug
-        console.log('Current participants before adding:', participants);
-        
-        setParticipants(prevParticipants => {
-            const newParticipants = {
-                ...prevParticipants,
-                [id]: {
-                    id,
-                    displayName: user.getDisplayName() || 'Unnamed Participant',
-                    isAudioMuted: true,
-                    isVideoMuted: true
-                }
-            };
-            
-            // Debug
-            console.log('New participants state:', newParticipants);
-            
-            return newParticipants;
-        });
-    };
+      }
     
-    // Handler for user leaving
-    const onUserLeft = (id: string) => {
-        console.log(`User left: ${id}`);
-        setParticipants(prevParticipants => {
-            const newParticipants = { ...prevParticipants };
-            delete newParticipants[id];
-            return newParticipants;
-        });
+      // Reset all state
+      dispatch(resetMediaState());
+      dispatch(resetMeetingState());
+      dispatch(resetParticipantsState());
     };
-
-    // Handler for track mute status changes
-    const onTrackMuteChanged = (track: any) => {
-        if (!track) return;
-        
-        const participantId = track.getParticipantId();
-        const trackType = track.getType();
-        const isMuted = track.isMuted();
-        
-        console.log(`Track mute changed for ${participantId}, type: ${trackType}, muted: ${isMuted}`);
-        
-        if (track.isLocal()) {
-            if (trackType === 'audio') {
-                setIsMuted(isMuted);
-            } else if (trackType === 'video') {
-                setIsVideoOff(isMuted);
-            }
-        } else {
-            setParticipants(prevParticipants => {
-                if (!prevParticipants[participantId]) {
-                    return prevParticipants;
-                }
-                
-                return {
-                    ...prevParticipants,
-                    [participantId]: {
-                        ...prevParticipants[participantId],
-                        isAudioMuted: trackType === 'audio' ? isMuted : prevParticipants[participantId].isAudioMuted,
-                        isVideoMuted: trackType === 'video' ? isMuted : prevParticipants[participantId].isVideoMuted
-                    }
-                };
-            });
-        }
-    };
-
-    // Handler for display name changes
-    const onDisplayNameChanged = (id: string, displayName: string) => {
-        console.log(`Display name changed for ${id}: ${displayName}`);
-        setParticipants(prevParticipants => {
-            if (!prevParticipants[id]) {
-                return prevParticipants;
-            }
-            
-            return {
-                ...prevParticipants,
-                [id]: {
-                    ...prevParticipants[id],
-                    displayName: displayName || 'Unnamed Participant'
-                }
-            };
-        });
-    };
-
-    // Toggle audio mute status
-    const toggleAudio = () => {
-        const audioTrack = localTracks.find(track => track && track.getType && track.getType() === 'audio');
-        
-        if (audioTrack) {
-            console.log(`${audioTrack.isMuted() ? 'Unmuting' : 'Muting'} audio`);
-            try {
-                if (audioTrack.isMuted()) {
-                    audioTrack.unmute();
-                } else {
-                    audioTrack.mute();
-                }
-            } catch (e) {
-                console.error("Error toggling audio:", e);
-                setError(`Failed to toggle audio: ${e instanceof Error ? e.message : 'Unknown error'}`);
-            }
-        } else {
-            console.warn('No audio track found to toggle');
-            // Try to recreate audio track if missing
-            if (conferenceRef.current && window.JitsiMeetJS) {
-                try {
-                    window.JitsiMeetJS.createLocalTracks({
-                        devices: ['audio']
-                    }).then(tracks => {
-                        if (tracks && tracks.length > 0) {
-                            const audioTrack = tracks[0];
-                            conferenceRef.current.addTrack(audioTrack);
-                            setLocalTracks(prevTracks => [...prevTracks, audioTrack]);
-                            console.log("Created new audio track");
-                        }
-                    }).catch(e => {
-                        console.error("Failed to create audio track:", e);
-                    });
-                } catch (e) {
-                    console.error("Error creating audio track:", e);
-                }
-            }
-        }
-    };
-
-    // Toggle video mute status
-    const toggleVideo = () => {
-        const videoTrack = localTracks.find(track => track && track.getType && track.getType() === 'video');
-        
-        if (videoTrack) {
-            console.log(`${videoTrack.isMuted() ? 'Unmuting' : 'Muting'} video`);
-            try {
-                if (videoTrack.isMuted()) {
-                    videoTrack.unmute();
-                } else {
-                    videoTrack.mute();
-                }
-            } catch (e) {
-                console.error("Error toggling video:", e);
-                setError(`Failed to toggle video: ${e instanceof Error ? e.message : 'Unknown error'}`);
-            }
-        } else {
-            console.warn('No video track found to toggle');
-            // Try to recreate video track if missing
-            if (conferenceRef.current && window.JitsiMeetJS) {
-                try {
-                    window.JitsiMeetJS.createLocalTracks({
-                        devices: ['video']
-                    }).then(tracks => {
-                        if (tracks && tracks.length > 0) {
-                            const videoTrack = tracks[0];
-                            conferenceRef.current.addTrack(videoTrack);
-                            setLocalTracks(prevTracks => [...prevTracks, videoTrack]);
-                            console.log("Created new video track");
-                        }
-                    }).catch(e => {
-                        console.error("Failed to create video track:", e);
-                    });
-                } catch (e) {
-                    console.error("Error creating video track:", e);
-                }
-            }
-        }
-    };
-
-    // Toggle screen sharing
-    const toggleScreenShare = async () => {
-        if (!window.JitsiMeetJS) {
-            setError('JitsiMeetJS is not available');
-            return;
-        }
-        
-        if (isScreenSharing) {
-            // Stop screen sharing
-            if (screenshareTrackRef.current) {
-                console.log('Stopping screen sharing');
-                try {
-                    conferenceRef.current.removeTrack(screenshareTrackRef.current);
-                    screenshareTrackRef.current.dispose();
-                    screenshareTrackRef.current = null;
-                    setIsScreenSharing(false);
-                } catch (e) {
-                    console.error('Error stopping screen sharing:', e);
-                    setError(`Failed to stop screen sharing: ${e instanceof Error ? e.message : 'Unknown error'}`);
-                }
-            }
-        } else {
-            try {
-                // Start screen sharing
-                console.log('Starting screen sharing...');
-                const desktopTrack = await window.JitsiMeetJS.createLocalTracks({
-                    devices: ['desktop']
-                });
-                
-                if (desktopTrack && desktopTrack.length > 0) {
-                    conferenceRef.current.addTrack(desktopTrack[0]);
-                    screenshareTrackRef.current = desktopTrack[0];
-                    setIsScreenSharing(true);
-                    
-                    // Set up listener for when user stops sharing via browser UI
-                    desktopTrack[0].addEventListener(
-                        window.JitsiMeetJS.events.conference.LOCAL_TRACK_STOPPED,
-                        () => {
-                            console.log('Screen sharing stopped via browser UI');
-                            if (screenshareTrackRef.current) {
-                                conferenceRef.current.removeTrack(screenshareTrackRef.current);
-                                screenshareTrackRef.current.dispose();
-                                screenshareTrackRef.current = null;
-                                setIsScreenSharing(false);
-                            }
-                        }
-                    );
-                }
-            } catch (error) {
-                console.error('Screen sharing error:', error);
-                setError(`Screen sharing failed: ${error instanceof Error ? error.message : 'User denied permission or browser not supported'}`);
-            }
-        }
-    };
-
-    // Leave the conference
-    const leaveConference = () => {
-        console.log('Leaving conference...');
+  
+    // Cleanup function on component unmount
+    useEffect(() => {
+      return () => {
         cleanup();
+      };
+    }, []);
+  
+    // Leave the conference
+    const leaveConference = async () => {
+      const res = await axios.post(`${BACKEND_URL}/meeting/end/${roomId}`,{}, {
+        headers: {
+          "Authorization": `${localStorage.getItem('token')}`
+        }
+      });
+      setParticipants(res.data.participants);
+      setDuration(res.data.duration);
+  
+      dispatch(setIsEnded(true));
+  
+      if (res.status === 200) {
+        conferenceRef.current?.end();
+        console.log('Meeting ended successfully');
+      }
     };
 
-    // Get participant counts for debugging
-    const getDebugInfo = () => {
-        return {
-            remoteTracksCount: Object.keys(remoteTracks).length,
-            participantsCount: Object.keys(participants).length,
-            localTracksCount: localTracks.length,
-            conferenceActive: !!conferenceRef.current,
-            connectionActive: !!connectionRef.current
-        };
-    };
-
-    return {
-        isConnecting,
-        isConnected,
-        roomName,
-        displayName,
-        error,
-        localTracks,
-        remoteTracks,
-        participants,
-        isMuted,
-        isVideoOff,
-        isScreenSharing,
-        localVideoRef,
+    return { 
         connect,
+        leaveConference,
         toggleAudio,
         toggleVideo,
         toggleScreenShare,
-        leaveConference,
-        setError,
-        setRoomName,
+        localVideoRef,
+        videoRef,
+        isConnecting,
+        isConnected,
+        roomName,
+        roomId,
+        passcode,
+        error,
         jitsiLoaded,
-        setIsConnecting,
-        getDebugInfo
-    };
+        email,
+        isEnded,
+        participants,
+        joinees,
+        Duration,
+        Participants
+    }
+  
 };

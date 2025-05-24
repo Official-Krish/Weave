@@ -13,6 +13,7 @@ interface MediaState {
   screenShareRef?: React.RefObject<HTMLDivElement>; 
   videoTrack: any | null;
   audioTrack?: any | null;
+  screenShareTrack?: any | null;
 }
 
 const initialState: MediaState = {
@@ -26,6 +27,8 @@ const initialState: MediaState = {
   selectedCamera: null,
   selectedMicrophone: null,
   videoTrack: null,
+  audioTrack: null,
+  screenShareTrack: null,
 };
 
 interface MediaDeviceDescriptor {
@@ -109,6 +112,9 @@ export const mediaSlice = createSlice({
     setAudioTrack: (state, action: PayloadAction<any>) => {
       state.audioTrack = action.payload;
     },
+    setSccreenShareTracks: (state, action: PayloadAction<any>) => {
+      state.screenShareTrack = action.payload;
+    },
   },
 });
 
@@ -130,6 +136,7 @@ export const {
   resetMediaState,
   setVideoTrack,
   setAudioTrack,
+  setSccreenShareTracks,
 } = mediaSlice.actions;
 
 export default mediaSlice.reducer;

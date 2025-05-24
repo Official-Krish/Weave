@@ -31,7 +31,6 @@ interface VideoChatProps {
 export const VideoChat = ({ 
   toggleMute,  
   leaveConference, 
-  screenShareRef,
   meetingId,
   passcode,
   toggleVideo,
@@ -48,7 +47,8 @@ export const VideoChat = ({
     isMuted,
     isVideoOff,
     displayName,
-    remoteTracks
+    remoteTracks,
+    screenShareTrack
   } = useSelector((state: RootState) => ({
     participants: state.participants.participants,
     localTracks: state.media.localTracks,
@@ -56,9 +56,11 @@ export const VideoChat = ({
     isMuted: state.media.isMuted,
     isVideoOff: state.media.isVideoOff,
     displayName: state.meeting.displayName,
-    remoteTracks: state.media.remoteTracks
+    remoteTracks: state.media.remoteTracks,
+    screenShareTrack: state.media.screenShareTrack
   }));
 
+  
   const {
     layout,
     activeScreenShareId,
@@ -192,9 +194,12 @@ export const VideoChat = ({
 
   const renderLayout = () => {
     if (layout === "screenShare") {
+      console.log("Rendering screen share layout");
       const sharingParticipant = Object.values(allParticipants).find(
         p => p.id === activeScreenShareId
       );
+
+      console.log("Sharing participant:", sharingParticipant);
       
       if (!sharingParticipant) return null;
       
@@ -202,7 +207,7 @@ export const VideoChat = ({
         p => p.id !== activeScreenShareId
       );
 
-      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length);
+      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length === 0 ? 1 : otherParticipants.length);
 
       return (
         <div className="w-full h-screen flex">
@@ -213,7 +218,7 @@ export const VideoChat = ({
           >
             <ScreenShareTile 
               participant={sharingParticipant} 
-              screenShareRef={screenShareRef} 
+              screenShareTrack={screenShareTrack[sharingParticipant.id]} 
             />
           </div>
           
