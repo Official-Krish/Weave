@@ -1,0 +1,74 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "Starting grid video processing..."
+
+# Read env vars
+MEETING_ID=${MEETING_ID}
+BUCKET_NAME=${BUCKET_NAME}
+
+echo "Meeting ID: $MEETING_ID"
+echo "Bucket: $BUCKET_NAME"
+
+# Get all user chunks
+USER_CHUNKS=$(gsutil ls "$BUCKET_NAME/meetings/raw/$MEETING_ID/users/*/chunk-*.webm" || true)
+
+# Extract unique user IDs
+USER_IDS=($(echo "$USER_CHUNKS" | grep -oP "users/\K[^/]+" | sort -u))
+NUM_USERS=${#USER_IDS[@]}
+echo "Number of users: $NUM_USERS"
+
+# Calculate dynamic grid layout (square or close to square)
+COLS=$(echo "sqrt($NUM_USERS)" | bc)
+if [ $((COLS * COLS)) -lt $NUM_USERS ]; then
+  COLS=$((COLS + 1))
+fi
+ROWS=$(( (NUM_USERS + COLS - 1) / COLS ))
+
+echo "Grid layout: ${ROWS}x${COLS}"
+
+# Prepare directory
+mkdir -p /tmp/chunks
+
+# Download latest chunk per user
+for USER_ID in "${USER_IDS[@]}"; do
+  echo "Downloading latest chunk for user: $USER_ID"
+  LATEST_CHUNK=$(gsutil ls "$BUCKET_NAME/meetings/raw/$MEETING_ID/users/$USER_ID/chunk-*.webm" | sort | tail -n 1)
+  gsutil cp "$LATEST_CHUNK" "/tmp/chunks/$USER_ID.webm"
+done
+
+# Create FFmpeg filter graph
+INPUTS=""
+FILTER=""
+TILES=""
+
+for i in "${!USER_IDS[@]}"; do
+  INPUTS+="-i /tmp/chunks/${USER_IDS[$i]}.webm "
+  FILTER+="[$i:v]scale=w=iw/${COLS}:h=ih/${ROWS}[v$i];"
+  TILES+="[v$i]"
+done
+
+LAYOUT=""
+for ((i=0; i<NUM_USERS; i++)); do
+  X=$((i % COLS))
+  Y=$((i / COLS))
+  LAYOUT+="${X}_$((Y))|"
+done
+LAYOUT=${LAYOUT%|} # Remove trailing pipe
+
+echo "Creating FFmpeg grid..."
+
+# Run FFmpeg merge
+ffmpeg \
+  $INPUTS \
+  -filter_complex "${FILTER}${TILES}xstack=inputs=$NUM_USERS:layout=$LAYOUT" \
+  -c:v libx264 -crf 23 -preset fast \
+  "/tmp/grid.mp4"
+
+# Upload result
+gsutil cp "/tmp/grid.mp4" "$BUCKET_NAME/meetings/$MEETING_ID/final/grid.mp4"
+echo "Grid video uploaded."
+
+# Cleanup
+rm -rf /tmp/chunks /tmp/grid.mp4
+echo "Cleanup done. Script finished."
