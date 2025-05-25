@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
+import { redisClient } from "../utils/redis";
 
 const meetingRouter = Router();
 
@@ -235,6 +236,18 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
                 },
             });
         });
+
+        const rawChunks = await prisma.mediaChunks.findMany({
+            where: {
+                meetingId: meetingId,
+            },
+        });
+
+        await redisClient.rpush("ProcessVideo", JSON.stringify({
+            meetingId: meetingId,
+            chunks: rawChunks.map((chunk) => chunk.bucketLink),
+        }));
+        
         res.status(200).json({ message: "Meeting ended successfully", participants: meeting?.participants.length, duration: Number (meeting?.endTime?.getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
     } catch (error) {
         console.error("Error fetching meeting:", error);
