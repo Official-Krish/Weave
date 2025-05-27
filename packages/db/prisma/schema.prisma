@@ -53,7 +53,9 @@ model FinalRecording {
   id               String   @id @default(uuid())
   meeting          meeting  @relation(fields: [meetingId], references: [id])
   meetingId        String
-  bucketLink       String
+  VideoLink        String
+  AudioLink        String
+  transcription    String?
   generatedAt      DateTime @default(now())
   format           format
   quality          quality
@@ -66,7 +68,8 @@ enum quality {
 }
 
 enum format {
-  MP3
+  webm
+  MP4
   WAV
   OGG
 }

@@ -48,7 +48,8 @@ export type quality = (typeof quality)[keyof typeof quality]
 
 
 export const format: {
-  MP3: 'MP3',
+  webm: 'webm',
+  MP4: 'MP4',
   WAV: 'WAV',
   OGG: 'OGG'
 };
@@ -4561,7 +4562,9 @@ export namespace Prisma {
   export type FinalRecordingMinAggregateOutputType = {
     id: string | null
     meetingId: string | null
-    bucketLink: string | null
+    VideoLink: string | null
+    AudioLink: string | null
+    transcription: string | null
     generatedAt: Date | null
     format: $Enums.format | null
     quality: $Enums.quality | null
@@ -4570,7 +4573,9 @@ export namespace Prisma {
   export type FinalRecordingMaxAggregateOutputType = {
     id: string | null
     meetingId: string | null
-    bucketLink: string | null
+    VideoLink: string | null
+    AudioLink: string | null
+    transcription: string | null
     generatedAt: Date | null
     format: $Enums.format | null
     quality: $Enums.quality | null
@@ -4579,7 +4584,9 @@ export namespace Prisma {
   export type FinalRecordingCountAggregateOutputType = {
     id: number
     meetingId: number
-    bucketLink: number
+    VideoLink: number
+    AudioLink: number
+    transcription: number
     generatedAt: number
     format: number
     quality: number
@@ -4590,7 +4597,9 @@ export namespace Prisma {
   export type FinalRecordingMinAggregateInputType = {
     id?: true
     meetingId?: true
-    bucketLink?: true
+    VideoLink?: true
+    AudioLink?: true
+    transcription?: true
     generatedAt?: true
     format?: true
     quality?: true
@@ -4599,7 +4608,9 @@ export namespace Prisma {
   export type FinalRecordingMaxAggregateInputType = {
     id?: true
     meetingId?: true
-    bucketLink?: true
+    VideoLink?: true
+    AudioLink?: true
+    transcription?: true
     generatedAt?: true
     format?: true
     quality?: true
@@ -4608,7 +4619,9 @@ export namespace Prisma {
   export type FinalRecordingCountAggregateInputType = {
     id?: true
     meetingId?: true
-    bucketLink?: true
+    VideoLink?: true
+    AudioLink?: true
+    transcription?: true
     generatedAt?: true
     format?: true
     quality?: true
@@ -4690,7 +4703,9 @@ export namespace Prisma {
   export type FinalRecordingGroupByOutputType = {
     id: string
     meetingId: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription: string | null
     generatedAt: Date
     format: $Enums.format
     quality: $Enums.quality
@@ -4716,7 +4731,9 @@ export namespace Prisma {
   export type FinalRecordingSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     meetingId?: boolean
-    bucketLink?: boolean
+    VideoLink?: boolean
+    AudioLink?: boolean
+    transcription?: boolean
     generatedAt?: boolean
     format?: boolean
     quality?: boolean
@@ -4726,7 +4743,9 @@ export namespace Prisma {
   export type FinalRecordingSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     meetingId?: boolean
-    bucketLink?: boolean
+    VideoLink?: boolean
+    AudioLink?: boolean
+    transcription?: boolean
     generatedAt?: boolean
     format?: boolean
     quality?: boolean
@@ -4736,7 +4755,9 @@ export namespace Prisma {
   export type FinalRecordingSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
     meetingId?: boolean
-    bucketLink?: boolean
+    VideoLink?: boolean
+    AudioLink?: boolean
+    transcription?: boolean
     generatedAt?: boolean
     format?: boolean
     quality?: boolean
@@ -4746,13 +4767,15 @@ export namespace Prisma {
   export type FinalRecordingSelectScalar = {
     id?: boolean
     meetingId?: boolean
-    bucketLink?: boolean
+    VideoLink?: boolean
+    AudioLink?: boolean
+    transcription?: boolean
     generatedAt?: boolean
     format?: boolean
     quality?: boolean
   }
 
-  export type FinalRecordingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "meetingId" | "bucketLink" | "generatedAt" | "format" | "quality", ExtArgs["result"]["finalRecording"]>
+  export type FinalRecordingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "meetingId" | "VideoLink" | "AudioLink" | "transcription" | "generatedAt" | "format" | "quality", ExtArgs["result"]["finalRecording"]>
   export type FinalRecordingInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     meeting?: boolean | meetingDefaultArgs<ExtArgs>
   }
@@ -4771,7 +4794,9 @@ export namespace Prisma {
     scalars: $Extensions.GetPayloadResult<{
       id: string
       meetingId: string
-      bucketLink: string
+      VideoLink: string
+      AudioLink: string
+      transcription: string | null
       generatedAt: Date
       format: $Enums.format
       quality: $Enums.quality
@@ -5201,7 +5226,9 @@ export namespace Prisma {
   interface FinalRecordingFieldRefs {
     readonly id: FieldRef<"FinalRecording", 'String'>
     readonly meetingId: FieldRef<"FinalRecording", 'String'>
-    readonly bucketLink: FieldRef<"FinalRecording", 'String'>
+    readonly VideoLink: FieldRef<"FinalRecording", 'String'>
+    readonly AudioLink: FieldRef<"FinalRecording", 'String'>
+    readonly transcription: FieldRef<"FinalRecording", 'String'>
     readonly generatedAt: FieldRef<"FinalRecording", 'DateTime'>
     readonly format: FieldRef<"FinalRecording", 'format'>
     readonly quality: FieldRef<"FinalRecording", 'quality'>
@@ -5674,7 +5701,9 @@ export namespace Prisma {
   export const FinalRecordingScalarFieldEnum: {
     id: 'id',
     meetingId: 'meetingId',
-    bucketLink: 'bucketLink',
+    VideoLink: 'VideoLink',
+    AudioLink: 'AudioLink',
+    transcription: 'transcription',
     generatedAt: 'generatedAt',
     format: 'format',
     quality: 'quality'
@@ -5994,7 +6023,9 @@ export namespace Prisma {
     NOT?: FinalRecordingWhereInput | FinalRecordingWhereInput[]
     id?: StringFilter<"FinalRecording"> | string
     meetingId?: StringFilter<"FinalRecording"> | string
-    bucketLink?: StringFilter<"FinalRecording"> | string
+    VideoLink?: StringFilter<"FinalRecording"> | string
+    AudioLink?: StringFilter<"FinalRecording"> | string
+    transcription?: StringNullableFilter<"FinalRecording"> | string | null
     generatedAt?: DateTimeFilter<"FinalRecording"> | Date | string
     format?: EnumformatFilter<"FinalRecording"> | $Enums.format
     quality?: EnumqualityFilter<"FinalRecording"> | $Enums.quality
@@ -6004,7 +6035,9 @@ export namespace Prisma {
   export type FinalRecordingOrderByWithRelationInput = {
     id?: SortOrder
     meetingId?: SortOrder
-    bucketLink?: SortOrder
+    VideoLink?: SortOrder
+    AudioLink?: SortOrder
+    transcription?: SortOrderInput | SortOrder
     generatedAt?: SortOrder
     format?: SortOrder
     quality?: SortOrder
@@ -6017,7 +6050,9 @@ export namespace Prisma {
     OR?: FinalRecordingWhereInput[]
     NOT?: FinalRecordingWhereInput | FinalRecordingWhereInput[]
     meetingId?: StringFilter<"FinalRecording"> | string
-    bucketLink?: StringFilter<"FinalRecording"> | string
+    VideoLink?: StringFilter<"FinalRecording"> | string
+    AudioLink?: StringFilter<"FinalRecording"> | string
+    transcription?: StringNullableFilter<"FinalRecording"> | string | null
     generatedAt?: DateTimeFilter<"FinalRecording"> | Date | string
     format?: EnumformatFilter<"FinalRecording"> | $Enums.format
     quality?: EnumqualityFilter<"FinalRecording"> | $Enums.quality
@@ -6027,7 +6062,9 @@ export namespace Prisma {
   export type FinalRecordingOrderByWithAggregationInput = {
     id?: SortOrder
     meetingId?: SortOrder
-    bucketLink?: SortOrder
+    VideoLink?: SortOrder
+    AudioLink?: SortOrder
+    transcription?: SortOrderInput | SortOrder
     generatedAt?: SortOrder
     format?: SortOrder
     quality?: SortOrder
@@ -6042,7 +6079,9 @@ export namespace Prisma {
     NOT?: FinalRecordingScalarWhereWithAggregatesInput | FinalRecordingScalarWhereWithAggregatesInput[]
     id?: StringWithAggregatesFilter<"FinalRecording"> | string
     meetingId?: StringWithAggregatesFilter<"FinalRecording"> | string
-    bucketLink?: StringWithAggregatesFilter<"FinalRecording"> | string
+    VideoLink?: StringWithAggregatesFilter<"FinalRecording"> | string
+    AudioLink?: StringWithAggregatesFilter<"FinalRecording"> | string
+    transcription?: StringNullableWithAggregatesFilter<"FinalRecording"> | string | null
     generatedAt?: DateTimeWithAggregatesFilter<"FinalRecording"> | Date | string
     format?: EnumformatWithAggregatesFilter<"FinalRecording"> | $Enums.format
     quality?: EnumqualityWithAggregatesFilter<"FinalRecording"> | $Enums.quality
@@ -6263,7 +6302,9 @@ export namespace Prisma {
 
   export type FinalRecordingCreateInput = {
     id?: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -6273,7 +6314,9 @@ export namespace Prisma {
   export type FinalRecordingUncheckedCreateInput = {
     id?: string
     meetingId: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -6281,7 +6324,9 @@ export namespace Prisma {
 
   export type FinalRecordingUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -6291,7 +6336,9 @@ export namespace Prisma {
   export type FinalRecordingUncheckedUpdateInput = {
     id?: StringFieldUpdateOperationsInput | string
     meetingId?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -6300,7 +6347,9 @@ export namespace Prisma {
   export type FinalRecordingCreateManyInput = {
     id?: string
     meetingId: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -6308,7 +6357,9 @@ export namespace Prisma {
 
   export type FinalRecordingUpdateManyMutationInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -6317,7 +6368,9 @@ export namespace Prisma {
   export type FinalRecordingUncheckedUpdateManyInput = {
     id?: StringFieldUpdateOperationsInput | string
     meetingId?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -6607,7 +6660,9 @@ export namespace Prisma {
   export type FinalRecordingCountOrderByAggregateInput = {
     id?: SortOrder
     meetingId?: SortOrder
-    bucketLink?: SortOrder
+    VideoLink?: SortOrder
+    AudioLink?: SortOrder
+    transcription?: SortOrder
     generatedAt?: SortOrder
     format?: SortOrder
     quality?: SortOrder
@@ -6616,7 +6671,9 @@ export namespace Prisma {
   export type FinalRecordingMaxOrderByAggregateInput = {
     id?: SortOrder
     meetingId?: SortOrder
-    bucketLink?: SortOrder
+    VideoLink?: SortOrder
+    AudioLink?: SortOrder
+    transcription?: SortOrder
     generatedAt?: SortOrder
     format?: SortOrder
     quality?: SortOrder
@@ -6625,7 +6682,9 @@ export namespace Prisma {
   export type FinalRecordingMinOrderByAggregateInput = {
     id?: SortOrder
     meetingId?: SortOrder
-    bucketLink?: SortOrder
+    VideoLink?: SortOrder
+    AudioLink?: SortOrder
+    transcription?: SortOrder
     generatedAt?: SortOrder
     format?: SortOrder
     quality?: SortOrder
@@ -7155,7 +7214,9 @@ export namespace Prisma {
 
   export type FinalRecordingCreateWithoutMeetingInput = {
     id?: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -7163,7 +7224,9 @@ export namespace Prisma {
 
   export type FinalRecordingUncheckedCreateWithoutMeetingInput = {
     id?: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -7255,7 +7318,9 @@ export namespace Prisma {
     NOT?: FinalRecordingScalarWhereInput | FinalRecordingScalarWhereInput[]
     id?: StringFilter<"FinalRecording"> | string
     meetingId?: StringFilter<"FinalRecording"> | string
-    bucketLink?: StringFilter<"FinalRecording"> | string
+    VideoLink?: StringFilter<"FinalRecording"> | string
+    AudioLink?: StringFilter<"FinalRecording"> | string
+    transcription?: StringNullableFilter<"FinalRecording"> | string | null
     generatedAt?: DateTimeFilter<"FinalRecording"> | Date | string
     format?: EnumformatFilter<"FinalRecording"> | $Enums.format
     quality?: EnumqualityFilter<"FinalRecording"> | $Enums.quality
@@ -7476,7 +7541,9 @@ export namespace Prisma {
 
   export type FinalRecordingCreateManyMeetingInput = {
     id?: string
-    bucketLink: string
+    VideoLink: string
+    AudioLink: string
+    transcription?: string | null
     generatedAt?: Date | string
     format: $Enums.format
     quality: $Enums.quality
@@ -7499,7 +7566,9 @@ export namespace Prisma {
 
   export type FinalRecordingUpdateWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -7507,7 +7576,9 @@ export namespace Prisma {
 
   export type FinalRecordingUncheckedUpdateWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality
@@ -7515,7 +7586,9 @@ export namespace Prisma {
 
   export type FinalRecordingUncheckedUpdateManyWithoutMeetingInput = {
     id?: StringFieldUpdateOperationsInput | string
-    bucketLink?: StringFieldUpdateOperationsInput | string
+    VideoLink?: StringFieldUpdateOperationsInput | string
+    AudioLink?: StringFieldUpdateOperationsInput | string
+    transcription?: NullableStringFieldUpdateOperationsInput | string | null
     generatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     format?: EnumformatFieldUpdateOperationsInput | $Enums.format
     quality?: EnumqualityFieldUpdateOperationsInput | $Enums.quality

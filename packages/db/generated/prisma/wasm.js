@@ -152,7 +152,9 @@ exports.Prisma.MediaChunksScalarFieldEnum = {
 exports.Prisma.FinalRecordingScalarFieldEnum = {
   id: 'id',
   meetingId: 'meetingId',
-  bucketLink: 'bucketLink',
+  VideoLink: 'VideoLink',
+  AudioLink: 'AudioLink',
+  transcription: 'transcription',
   generatedAt: 'generatedAt',
   format: 'format',
   quality: 'quality'
@@ -173,7 +175,8 @@ exports.Prisma.NullsOrder = {
   last: 'last'
 };
 exports.format = exports.$Enums.format = {
-  MP3: 'MP3',
+  webm: 'webm',
+  MP4: 'MP4',
   WAV: 'WAV',
   OGG: 'OGG'
 };
