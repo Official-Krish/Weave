@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Dashboard from "./pages/Dashboard";
 import JoinMeeting from "./pages/JoinMeeting";
 import { CreateMeeting } from "./pages/CreateMeeting";
+import MeetingDetail from "./pages/MeetingDetail";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/meeting/create" element={<CreateMeeting />} />
         <Route path="/meeting/join" element={<JoinMeeting />} />
+        <Route path="/recording/:id" element={<MeetingDetail/>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

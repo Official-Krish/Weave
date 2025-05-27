@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Clock, Calendar, Users } from 'lucide-react';
 import axios from 'axios';
 import { BACKEND_URL } from '../config';
+import { useNavigate } from 'react-router-dom';
 
 
 interface Recording {
@@ -17,6 +18,7 @@ interface Recording {
 
 const RecordingsList = () => {
   const [recordings, setRecordings] = useState<Recording[]>([]);
+  const naviagte = useNavigate();
 
   useEffect(() => {
     const fetchRecordings = async () => {
@@ -46,6 +48,7 @@ const RecordingsList = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
           className="card group cursor-pointer overflow-hidden"
+          onClick={() => naviagte(`/recording/${recording.id}`)}
         >
           <div className="relative h-48">
             <img 
