@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import JoinMeeting from "./pages/JoinMeeting";
 import { CreateMeeting } from "./pages/CreateMeeting";
 import MeetingDetail from "./pages/MeetingDetail";
+import ProtectedRoute from "./utils/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -23,10 +24,26 @@ const App = () => (
         <Route path="/" element={<Index />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/meeting/create" element={<CreateMeeting />} />
-        <Route path="/meeting/join" element={<JoinMeeting />} />
-        <Route path="/recording/:id" element={<MeetingDetail/>} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/meeting/create" element={
+          <ProtectedRoute>
+            <CreateMeeting />
+          </ProtectedRoute>
+        } />
+        <Route path="/meeting/join" element={
+          <ProtectedRoute>
+            <JoinMeeting />
+          </ProtectedRoute>
+        } />
+        <Route path="/recording/:id" element={
+          <ProtectedRoute>
+            <MeetingDetail/>
+          </ProtectedRoute>
+        } />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

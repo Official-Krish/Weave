@@ -1,23 +1,18 @@
-import jwt from 'jsonwebtoken'
+import { BACKEND_URL } from '../config';
+import axios from 'axios';
 
-
-interface JWT_PAYLOAD {
-  exp: number;
-  iat: number;
-  userId: string;
-  name: string;
-}
-
-export function verifyToken(token: string | null): boolean {
+export async function verifyToken(token: string | null): Promise<boolean> {
     if (!token) return false;
     try {
-      const actualToken = token.split(" ")[1];
-      const decoded = jwt.decode(actualToken) as JWT_PAYLOAD;
-      const isExpired = decoded && decoded.exp && Date.now() >= decoded.exp * 1000;
-      if (isExpired) {
-        return false;
+      const res = await axios.get(`${BACKEND_URL}/verify-token`, {
+        headers: {
+          Authorization: `${token}`,
+        },
+      });
+      if (res.status === 200) {
+        return true;
       }
-      return true;
+      return false;
     } catch (err) {
       console.error("Token verification failed:", err);
       return false;

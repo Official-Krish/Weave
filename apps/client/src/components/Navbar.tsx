@@ -11,6 +11,7 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   let token = localStorage.getItem("token");
+  const [isTokenValid, setIsTokenValid] = useState(false);
   const currentPath = window.location.pathname;
   
   useEffect(() => {
@@ -28,7 +29,13 @@ const Navbar = () => {
   }, [scrolled]);
 
   useEffect(() => {
-    verifyToken(token);
+    if (!token) {
+      setIsTokenValid(false);
+      return;
+    }
+    verifyToken(token).then((isValid) => {
+      setIsTokenValid(isValid);
+    });
   }
   , [token]);
 
@@ -37,7 +44,7 @@ const Navbar = () => {
     window.location.href = "/";
   }
   if (currentPath.includes("/meeting/")) {
-    return null; // Don't show the navbar on the meeting page
+    return null; 
   }
 
   return (
@@ -81,7 +88,7 @@ const Navbar = () => {
             </a>
           </motion.div>
 
-          {!verifyToken(token) && (
+          {!isTokenValid && (
             <motion.div
               className="flex items-center space-x-3"
               initial={{ opacity: 0 }}
@@ -105,7 +112,7 @@ const Navbar = () => {
               </Button>
             </motion.div>
           )}
-          {verifyToken(token) && (
+          {isTokenValid && (
             <div>
               <DropdownMenu>
                 <DropdownMenuTrigger>
