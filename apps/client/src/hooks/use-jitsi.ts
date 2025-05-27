@@ -248,7 +248,6 @@ export const useJitsi = () => {
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus', 
         'video/webm',
-        'video/mp4'
       ];
       
       for (let type of types) {
@@ -257,7 +256,7 @@ export const useJitsi = () => {
         }
       }
       
-      return 'video/webm'; // fallback
+      return 'video/webm';
     };
 
     // Start recording when connected

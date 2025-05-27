@@ -5,6 +5,7 @@ import { prisma } from "@repo/db/client";
 import multer from "multer";
 import { authMiddleware } from "./authMiddleware";
 import cors from "cors";
+import { transcribeSpeech } from "./speechToText";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -26,7 +27,9 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
     try {
         const meetingId = req.body.meetingId;
         const userId = req.userId;
-        const filename = `${meetingId}/${userId}/chunk-${Date.now()}.mp4`;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `meetings/${meetingId}/raw/users/${userId}/chunk-${timestamp}.webm`;
+
 
         const file = bucket.file(filename);
         const writeStream = file.createWriteStream({
@@ -37,7 +40,14 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
 
         writeStream.on('error', (err) => {
             console.error('Error uploading file:', err);
-            res.status(500).send('Error uploading file');
+            if (err.message.includes('billing account') || err.message.includes('verification')) {
+                res.status(503).json({ 
+                    error: 'Service temporarily unavailable - account verification in progress',
+                    message: 'Please try again once account verification is complete'
+                });
+            } else {
+                res.status(500).send('Error uploading file');
+            }
         });
 
         
@@ -71,6 +81,48 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
     } catch (error) {
         console.error('Upload error:', error);
         res.status(500).send('Upload failed');
+    }
+});
+
+app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
+    const { meetingId } = req.params;
+    
+    if (!meetingId) {
+        res.status(400).send('Missing meetingId or videoUrl or AudioUrl');
+        return;
+    }
+    const videoUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/video/grid.mp4`
+    const AudioUrl = `gs://${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
+
+    const transcript = await transcribeSpeech(AudioUrl);
+
+    try {
+        const meeting = await prisma.meeting.findUnique({
+            where: { id: meetingId },
+        });
+        
+        if (!meeting) {
+            res.status(404).send('Meeting not found');
+            return;
+        }
+
+        await prisma.finalRecording.create({
+            data: {
+                meetingId,
+                VideoLink: videoUrl,
+                AudioLink: AudioUrl,
+                format: "webm",
+                quality: "HIGH",
+                transcription: transcript
+            },
+        });
+
+        res.status(200).json({
+            message: 'Final recording uploaded successfully',
+        });
+    } catch (e) {
+        console.error('Database error:', e);
+        res.status(500).send('Error saving chunk info');
     }
 });
 

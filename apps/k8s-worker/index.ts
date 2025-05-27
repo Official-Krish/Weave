@@ -3,6 +3,7 @@ import cors from 'cors';
 import { prisma } from "@repo/db/client"
 import { KubeConfig } from "@kubernetes/client-node";
 import * as k8s from "@kubernetes/client-node";
+import { redisClient } from './redis';
 
 const app = express();
 const PORT = process.env.PORT || 9000;
@@ -94,7 +95,7 @@ async function assignPodToMeeting(meetingId: string, chunksJson: string[]) {
   }
 }
 
-app.post("/k8s/worker/start/:meetingId", async (req, res) => {
+app.post("/k8s-worker/start/:meetingId", async (req, res) => {
   const meetingId = req.params.meetingId;
   const chunks = req.body.chunks || [];
   const meeting = await prisma.meeting.findUnique({
@@ -105,6 +106,9 @@ app.post("/k8s/worker/start/:meetingId", async (req, res) => {
     return;
   }
   await assignPodToMeeting(meetingId, chunks);
+  await redisClient.rpush("Final-upload", JSON.stringify({
+    meetingId: meetingId,
+  }));
   res.status(200).json({ message: "Pod assigned to meeting" });
 });
 
