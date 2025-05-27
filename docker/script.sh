@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Starting grid video processing..."
+echo "Starting grid video & audio processing..."
 
 # Read env vars
 MEETING_ID=${MEETING_ID}
@@ -37,38 +37,48 @@ for USER_ID in "${USER_IDS[@]}"; do
   gsutil cp "$LATEST_CHUNK" "/tmp/chunks/$USER_ID.webm"
 done
 
-# Create FFmpeg filter graph
+# Build FFmpeg input args and filter graph
 INPUTS=""
-FILTER=""
+VIDEO_FILTER=""
+AUDIO_INPUTS=""
 TILES=""
 
 for i in "${!USER_IDS[@]}"; do
   INPUTS+="-i /tmp/chunks/${USER_IDS[$i]}.webm "
-  FILTER+="[$i:v]scale=w=iw/${COLS}:h=ih/${ROWS}[v$i];"
+  VIDEO_FILTER+="[$i:v]scale=w=iw/${COLS}:h=ih/${ROWS}[v$i];"
+  AUDIO_INPUTS+="[$i:a]"
   TILES+="[v$i]"
 done
 
+# Layout for xstack
 LAYOUT=""
 for ((i=0; i<NUM_USERS; i++)); do
   X=$((i % COLS))
   Y=$((i / COLS))
   LAYOUT+="${X}_$((Y))|"
 done
-LAYOUT=${LAYOUT%|} # Remove trailing pipe
+LAYOUT=${LAYOUT%|}
 
-echo "Creating FFmpeg grid..."
+echo "Creating FFmpeg grid with audio..."
 
-# Run FFmpeg merge
+# Build and run FFmpeg command
 ffmpeg \
   $INPUTS \
-  -filter_complex "${FILTER}${TILES}xstack=inputs=$NUM_USERS:layout=$LAYOUT" \
+  -filter_complex "${VIDEO_FILTER}${TILES}xstack=inputs=$NUM_USERS:layout=$LAYOUT[v];${AUDIO_INPUTS}amix=inputs=$NUM_USERS:duration=longest[a]" \
+  -map "[v]" -map "[a]" \
   -c:v libx264 -crf 23 -preset fast \
+  -c:a aac -b:a 192k \
   "/tmp/grid.mp4"
 
-# Upload result
-gsutil cp "/tmp/grid.mp4" "$BUCKET_NAME/meetings/$MEETING_ID/final/grid.mp4"
-echo "Grid video uploaded."
+# Extract audio as MP3
+ffmpeg -i "/tmp/grid.mp4" -vn -c:a libmp3lame -b:a 192k "/tmp/audio.mp3"
+
+# Upload results
+gsutil cp "/tmp/grid.mp4" "$BUCKET_NAME/meetings/$MEETING_ID/final/video/grid.mp4"
+gsutil cp "/tmp/audio.mp3" "$BUCKET_NAME/meetings/$MEETING_ID/final/audio/Taudio.mp3"
+
+echo "Grid video and MP3 audio uploaded."
 
 # Cleanup
-rm -rf /tmp/chunks /tmp/grid.mp4
+rm -rf /tmp/chunks /tmp/grid.mp4 /tmp/audio.mp3
 echo "Cleanup done. Script finished."
