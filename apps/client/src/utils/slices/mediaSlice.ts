@@ -14,6 +14,7 @@ interface MediaState {
   videoTrack: any | null;
   audioTrack?: any | null;
   screenShareTrack?: any | null;
+  remoteScreenShares: { [participantId: string]: any };
 }
 
 const initialState: MediaState = {
@@ -29,6 +30,7 @@ const initialState: MediaState = {
   videoTrack: null,
   audioTrack: null,
   screenShareTrack: null,
+  remoteScreenShares: {},
 };
 
 interface MediaDeviceDescriptor {
@@ -112,8 +114,17 @@ export const mediaSlice = createSlice({
     setAudioTrack: (state, action: PayloadAction<any>) => {
       state.audioTrack = action.payload;
     },
-    setSccreenShareTracks: (state, action: PayloadAction<any>) => {
-      state.screenShareTrack = action.payload;
+    setSccreenShareTracks: (state, action) => {
+      if (action.payload) {
+        state.isScreenSharing = true;
+        state.screenShareTrack = action.payload;
+      } else {
+        state.isScreenSharing = false;
+        state.screenShareTrack = null;
+      }
+    },
+    setRemoteScreenShares: (state, action: PayloadAction<{ [participantId: string]: any }>) => {
+      state.remoteScreenShares = { ...state.remoteScreenShares, ...action.payload };
     },
   },
 });
@@ -137,6 +148,7 @@ export const {
   setVideoTrack,
   setAudioTrack,
   setSccreenShareTracks,
+  setRemoteScreenShares,
 } = mediaSlice.actions;
 
 export default mediaSlice.reducer;

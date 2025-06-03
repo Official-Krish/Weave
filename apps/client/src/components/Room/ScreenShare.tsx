@@ -10,48 +10,51 @@ interface ScreenShareTileProps {
 export const ScreenShareTile = ({ participant, screenShareTrack }: ScreenShareTileProps) => {
   const screenShareRef = useRef<HTMLVideoElement>(null);
 
+  console.log("Screen share track:", screenShareTrack);
+
   useEffect(() => {
-    let actualTrack = null;
+    if (!screenShareRef.current || !screenShareTrack) return;
 
-    // Find the correct screen share track
-    if (Array.isArray(screenShareTrack)) {
-      // If screenShareTrack is an array, find the video track
-      actualTrack = screenShareTrack.find(t => 
-        t && 
-        typeof t.getType === 'function' && 
-        t.getType() === 'video'
-      );
-    } else if (screenShareTrack && typeof screenShareTrack.getType === 'function') {
-      // If screenShareTrack is a single track object
-      if (screenShareTrack.getType() === 'video') {
-        actualTrack = screenShareTrack;
-      }
-    }
+    const videoElement = screenShareRef.current;
 
-    console.log('ScreenShareTrack for', participant.name, ':', actualTrack);
+    let actualTrack = screenShareTrack;
     
-    // Attach video track to the ref element
-    if (actualTrack && screenShareRef.current) {
-      try {
-        actualTrack.attach(screenShareRef.current);
-        console.log('ScreenShare track attached successfully for', participant.name);
-      } catch (e) {
-        console.error('Error attaching ScreenShare track for', participant.name, ':', e);
-      }
+    if (screenShareTrack.local) {
+      actualTrack = screenShareTrack.local;
     }
 
-    // Cleanup function
-    return () => {
-      if (actualTrack && screenShareRef.current) {
-        try {
-          actualTrack.detach(screenShareRef.current);
-          console.log('ScreenShare track detached for', participant.name);
-        } catch (e) {
-          console.error('Error detaching screen share track for', participant.name, ':', e);
-        }
-      }
-    };
-  }, [screenShareTrack, participant.name]);
+    // Handle Jitsi Meet track objects
+    if (actualTrack && actualTrack.stream instanceof MediaStream) {
+      videoElement.srcObject = actualTrack.stream;
+      
+      return () => {
+        videoElement.srcObject = null;
+      };
+    } else if (actualTrack && typeof actualTrack.getOriginalStream === 'function') {
+      const mediaStream = actualTrack.getOriginalStream();
+      videoElement.srcObject = mediaStream;
+      
+      return () => {
+        videoElement.srcObject = null;
+      };
+    } else if (actualTrack instanceof MediaStream) {
+      videoElement.srcObject = actualTrack;
+      
+      return () => {
+        videoElement.srcObject = null;
+      };
+    } else if (actualTrack instanceof MediaStreamTrack) {
+      const stream = new MediaStream([actualTrack]);
+      videoElement.srcObject = stream;
+      
+      return () => {
+        videoElement.srcObject = null;
+      };
+    } else {
+      console.warn("Unknown screen share track type:", screenShareTrack);
+      console.log("Actual track:", actualTrack);
+    }
+  }, [screenShareTrack]);
 
   return (
     <motion.div

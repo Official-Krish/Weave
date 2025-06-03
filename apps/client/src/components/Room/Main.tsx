@@ -48,7 +48,8 @@ export const VideoChat = ({
     isVideoOff,
     displayName,
     remoteTracks,
-    screenShareTrack
+    screenShareTrack,
+    remoteScreenShares
   } = useSelector((state: RootState) => ({
     participants: state.participants.participants,
     localTracks: state.media.localTracks,
@@ -57,7 +58,8 @@ export const VideoChat = ({
     isVideoOff: state.media.isVideoOff,
     displayName: state.meeting.displayName,
     remoteTracks: state.media.remoteTracks,
-    screenShareTrack: state.media.screenShareTrack
+    screenShareTrack: state.media.screenShareTrack,
+    remoteScreenShares: state.media.remoteScreenShares
   }));
 
   
@@ -93,10 +95,14 @@ export const VideoChat = ({
 
   const getParticipantTracks = (participantId: string) => {
     if (participantId === "local") {
-      return localTracks;
+      return localTracks.filter(track => 
+        !track.getVideoType || track.getVideoType() !== 'desktop'
+      );
     } else {
-      // Get tracks from remoteTracks in media slice, not from participant object
-      return remoteTracks[participantId] || [];
+      const tracks = remoteTracks[participantId] || [];
+      return tracks.filter(track => 
+        !track.getVideoType || track.getVideoType() !== 'desktop'
+      );
     }
   };
 
@@ -116,7 +122,17 @@ export const VideoChat = ({
 
   // Get all screen sharing participants
   const screenSharingParticipants = Object.values(allParticipants).filter(
-    participant => participant.isScreenSharing
+    participant => {
+      if (participant.id === 'local') {
+        return isScreenSharing;
+      }
+      // Check if remote participant has desktop video track
+      const participantTracks = remoteTracks[participant.id] || [];
+      return participantTracks.some(track => 
+        track && track.getType() === 'video' && 
+        track.getVideoType && track.getVideoType() === 'desktop'
+      );
+    }
   );
   
   // Determine the layout based on screen sharing status
@@ -201,13 +217,16 @@ export const VideoChat = ({
 
       console.log("Sharing participant:", sharingParticipant);
       
-      if (!sharingParticipant) return null;
+      if (!sharingParticipant){
+        console.warn("No participant found for active screen share ID:", activeScreenShareId);
+        return null;
+      }
       
       const otherParticipants = Object.values(allParticipants).filter(
         p => p.id !== activeScreenShareId
       );
 
-      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length === 0 ? 1 : otherParticipants.length);
+      const sidebarTileHeight = calculateSidebarTileHeight(otherParticipants.length === 0 ? 1 : otherParticipants.length + 1);
 
       return (
         <div className="w-full h-screen flex">
@@ -218,7 +237,11 @@ export const VideoChat = ({
           >
             <ScreenShareTile 
               participant={sharingParticipant} 
-              screenShareTrack={screenShareTrack[sharingParticipant.id]} 
+              screenShareTrack={
+                sharingParticipant.id === 'local' 
+                  ? screenShareTrack 
+                  : remoteScreenShares[sharingParticipant.id] || null
+              } 
             />
           </div>
           
@@ -228,7 +251,7 @@ export const VideoChat = ({
             style={{ width: "25%", height: "100vh" }}
           >
             <div className="flex flex-col gap-2">
-              {otherParticipants.map(participant => (
+              {Object.values(allParticipants).map(participant => (
                 <div
                   key={participant.id}
                   style={{ 

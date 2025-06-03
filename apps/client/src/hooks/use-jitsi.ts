@@ -16,6 +16,7 @@ import {
   removeLocalTrack,
   setAudioTrack,
   setSccreenShareTracks,
+  setRemoteScreenShares,
 } from '../utils/slices/mediaSlice';
 import {
   setConnecting,
@@ -34,6 +35,7 @@ import {
   resetParticipantsState,
 } from '../utils/slices/participantsSlice';
 import { BACKEND_URL, JITSI_URL, WORKER_URL } from '../config';
+import { setActiveScreenShareId, setLayout } from '../utils/slices/videoChatSlice';
 
 export const useJitsi = () => {
     const dispatch = useDispatch<AppDispatch>();
@@ -67,7 +69,6 @@ export const useJitsi = () => {
     const audioTrack = useSelector((state: RootState) => 
       state.media.localTracks.find(track => track?.getType?.() === 'audio')
     );
-    const screenshareTrack = useSelector((state: RootState) => state.media.screenShareTrack);
     const selectedMicrophone = useSelector((state: RootState) => state.media.selectedMicrophone);
   
     // Meeting End State
@@ -260,17 +261,17 @@ export const useJitsi = () => {
     };
 
     // Start recording when connected
-    useEffect(() => {
-      if (isConnected && roomId && !isRecording) {
-        const timer = setTimeout(() => {
-          startRecording();
-        }, 2000);
+    // useEffect(() => {
+    //   if (isConnected && roomId && !isRecording) {
+    //     const timer = setTimeout(() => {
+    //       startRecording();
+    //     }, 2000);
         
-        return () => clearTimeout(timer);
-      } else if (!isConnected && isRecording) {
-        stopRecording();
-      }
-    }, [isConnected, roomId]);
+    //     return () => clearTimeout(timer);
+    //   } else if (!isConnected && isRecording) {
+    //     stopRecording();
+    //   }
+    // }, [isConnected, roomId]);
 
     const stopRecording = () => {
       console.log('Stopping recording...');
@@ -475,7 +476,9 @@ export const useJitsi = () => {
             conferenceRef.current?.removeTrack(screenshareTrackRef.current);
             screenshareTrackRef.current.dispose();
             screenshareTrackRef.current = null;
+            dispatch(setLayout('grid')); 
             dispatch(setSccreenShareTracks(null));
+            dispatch(setActiveScreenShareId(null)); // Add this line
           } catch (e) {
             console.error('Error stopping screen sharing:', e);
             dispatch(setError('Failed to stop screen sharing'));
@@ -483,28 +486,24 @@ export const useJitsi = () => {
         }
       } else {
         try {
-          // Create desktop tracks - this might include both audio and video
           const desktopTracks = await window.JitsiMeetJS.createLocalTracks({
             devices: ['desktop']
           });
           
           if (desktopTracks && desktopTracks.length > 0) {
-            // Filter to only get the video track for screen sharing
-            // Desktop sharing can include audio, but we don't want to add it to avoid conflicts
             const videoTrack = desktopTracks.find(track => track.getType() === 'video');
             const audioTrack = desktopTracks.find(track => track.getType() === 'audio');
             
             if (videoTrack) {
-              // Only add the video track to the conference
               conferenceRef.current?.addTrack(videoTrack);
               screenshareTrackRef.current = videoTrack;
               
-              // Dispose of the audio track if it exists (to prevent memory leaks)
               if (audioTrack) {
                 audioTrack.dispose();
               }
               
-              dispatch(setSccreenShareTracks(videoTrack));
+              dispatch(setSccreenShareTracks({ local: videoTrack }));
+              dispatch(setActiveScreenShareId('local'));
             } else {
               throw new Error('No video track found in desktop capture');
             }
@@ -514,7 +513,6 @@ export const useJitsi = () => {
         } catch (error) {
           console.error('Screen sharing error:', error);
           
-          // Handle specific error cases
           if (error.message && error.message.includes('user_canceled')) {
             dispatch(setError('Screen sharing was cancelled'));
           } else if (error.message && error.message.includes('permission')) {
@@ -527,32 +525,34 @@ export const useJitsi = () => {
     };
   
     // Jitsi event handlers
-    const onRemoteTrackAdded =  (track: any) => {
-      if (!track || track.isLocal()){
-          console.log('Local track added, ignoring');
-          return;
+    const onRemoteTrackAdded = (track: any) => {
+      if (!track || track.isLocal()) {
+        console.log('Local track added, ignoring');
+        return;
       }
+      
       console.log('Remote track added:', track);
       const participantId = track.getParticipantId();
       dispatch(addRemoteTrack({ participantId, track }));
       const currentParticipant = participants[participantId];
-  
+    
       const currentTracks = currentParticipant?.tracks || [];
     
-      // Check if this track already exists (avoid duplicates)
       const trackExists = currentTracks.some(existingTrack => 
         existingTrack && existingTrack.getId && existingTrack.getId() === track.getId()
       );
       
       if (!trackExists) {
-        // Update participant with new track
+        // Check if this is a screen share track
+        const isScreenShare = track.getVideoType && track.getVideoType() === 'desktop';
+        
         dispatch(updateParticipant({
           id: participantId,
           changes: {
             tracks: [...currentTracks, track],
-            // Update mute states based on track type and state
+            isScreenSharing: track.getType() === 'video' ? isScreenShare : currentParticipant?.isScreenSharing,
             ...(track.getType() === 'audio' && { isMuted: track.isMuted() }),
-            ...(track.getType() === 'video' && { isVideoOff: track.isMuted() })
+            ...(track.getType() === 'video' && !isScreenShare && { isVideoOff: track.isMuted() })
           }
         }));
         
@@ -560,10 +560,9 @@ export const useJitsi = () => {
           participantId, 
           trackType: track.getType(), 
           trackId: track.getId(),
+          isScreenShare,
           isMuted: track.isMuted()
         });
-      } else {
-        console.log('Track already exists for participant:', participantId);
       }
     };
   
@@ -807,6 +806,12 @@ export const useJitsi = () => {
           window.JitsiMeetJS.events.conference.END_CONFERENCE,
           onConferenceEnded
         )
+        conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
+          if (track.getType() === 'video' && track.getVideoType() === 'desktop') {
+            const participantId = track.getParticipantId();
+            dispatch(setRemoteScreenShares({ participantId, track }));
+          }
+        });
         
         // Create local tracks
         try {
