@@ -13,17 +13,22 @@ export const ScreenShareTile = ({ participant, screenShareTrack }: ScreenShareTi
   console.log("Screen share track:", screenShareTrack);
 
   useEffect(() => {
-    if (!screenShareRef.current || !screenShareTrack) return;
-
-    const videoElement = screenShareRef.current;
-
-    let actualTrack = screenShareTrack;
-    
-    if (screenShareTrack.local) {
-      actualTrack = screenShareTrack.local;
+    if (!screenShareRef.current || !screenShareTrack) {
+      if (screenShareRef.current?.srcObject) {
+        (screenShareRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        screenShareRef.current.srcObject = null;
+      }
+      return;
     }
-
-    // Handle Jitsi Meet track objects
+  
+    const videoElement = screenShareRef.current;
+  
+    let actualTrack = Array.isArray(screenShareTrack) ? screenShareTrack[0] : screenShareTrack;
+    
+    if (actualTrack?.local) {
+      actualTrack = actualTrack.local;
+    }
+  
     if (actualTrack && actualTrack.stream instanceof MediaStream) {
       videoElement.srcObject = actualTrack.stream;
       
@@ -54,6 +59,12 @@ export const ScreenShareTile = ({ participant, screenShareTrack }: ScreenShareTi
       console.warn("Unknown screen share track type:", screenShareTrack);
       console.log("Actual track:", actualTrack);
     }
+    return () => {
+      if (screenShareRef.current?.srcObject) {
+        (screenShareRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        screenShareRef.current.srcObject = null;
+      }
+    };
   }, [screenShareTrack]);
 
   return (

@@ -21,65 +21,6 @@ export const VideoTile = ({ participant, onClick, tracks, fullHeight }: VideoTil
     console.error('No tracks provided for participant:', participant.name);
     return null;
   }
-  
-  // useEffect(() => {
-  //   let videoTrack = null;
-  //   let audioTrack = null;
-
-  //   if (Array.isArray(tracks)) {
-  //     // If tracks is an array
-  //     videoTrack = tracks.find(t => t && typeof t.getType === 'function' && t.getType() === 'video');
-  //     audioTrack = tracks.find(t => t && typeof t.getType === 'function' && t.getType() === 'audio');
-  //   } else if (tracks && typeof tracks.getType === 'function') {
-  //     // If tracks is a single track object
-  //     if (tracks.getType() === 'video') {
-  //       videoTrack = tracks;
-  //     } else if (tracks.getType() === 'audio') {
-  //       audioTrack = tracks;
-  //     }
-  //   }
-
-  //   console.log('VideoTrack for', participant.name, ':', videoTrack);
-  //   console.log('AudioTrack for', participant.name, ':', audioTrack);
-    
-  //   // Attach video track
-  //   if (videoTrack && videoRef.current) {
-  //     try {
-  //       videoTrack.attach(videoRef.current);
-  //       console.log('Video track attached successfully for', participant.name);
-  //     } catch (e) {
-  //       console.error('Error attaching video track for', participant.name, ':', e);
-  //     }
-  //   }
-    
-  //   // Attach audio track (only for remote participants)
-  //   if (audioTrack && audioRef.current && participant.id !== "local") {
-  //     try {
-  //       audioTrack.attach(audioRef.current);
-  //       console.log('Audio track attached successfully for', participant.name);
-  //     } catch (e) {
-  //       console.error('Error attaching audio track for', participant.name, ':', e);
-  //     }
-  //   }
-
-  //   // Cleanup function
-  //   return () => {
-  //     if (videoTrack && videoRef.current) {
-  //       try {
-  //         videoTrack.detach(videoRef.current);
-  //       } catch (e) {
-  //         console.error('Error detaching video track for', participant.name, ':', e);
-  //       }
-  //     }
-  //     if (audioTrack && audioRef.current && participant.id !== "local") {
-  //       try {
-  //         audioTrack.detach(audioRef.current);
-  //       } catch (e) {
-  //         console.error('Error detaching audio track for', participant.name, ':', e);
-  //       }
-  //     }
-  //   };
-  // }, [tracks, participant.id, participant.name]);
 
   useEffect(() => {
     if (!videoRef.current || !tracks || tracks.length === 0) return;

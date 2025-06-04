@@ -14,7 +14,7 @@ interface MediaState {
   videoTrack: any | null;
   audioTrack?: any | null;
   screenShareTrack?: any | null;
-  remoteScreenShares: { [participantId: string]: any };
+  remoteScreenShares: Record<string, any>;
 }
 
 const initialState: MediaState = {
@@ -123,8 +123,28 @@ export const mediaSlice = createSlice({
         state.screenShareTrack = null;
       }
     },
-    setRemoteScreenShares: (state, action: PayloadAction<{ [participantId: string]: any }>) => {
-      state.remoteScreenShares = { ...state.remoteScreenShares, ...action.payload };
+    setRemoteScreenShares: {
+      reducer: (
+        state, 
+        action: PayloadAction<{ participantId: string; track: JitsiTrack }>
+      ) => {
+        const { participantId, track } = action.payload;
+        if (track === null) {
+          delete state.remoteScreenShares[participantId];
+        }
+        else {
+          state.remoteScreenShares[participantId] = track;
+          
+          console.log("Updated remote screen shares:", {
+            participantId,
+            trackType: track.getType(),
+            isScreenShare: track.getVideoType?.() === 'desktop'
+          });
+        }
+      },
+      prepare: (participantId: string, track: JitsiTrack) => ({
+        payload: { participantId, track }
+      })
     },
   },
 });

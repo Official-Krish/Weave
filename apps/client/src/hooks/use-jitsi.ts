@@ -478,7 +478,12 @@ export const useJitsi = () => {
             screenshareTrackRef.current = null;
             dispatch(setLayout('grid')); 
             dispatch(setSccreenShareTracks(null));
-            dispatch(setActiveScreenShareId(null)); // Add this line
+            dispatch(setActiveScreenShareId(null)); 
+
+            const localParticipantId = conferenceRef.current?.myUserId();
+            if (localParticipantId) {
+              dispatch(setRemoteScreenShares( localParticipantId, null ));
+            }
           } catch (e) {
             console.error('Error stopping screen sharing:', e);
             dispatch(setError('Failed to stop screen sharing'));
@@ -570,8 +575,14 @@ export const useJitsi = () => {
       if (!track || track.isLocal()) return;
       const participantId = track.getParticipantId();
       const trackId = track.getId();
+      const isScreenShare = track.getVideoType?.() === 'desktop';
   
       dispatch(removeRemoteTrack({ participantId, trackId: trackId }));
+      if (isScreenShare) {
+        dispatch(setRemoteScreenShares(participantId, null ));
+        dispatch(setActiveScreenShareId(null));
+        dispatch(setLayout('grid'));
+      }
       const currentParticipant = participants[participantId];
       if (currentParticipant && currentParticipant.tracks) {
         const updatedTracks = currentParticipant.tracks.filter(t => 
@@ -581,7 +592,8 @@ export const useJitsi = () => {
         dispatch(updateParticipant({
           id: participantId,
           changes: {
-            tracks: updatedTracks
+            tracks: updatedTracks,
+            isScreenSharing: isScreenShare ? false : currentParticipant.isScreenSharing
           }
         }));
         
@@ -776,7 +788,18 @@ export const useJitsi = () => {
         // Set up conference event listeners
         conference.on(
           window.JitsiMeetJS.events.conference.TRACK_ADDED,
-          onRemoteTrackAdded
+          (track) => {
+            onRemoteTrackAdded(track);
+            
+            if (track && 
+                track.getType() === 'video' && 
+                typeof track.getVideoType === 'function' && 
+                track.getVideoType() === 'desktop') {
+              const participantId = track.getParticipantId();
+              console.log('Screen share track detected:', { participantId, track });
+              dispatch(setRemoteScreenShares(participantId, track));
+            }
+          }
         );
         conference.on(
           window.JitsiMeetJS.events.conference.TRACK_REMOVED,
@@ -806,12 +829,6 @@ export const useJitsi = () => {
           window.JitsiMeetJS.events.conference.END_CONFERENCE,
           onConferenceEnded
         )
-        conference.on(JitsiMeetJS.events.conference.TRACK_ADDED, (track) => {
-          if (track.getType() === 'video' && track.getVideoType() === 'desktop') {
-            const participantId = track.getParticipantId();
-            dispatch(setRemoteScreenShares({ participantId, track }));
-          }
-        });
         
         // Create local tracks
         try {

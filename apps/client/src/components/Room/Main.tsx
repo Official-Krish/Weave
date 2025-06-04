@@ -214,8 +214,6 @@ export const VideoChat = ({
       const sharingParticipant = Object.values(allParticipants).find(
         p => p.id === activeScreenShareId
       );
-
-      console.log("Sharing participant:", sharingParticipant);
       
       if (!sharingParticipant){
         console.warn("No participant found for active screen share ID:", activeScreenShareId);
@@ -240,7 +238,7 @@ export const VideoChat = ({
               screenShareTrack={
                 sharingParticipant.id === 'local' 
                   ? screenShareTrack 
-                  : remoteScreenShares[sharingParticipant.id] || null
+                  : remoteScreenShares[sharingParticipant.id]
               } 
             />
           </div>

@@ -112,3 +112,9 @@ declare namespace JitsiMeetJS {
   declare interface Window {
     JitsiMeetJS: typeof JitsiMeetJS;
   }
+
+  type JitsiTrack = {
+    getType: () => string;
+    getVideoType?: () => string;
+    isLocal: () => boolean;
+  };
