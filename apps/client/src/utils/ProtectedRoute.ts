@@ -7,11 +7,15 @@ const ProtectedRoute = ({ children }) => {
         window.location.href = '/signin';
     }
 
-    const verified = verifyToken(token);
-    if (!verified) {
-        localStorage.removeItem('token');
-        window.location.href = '/signin';
-    }
+    verifyToken(token, (isValid) => {
+        console.log("Token verification result:", isValid);
+        if (isValid) {
+            return children;
+        } else {
+            localStorage.removeItem('token');
+            window.location.href = '/signin';
+        }
+    });
 
     return children;
 };
