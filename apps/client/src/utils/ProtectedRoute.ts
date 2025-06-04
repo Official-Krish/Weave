@@ -8,7 +8,6 @@ const ProtectedRoute = ({ children }) => {
     }
 
     verifyToken(token, (isValid) => {
-        console.log("Token verification result:", isValid);
         if (isValid) {
             return children;
         } else {

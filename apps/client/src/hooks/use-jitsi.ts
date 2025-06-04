@@ -46,6 +46,10 @@ export const useJitsi = () => {
       localTracks,
       remoteTracks,
     } = useSelector((state: RootState) => state.media);
+
+    const { activeScreenShareId } = useSelector((state: RootState) => ({
+      activeScreenShareId: state.videoChat.activeScreenShareId,
+    }));
     
     const {
       isConnecting,
@@ -261,17 +265,17 @@ export const useJitsi = () => {
     };
 
     // Start recording when connected
-    // useEffect(() => {
-    //   if (isConnected && roomId && !isRecording) {
-    //     const timer = setTimeout(() => {
-    //       startRecording();
-    //     }, 2000);
+    useEffect(() => {
+      if (isConnected && roomId && !isRecording) {
+        const timer = setTimeout(() => {
+          startRecording();
+        }, 2000);
         
-    //     return () => clearTimeout(timer);
-    //   } else if (!isConnected && isRecording) {
-    //     stopRecording();
-    //   }
-    // }, [isConnected, roomId]);
+        return () => clearTimeout(timer);
+      } else if (!isConnected && isRecording) {
+        stopRecording();
+      }
+    }, [isConnected, roomId]);
 
     const stopRecording = () => {
       console.log('Stopping recording...');
@@ -573,18 +577,24 @@ export const useJitsi = () => {
   
     const onRemoteTrackRemoved = (track: any) => {
       if (!track || track.isLocal()) return;
+      
       const participantId = track.getParticipantId();
       const trackId = track.getId();
       const isScreenShare = track.getVideoType?.() === 'desktop';
-  
-      dispatch(removeRemoteTrack({ participantId, trackId: trackId }));
+    
+      dispatch(removeRemoteTrack({ participantId, trackId }));
+      
       if (isScreenShare) {
-        dispatch(setRemoteScreenShares(participantId, null ));
-        dispatch(setActiveScreenShareId(null));
-        dispatch(setLayout('grid'));
+        dispatch(setRemoteScreenShares(participantId, null));
+        
+        if (activeScreenShareId === participantId) {
+          dispatch(setActiveScreenShareId(null));
+          dispatch(setLayout('grid'));
+        }
       }
+      
       const currentParticipant = participants[participantId];
-      if (currentParticipant && currentParticipant.tracks) {
+      if (currentParticipant?.tracks) {
         const updatedTracks = currentParticipant.tracks.filter(t => 
           !t || !t.getId || t.getId() !== trackId
         );
@@ -596,10 +606,7 @@ export const useJitsi = () => {
             isScreenSharing: isScreenShare ? false : currentParticipant.isScreenSharing
           }
         }));
-        
-        console.log('Remote track removed from participant:', { participantId, trackId });
       }
-  
     };
   
     const onUserJoined = (id: string, user: any) => {

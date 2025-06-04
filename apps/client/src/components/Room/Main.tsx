@@ -124,14 +124,18 @@ export const VideoChat = ({
   const screenSharingParticipants = Object.values(allParticipants).filter(
     participant => {
       if (participant.id === 'local') {
-        return isScreenSharing;
+        return isScreenSharing && screenShareTrack; // Check both state and track
       }
-      // Check if remote participant has desktop video track
+      // For remote participants, check if they have an active desktop track
       const participantTracks = remoteTracks[participant.id] || [];
-      return participantTracks.some(track => 
-        track && track.getType() === 'video' && 
-        track.getVideoType && track.getVideoType() === 'desktop'
+      const hasActiveScreenShare = participantTracks.some(track => 
+        track && 
+        track.getType() === 'video' && 
+        track.getVideoType && 
+        track.getVideoType() === 'desktop' &&
+        !track.isMuted() // Ensure track is active
       );
+      return hasActiveScreenShare && remoteScreenShares[participant.id];
     }
   );
   
@@ -146,6 +150,15 @@ export const VideoChat = ({
       dispatch(setLayout("grid"));
     }
   }, [screenSharingParticipants.length, focusedParticipantId, dispatch]);
+
+  // Add this useEffect to handle screen share cleanup
+  useEffect(() => {
+    console.log("Checking screen sharing participants:", screenSharingParticipants.length, "Layout:", layout);
+    if (layout === "screenShare" && screenSharingParticipants.length === 0) {
+      dispatch(setLayout("grid"));
+      dispatch(setActiveScreenShareId(null));
+    }
+  }, [screenSharingParticipants.length, layout, dispatch]);
 
   const handleParticipantClick = (id: string) => {
     if (layout === "screenShare") {

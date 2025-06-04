@@ -33,8 +33,12 @@ const Navbar = () => {
       setIsTokenValid(false);
       return;
     }
-    verifyToken(token).then((isValid) => {
+    verifyToken(token, (isValid) => {
       setIsTokenValid(isValid);
+      if (!isValid) {
+        localStorage.removeItem("token");
+        window.location.href = "/signin";
+      }
     });
   }
   , [token]);
