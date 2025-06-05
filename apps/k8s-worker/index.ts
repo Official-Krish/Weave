@@ -57,7 +57,7 @@ async function createPod(meetingId: string, chunksJson: string[]) {
           spec: {
             containers: [{
               name: `container-${meetingId}`,
-              image: "krishanand01/riverside-k8s-worker",
+              image: "krishanand01/riverside-ffmpeg-gcp-worker",
               envFrom: [{
                 configMapRef: {
                   name: `riverside-merger-config-${meetingId}`,

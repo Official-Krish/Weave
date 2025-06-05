@@ -15,6 +15,7 @@ app.use(cors());
 const storage = new Storage({
     projectId: process.env.PROJECT_ID,
 });
+
 const bucket = storage.bucket(process.env.BUCKET_NAME!); 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -92,9 +93,10 @@ app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
         return;
     }
     const videoUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/video/grid.mp4`
-    const AudioUrl = `gs://${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
+    const url = `gs://${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
+    const AudioUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
 
-    const transcript = await transcribeSpeech(AudioUrl);
+    const transcript = await transcribeSpeech(url);
 
     try {
         const meeting = await prisma.meeting.findUnique({

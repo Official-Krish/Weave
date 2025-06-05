@@ -1,6 +1,7 @@
 node_modules
 npm-debug.log
 .DS_Store
-dist
-gcp-key.json
-.env
+dist    
+.turbo
+README.md
+LICENSE
