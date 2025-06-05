@@ -49,14 +49,24 @@ spec:
           image: krishanand01/riverside-backend:v1
           ports:
             - containerPort: 3000
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/gcp/gcp-key.json
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/backend/.env
               subPath: .env
+            - name: gcp-key-volume
+              mountPath: /secrets/gcp
+              readOnly: true
       volumes:
         - name: env-file
           secret:
             secretName: riverside-backend-env
+        - name: gcp-key-volume
+          secret:
+            secretName: gcp-key-secret
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -79,14 +89,23 @@ spec:
           image: krishanand01/riverside-worker:v1
           ports:
             - containerPort: 8080
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/gcp/gcp-key.json
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/worker/.env
               subPath: .env
+            - name: gcp-key-volume
+              mountPath: /secrets/gcp
+              readOnly: true
       volumes:
         - name: env-file
           secret:
             secretName: riverside-worker-env
+        - name: gcp-key-volume
+          secret:
+            secretName: gcp-key-secret
 ---
 apiVersion: apps/v1
 kind: Deployment
