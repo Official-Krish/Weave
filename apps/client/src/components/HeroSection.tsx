@@ -88,12 +88,13 @@ const HeroSection = () => {
               </Button>
               <Button variant="outline" size="lg" className="px-8 font-medium border-white/20 backdrop-blur-sm"
                 onClick={() => {
-                  const verify = verifyToken(localStorage.getItem("token"));
-                  if (verify) {
-                    window.location.href = "/dashboard";
-                  } else {
-                    window.location.href = "/signin";
-                  }
+                  verifyToken(localStorage.getItem("token"), (isValid) => {
+                    if (isValid) {
+                      window.location.href = "/dashboard";
+                    } else {
+                      window.location.href = "/signin";
+                    }
+                  });
                 }}
               >
                 Dashboard

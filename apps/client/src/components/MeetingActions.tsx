@@ -8,20 +8,15 @@ interface MeetingActionsProps {
 }
 
 const MeetingActions: React.FC<MeetingActionsProps> = ({ onClose }) => {
-  const [meetingCode, setMeetingCode] = useState('');
   const navigate = useNavigate();
 
   const handleStartMeeting = () => {
-    navigate("/create-meeting");
+    navigate("/meeting/create");
     onClose();
   };
 
   const handleJoinMeeting = () => {
-    if (!meetingCode) {
-      toast.error('Please enter a meeting code');
-      return;
-    }
-    console.log('Joining meeting:', meetingCode);
+    navigate(`/meeting/join`);
     onClose();
   };
 
@@ -45,13 +40,6 @@ const MeetingActions: React.FC<MeetingActionsProps> = ({ onClose }) => {
         </button>
 
         <div className="space-y-3">
-          <input
-            type="text"
-            value={meetingCode}
-            onChange={(e) => setMeetingCode(e.target.value)}
-            placeholder="Enter meeting code"
-            className="input-field w-full py-3 bg-primary-900 rounded-xl px-4 text-white placeholder:text-primary-400"
-          />
           <button 
             onClick={handleJoinMeeting}
             className="bg-white text-black w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl"
