@@ -24,20 +24,22 @@ async function listPods() {
 
 async function createPod(meetingId: string, chunksJson: string[]) {
   console.log("Chunks", chunksJson);
-  await k8sApi.createNamespacedConfigMap( { namespace: "riverside-merger", body: {
-    metadata: {
-      name: `riverside-merger-config-${meetingId}`,
-      labels: {
-        app: "riverside-merger"
+  await k8sApi.createNamespacedConfigMap({
+    namespace: "riverside-merger", 
+    body: {
+      metadata: {
+        name: `riverside-merger-config-${meetingId}`,
+        labels: {
+          app: "riverside-merger"
+        }
+      },
+      data: {
+        MEETING_ID: meetingId,
+        BUCKET_NAME: process.env.BUCKET_NAME!,
+        CHUNKS_JSON: chunksJson ? JSON.stringify(chunksJson) : "",
       }
-    },
-    data: {
-      MEETING_ID: meetingId,
-      BUCKET_NAME: process.env.BUCKET_NAME!,
-      CHUNKS_JSON: chunksJson ? JSON.stringify(chunksJson) : "",
     }
-  }})
-
+  });
 
   await batchV1Api.createNamespacedJob({
     namespace: "riverside-merger",
@@ -49,7 +51,7 @@ async function createPod(meetingId: string, chunksJson: string[]) {
         labels: { app: meetingId },
       },
       spec: {
-        ttlSecondsAfterFinished: 60, // Automatically deletes Job + Pod after 60s
+        ttlSecondsAfterFinished: 60, 
         template: {
           metadata: {
             name: `pod-${meetingId}`,
@@ -63,9 +65,14 @@ async function createPod(meetingId: string, chunksJson: string[]) {
                   name: `riverside-merger-config-${meetingId}`,
                 },
               }],
+              env: [{
+                name: "GOOGLE_APPLICATION_CREDENTIALS",
+                value: "/var/secrets/google/key.json"
+              }],
               volumeMounts: [{
                 name: "riverside-merger-volume",
-                mountPath: "/var/secrets/google"
+                mountPath: "/var/secrets/google",
+                readOnly: true
               }],
             }],
             volumes: [{
@@ -80,7 +87,6 @@ async function createPod(meetingId: string, chunksJson: string[]) {
       }
     }
   });
-  
 }
 
 
