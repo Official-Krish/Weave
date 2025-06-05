@@ -1,0 +1,63 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-nginx
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - riverside.krishdev.xyz
+      secretName: riverside-frontend-tls
+    - hosts:
+        - api.riverside.krishdev.xyz
+      secretName: riverside-backend-tls
+    - hosts:
+        - worker.riverside.krishdev.xyz
+      secretName: riverside-worker-tls
+    - hosts:
+        - k8s-worker.riverside.krishdev.xyz 
+      secretName: riverside-k8s-worker-tls
+
+  rules:
+    - host: riverside.krishdev.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: riverside-frontend
+                port:
+                  number: 80
+
+    - host: api.riverside.krishdev.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: riverside-backend
+                port:
+                  number: 80
+    - host: worker.riverside.krishdev.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: riverside-worker
+                port:
+                  number: 80
+    - host: k8s-worker.riverside.krishdev.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: riverside-k8s-worker
+                port:
+                  number: 80
+---

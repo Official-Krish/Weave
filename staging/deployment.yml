@@ -1,0 +1,173 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riverside-frontend
+  labels:
+    app: riverside-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riverside-frontend
+  template:
+    metadata:
+      labels:
+        app: riverside-frontend
+    spec:
+      containers:
+        - name: riverside-frontend
+          image: krishanand01/riverside-frontend:v1
+          ports:
+            - containerPort: 5173
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/.env
+              subPath: .env
+      volumes:
+        - name: env-file
+          secret:
+            secretName: riverside-frontend-env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riverside-backend
+  labels:
+    app: riverside-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riverside-backend
+  template:
+    metadata:
+      labels:
+        app: riverside-backend
+    spec:
+      containers:
+        - name: riverside-backend
+          image: krishanand01/riverside-backend:v1
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/apps/backend/.env
+              subPath: .env
+      volumes:
+        - name: env-file
+          secret:
+            secretName: riverside-backend-env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riverside-worker
+  labels:
+    app: riverside-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riverside-worker
+  template:
+    metadata:
+      labels:
+        app: riverside-worker
+    spec:
+      containers:
+        - name: riverside-worker
+          image: krishanand01/riverside-worker:v1
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/apps/worker/.env
+              subPath: .env
+      volumes:
+        - name: env-file
+          secret:
+            secretName: riverside-worker-env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riverside-k8s-worker
+  labels:
+    app: riverside-k8s-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riverside-k8s-worker
+  template:
+    metadata:
+      labels:
+        app: riverside-k8s-worker
+    spec:
+      containers:
+        - name: riverside-k8s-worker
+          image: krishanand01/riverside-k8s-worker:v1
+          ports:
+            - containerPort: 9000
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/apps/k8s-worker/.env
+              subPath: .env
+      volumes:
+        - name: env-file
+          secret:
+            secretName: riverside-k8s-worker-env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riverside-redis-orchastrator
+  labels:
+    app: riverside-redis-orchastrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: riverside-redis-orchastrator
+  template:
+    metadata:
+      labels:
+        app: riverside-redis-orchastrator
+    spec:
+      containers:
+        - name: riverside-redis-orchastrator
+          image: krishanand01/riverside-redis-orchastrator:v1
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/apps/redis-orchastrator/.env
+              subPath: .env
+      volumes:
+        - name: env-file
+          secret:
+            secretName: riverside-redis-orchastrator-env
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        emptyDir: {}

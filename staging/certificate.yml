@@ -1,0 +1,55 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: riverside-frontend-cert
+  namespace: default
+spec:
+  secretName: riverside-frontend-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  commonName: riverside.krishdev.xyz
+  dnsNames:
+  - riverside.krishdev.xyz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: riverside-backend-cert
+  namespace: default
+spec:
+  secretName: riverside-backend-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  commonName: api.riverside.krishdev.xyz
+  dnsNames:
+  - api.riverside.krishdev.xyz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: riverside-worker-cert
+  namespace: default
+spec:
+  secretName: riverside-worker-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  commonName: worker.riverside.krishdev.xyz
+  dnsNames:
+  - worker.riverside.krishdev.xyz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: riverside-k8s-worker-cert
+  namespace: default
+spec:
+  secretName: riverside-k8s-worker-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  commonName: k8s-worker.riverside.krishdev.xyz
+  dnsNames:
+  - k8s-worker.riverside.krishdev.xyz
