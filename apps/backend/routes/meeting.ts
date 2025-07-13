@@ -112,7 +112,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
                 participants: [user.email!, ...(participants || [])],
             }
         });
-        res.status(200).json({ id: newMeeting.meetingId, passcode: newMeeting.passcode, name: user.name });
+        res.status(200).json({ meetingId: newMeeting.meetingId, passcode: newMeeting.passcode, name: user.name, id: newMeeting.id });
     } catch (error) {
         console.error("Error creating meeting:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -120,6 +120,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
 });
 
 meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
+    console.log("Joining meeting");
     const userId = req.userId;
     const meetingId = req.params.id;
     const passcode = req.body.passcode;
@@ -134,7 +135,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             return;
         }
         
-        const user = await prisma.user.findUnique({
+        const user = await prisma.user.findFirst({
             where: {
                 id: userId,
             },
@@ -144,23 +145,29 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "User not found" });
             return;
         }
-
+        console.log("User found:", user.email);
         const ifUserAlreadyJoined = await prisma.meeting.findFirst({
             where: {
                 meetingId: meetingId,
                 userId: userId as string,
             },
         });
+        console.log("User already joined:", ifUserAlreadyJoined);
 
-        if (!ifUserAlreadyJoined?.isEnded) {
-            res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
-            return;
-        } if (ifUserAlreadyJoined?.isEnded) {
-            res.status(200).json("Meeting ended");
-            return;
+        if (ifUserAlreadyJoined){
+            if (ifUserAlreadyJoined?.isEnded === false) {
+                console.log("User already joined, returning existing meeting details");
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+                return;
+            } if (ifUserAlreadyJoined?.isEnded === true) {
+                console.log("User already joined but meeting ended, creating new meeting entry");
+                res.status(200).json("Meeting ended");
+                return;
+            }
         }
 
         if (!passcode){
+            console.log("No passcode provided, checking if user is participant");
             const checkIfParticipant = meeting.participants.find((participant) => participant === user.email);
             if (checkIfParticipant) {
                 await prisma.meeting.create({
@@ -181,6 +188,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         }
         else {
             if (meeting.passcode === passcode) {
+                console.log("Passcode matched");
                 await prisma.meeting.create({
                     data: {
                         meetingId: meeting.meetingId,
@@ -192,8 +200,10 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         participants: [...meeting.participants, user.email!]
                     }
                 });
+                console.log("Meeting joined successfully");
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
             } else {
+                console.log("Invalid passcode");
                 res.status(403).json({ message: "Invalid passcode" });
             }
         }
@@ -249,6 +259,33 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         }));
         
         res.status(200).json({ message: "Meeting ended successfully", participants: meeting?.participants.length, duration: Number (meeting?.endTime?.getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
+    } catch (error) {
+        console.error("Error fetching meeting:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.get("/getParticipantDetails", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const meetingId = req.query.meetingId as string;
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+    try {
+        const meeting = await prisma.meeting.findFirst({
+            where: {
+                meetingId: meetingId,
+                userId: userId as string,
+            },
+        });
+        if (!meeting) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+        res.status(200).json({
+            isHost: meeting.isHost
+        })
     } catch (error) {
         console.error("Error fetching meeting:", error);
         res.status(500).json({ message: "Internal server error" });
