@@ -15,6 +15,7 @@ interface MediaState {
   audioTrack?: any | null;
   screenShareTrack?: any | null;
   remoteScreenShares: Record<string, any>;
+  isRecording?: boolean;
 }
 
 const initialState: MediaState = {
@@ -31,6 +32,7 @@ const initialState: MediaState = {
   audioTrack: null,
   screenShareTrack: null,
   remoteScreenShares: {},
+  isRecording: false,
 };
 
 interface MediaDeviceDescriptor {
@@ -44,6 +46,9 @@ export const mediaSlice = createSlice({
   name: 'media',
   initialState,
   reducers: {
+    setIsRecording: (state, action: PayloadAction<boolean>) => {
+      state.isRecording = action.payload;
+    },
     toggleMute: (state) => {
       state.isMuted = !state.isMuted;
     },
@@ -169,6 +174,7 @@ export const {
   setAudioTrack,
   setSccreenShareTracks,
   setRemoteScreenShares,
+  setIsRecording
 } = mediaSlice.actions;
 
 export default mediaSlice.reducer;

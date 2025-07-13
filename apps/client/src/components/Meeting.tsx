@@ -143,9 +143,9 @@ const Meeting = ({ page }: { page: "create" | "join" }) => {
       
       if (response.status === 200) {
         dispatch(setPasscode(response.data.passcode));
-        dispatch(setRoomId(response.data.id));
-        await connect(response.data.id, response.data.name);
-        window.history.pushState(null, '', `/meeting/${response.data.id}`);
+        dispatch(setRoomId(response.data.meetingId));
+        await connect(response.data.meetingId, response.data.name);
+        window.history.pushState(null, '', `/meeting/${response.data.meetingId}`);
       } else {
         console.error('Error creating meeting:', response.data);
         dispatch(setError('Failed to create meeting. Please try again.'));

@@ -17,6 +17,7 @@ import {
   setAudioTrack,
   setSccreenShareTracks,
   setRemoteScreenShares,
+  setIsRecording,
 } from '../utils/slices/mediaSlice';
 import {
   setConnecting,
@@ -39,6 +40,7 @@ import { setActiveScreenShareId, setLayout } from '../utils/slices/videoChatSlic
 
 export const useJitsi = () => {
     const dispatch = useDispatch<AppDispatch>();
+    const { isRecording } = useSelector((state: RootState) => state.media);
   
     // Select all state from Redux
     const {
@@ -78,6 +80,7 @@ export const useJitsi = () => {
     // Meeting End State
     const [Participants, setParticipants] = useState(0);
     const [Duration, setDuration] = useState("");
+    const [recordingStarted, setRecordingStarted] = useState(false);
   
   
     // Refs
@@ -89,11 +92,20 @@ export const useJitsi = () => {
 
 
     // Recording State
-    const [isRecording, setIsRecording] = useState(false);
     const recordingIntervalRef = useRef(null);
     const currentRecorderRef = useRef(null);
     const currentStreamRef = useRef(null);
 
+    useEffect(() => {
+      const checkRecording = () => {  
+        if (isRecording && !recordingStarted) {
+          startRecording();
+        }
+      }
+      setTimeout(() => {
+        checkRecording();
+      }, 5000);
+    }, []);
 
     const startRecording = async () => {
       if (!isConnected || !roomId) {
@@ -103,16 +115,22 @@ export const useJitsi = () => {
 
       try {
         console.log('Starting periodic recording...');
+
+        if (conferenceRef.current) {
+          conferenceRef.current.sendCommand('recording.start', {
+            timestamp: Date.now()
+          });
+        }
         
         // Start first recording immediately
         await recordAndUpload();
         
-        // Set up interval for subsequent recordings (5 minutes)
         recordingIntervalRef.current = setInterval(async () => {
           await recordAndUpload();
         }, 60 * 1000); // 60 seconds
         
-        setIsRecording(true);
+        dispatch(setIsRecording(true));
+        setRecordingStarted(true);
         console.log('Periodic recording started successfully');
       } catch (error) {
         console.error('Failed to start recording:', error);
@@ -264,19 +282,6 @@ export const useJitsi = () => {
       return 'video/webm';
     };
 
-    // Start recording when connected
-    useEffect(() => {
-      if (isConnected && roomId && !isRecording) {
-        const timer = setTimeout(() => {
-          startRecording();
-        }, 2000);
-        
-        return () => clearTimeout(timer);
-      } else if (!isConnected && isRecording) {
-        stopRecording();
-      }
-    }, [isConnected, roomId]);
-
     const stopRecording = () => {
       console.log('Stopping recording...');
       
@@ -297,7 +302,7 @@ export const useJitsi = () => {
         currentStreamRef.current = null;
       }
       
-      setIsRecording(false);
+      dispatch(setIsRecording(false));
       console.log('Recording stopped');
     };
 
@@ -835,7 +840,7 @@ export const useJitsi = () => {
         conference.on(
           window.JitsiMeetJS.events.conference.END_CONFERENCE,
           onConferenceEnded
-        )
+        );
         
         // Create local tracks
         try {
@@ -1017,7 +1022,11 @@ export const useJitsi = () => {
         participants,
         joinees,
         Duration,
-        Participants
+        Participants,
+        setIsRecording,
+        startRecording,
+        stopRecording,
+        isRecording,
     }
   
 };

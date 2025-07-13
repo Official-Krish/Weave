@@ -1,8 +1,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Video, VideoOff, Users, ScreenShare, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Users, ScreenShare, PhoneOff, CirclePlay, Disc } from "lucide-react";
 import { ControlButton } from "./ControlButton";
+import { useJitsi } from "../../hooks/use-jitsi";
 
 interface VideoControlsProps {
   isMuted: boolean;
@@ -26,6 +27,11 @@ export const VideoControls = ({
   onLeaveCall,
 }: VideoControlsProps) => {
   const [isVisible, setIsVisible] = useState(true);
+  const { 
+    isRecording,
+    startRecording,
+    stopRecording
+  } = useJitsi();
   const hideTimeout = 3000; // 3 seconds
   let hideTimer: number | null = null;
 
@@ -98,6 +104,17 @@ export const VideoControls = ({
               label="Share Screen"
               active={isScreenSharing}
               onClick={onToggleScreenShare}
+            />
+            <ControlButton
+              icon={isRecording ? <Disc size={24} className="text-red-500"/> : <CirclePlay size={24} />}
+              label={isRecording ? "Stop Recording" : "Start Recording"}
+              onClick={() => {
+                if (isRecording) {
+                  stopRecording();
+                } else  {
+                  startRecording();
+                }
+              }}
             />
             <ControlButton
               icon={<Users size={24} />}
