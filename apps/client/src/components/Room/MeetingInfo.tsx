@@ -7,14 +7,12 @@ import { toast } from "sonner";
 interface MeetingInfoProps {
   meetingId: string;
   password: string;
-  hostName: string;
   participantCount: number;
 }
 
 export const MeetingInfo = ({
   meetingId,
   password,
-  hostName,
   participantCount,
 }: MeetingInfoProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,10 +67,6 @@ export const MeetingInfo = ({
               <div className="flex items-center gap-2">
                 <Users size={14} className="text-videochat-accent/70" />
                 <span className="text-xs">{participantCount} Participants</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Key size={14} className="text-videochat-accent/70" />
-                <span className="text-xs">Host: {hostName}</span>
               </div>
             </div>
           </div>

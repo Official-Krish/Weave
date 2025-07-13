@@ -6,12 +6,14 @@ interface ParticipantsSidebarProps {
   participants: Participant[];
   isOpen: boolean;
   onClose: () => void;
+  isHost: boolean;
 }
 
 export const ParticipantsSidebar = ({
   participants,
   isOpen,
   onClose,
+  isHost
 }: ParticipantsSidebarProps) => {
   return (
     <AnimatePresence>
@@ -44,7 +46,7 @@ export const ParticipantsSidebar = ({
                 </div>
                 <div className="flex-1">
                   <div className="text-videochat-text">
-                    {participant.name} {participant.id === "local" && "(You)"}
+                    {participant.name} {participant.id === "local" && "(You)"} {isHost && "(Host)"}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

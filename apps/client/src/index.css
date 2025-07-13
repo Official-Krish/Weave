@@ -230,3 +230,18 @@
   max-width: 100%;
   padding: 0;
 }
+
+@layer utilities {
+  .animate-pulse-opacity {
+    animation: pulseOpacity 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulseOpacity {
+  0%, 100% {
+    background-color: rgb(220 38 38 / 0.8);
+  }
+  50% {
+    background-color: rgb(220 38 38 / 1);
+  }
+}

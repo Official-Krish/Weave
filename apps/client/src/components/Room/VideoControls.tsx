@@ -14,6 +14,7 @@ interface VideoControlsProps {
   onToggleScreenShare: () => void;
   onShowParticipants: () => void;
   onLeaveCall: () => void;
+  isHost: boolean; 
 }
 
 export const VideoControls = ({
@@ -25,6 +26,7 @@ export const VideoControls = ({
   onToggleScreenShare,
   onShowParticipants,
   onLeaveCall,
+  isHost
 }: VideoControlsProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const { 
@@ -105,17 +107,19 @@ export const VideoControls = ({
               active={isScreenSharing}
               onClick={onToggleScreenShare}
             />
-            <ControlButton
-              icon={isRecording ? <Disc size={24} className="text-red-500"/> : <CirclePlay size={24} />}
-              label={isRecording ? "Stop Recording" : "Start Recording"}
-              onClick={() => {
-                if (isRecording) {
-                  stopRecording();
-                } else  {
-                  startRecording();
-                }
-              }}
-            />
+            {isHost && (
+              <ControlButton
+                icon={isRecording ? <Disc size={24} className="text-red-500"/> : <CirclePlay size={24} />}
+                label={isRecording ? "Stop Recording" : "Start Recording"}
+                onClick={() => {
+                  if (isRecording) {
+                    stopRecording();
+                  } else  {
+                    startRecording();
+                  }
+                }}
+              />
+            )}
             <ControlButton
               icon={<Users size={24} />}
               label="Participants"

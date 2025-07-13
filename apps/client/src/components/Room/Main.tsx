@@ -13,6 +13,9 @@ import {
   setFocusedParticipantId,
   toggleParticipantsSidebar
 } from "../../utils/slices/videoChatSlice";
+import axios from "axios";
+import { BACKEND_URL } from "../../config";
+import { RecordingIndicator } from "./RecordingIndicator";
 
 
 interface VideoChatProps {
@@ -49,7 +52,8 @@ export const VideoChat = ({
     displayName,
     remoteTracks,
     screenShareTrack,
-    remoteScreenShares
+    remoteScreenShares,
+    isRecording
   } = useSelector((state: RootState) => ({
     participants: state.participants.participants,
     localTracks: state.media.localTracks,
@@ -59,7 +63,8 @@ export const VideoChat = ({
     displayName: state.meeting.displayName,
     remoteTracks: state.media.remoteTracks,
     screenShareTrack: state.media.screenShareTrack,
-    remoteScreenShares: state.media.remoteScreenShares
+    remoteScreenShares: state.media.remoteScreenShares,
+    isRecording: state.media.isRecording
   }));
 
   
@@ -88,6 +93,8 @@ export const VideoChat = ({
     isVideoOff: isVideoOff 
   };
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [isHost, setIsHost] = useState(false);
   const allParticipants = { 
     ...participants, 
     [localParticipant.id]: localParticipant 
@@ -106,6 +113,25 @@ export const VideoChat = ({
     }
   };
 
+  // get participant details from backend
+  useEffect(() => {
+    const fetchParticipantDetails = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/meeting/getParticipantDetails?meetingId=${meetingId}`, {
+          headers: {
+            Authorization: `${localStorage.getItem("token")}`
+          }
+        });
+        if (res.status === 200) {
+          setIsHost(res.data.isHost);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Error fetching participant details:", error);
+      }
+    };
+    fetchParticipantDetails();
+  }, [meetingId]);
   
   // Responsive window size tracking
   useEffect(() => {
@@ -380,12 +406,20 @@ export const VideoChat = ({
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 mb-4"></div>
+        <div className="text-lg text-gray-500">Loading...</div>
+      </div>
+    );
+  }
   return (
     <div className="relative w-full h-screen bg-videochat-bg overflow-hidden">
+      <RecordingIndicator isRecording={isRecording} />
       <MeetingInfo 
         meetingId={meetingId}
         password={passcode}
-        hostName={localParticipant.displayName}
         participantCount={Object.keys(allParticipants).length}
       />
       
@@ -410,12 +444,14 @@ export const VideoChat = ({
         onToggleScreenShare={toggleScreenShare}
         onShowParticipants={() => dispatch(toggleParticipantsSidebar())}
         onLeaveCall={leaveConference}
+        isHost={isHost}
       />
 
       <ParticipantsSidebar
         participants={Object.values(allParticipants)}
         isOpen={showParticipantsSidebar}
         onClose={() => dispatch(toggleParticipantsSidebar())}
+        isHost={isHost}
       />
     </div>
   );

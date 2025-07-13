@@ -17,7 +17,6 @@ import {
   setAudioTrack,
   setSccreenShareTracks,
   setRemoteScreenShares,
-  setIsRecording,
 } from '../utils/slices/mediaSlice';
 import {
   setConnecting,
@@ -37,6 +36,7 @@ import {
 } from '../utils/slices/participantsSlice';
 import { BACKEND_URL, JITSI_URL, WORKER_URL } from '../config';
 import { setActiveScreenShareId, setLayout } from '../utils/slices/videoChatSlice';
+import { setIsRecording } from '../utils/slices/mediaSlice';
 
 export const useJitsi = () => {
     const dispatch = useDispatch<AppDispatch>();
@@ -96,17 +96,6 @@ export const useJitsi = () => {
     const currentRecorderRef = useRef(null);
     const currentStreamRef = useRef(null);
 
-    useEffect(() => {
-      const checkRecording = () => {  
-        if (isRecording && !recordingStarted) {
-          startRecording();
-        }
-      }
-      setTimeout(() => {
-        checkRecording();
-      }, 5000);
-    }, []);
-
     const startRecording = async () => {
       if (!isConnected || !roomId) {
         console.log('Cannot start recording: not connected or no roomId');
@@ -115,13 +104,6 @@ export const useJitsi = () => {
 
       try {
         console.log('Starting periodic recording...');
-
-        if (conferenceRef.current) {
-          conferenceRef.current.sendCommand('recording.start', {
-            timestamp: Date.now()
-          });
-        }
-        
         // Start first recording immediately
         await recordAndUpload();
         

@@ -174,7 +174,7 @@ export const {
   setAudioTrack,
   setSccreenShareTracks,
   setRemoteScreenShares,
-  setIsRecording
+  setIsRecording,
 } = mediaSlice.actions;
 
 export default mediaSlice.reducer;
