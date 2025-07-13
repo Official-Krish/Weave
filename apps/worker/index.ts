@@ -16,6 +16,7 @@ const storage = new Storage({
     projectId: process.env.PROJECT_ID,
 });
 
+
 const bucket = storage.bucket(process.env.BUCKET_NAME!); 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -29,7 +30,7 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
         const meetingId = req.body.meetingId;
         const userId = req.userId;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `meetings/${meetingId}/raw/users/${userId}/chunk-${timestamp}.webm`;
+        const filename = `/${meetingId}/raw/users/${userId}/chunk-${timestamp}.webp`;
 
 
         const file = bucket.file(filename);
@@ -54,8 +55,8 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
         
         writeStream.on('finish', async () => {
             try {
-                const meeting = await prisma.meeting.findUnique({
-                    where: { id: meetingId },
+                const meeting = await prisma.meeting.findFirst({
+                    where: { meetingId: meetingId },
                 });
                 
                 if (!meeting) {
@@ -64,7 +65,7 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
 
                 await prisma.mediaChunks.create({
                     data: {
-                        meetingId,
+                        meetingId: meetingId,
                         bucketLink: `https://storage.googleapis.com/${bucket.name}/${filename}`,
                     },
                 });
