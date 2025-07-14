@@ -34,9 +34,10 @@ import {
   updateParticipant,
   resetParticipantsState,
 } from '../utils/slices/participantsSlice';
-import { BACKEND_URL, JITSI_URL, WORKER_URL } from '../config';
+import { BACKEND_URL, JITSI_URL, WORKER_URL, WS_RELAY_URL } from '../config';
 import { setActiveScreenShareId, setLayout } from '../utils/slices/videoChatSlice';
 import { setIsRecording } from '../utils/slices/mediaSlice';
+import { toast } from 'sonner';
 
 export const useJitsi = () => {
     const dispatch = useDispatch<AppDispatch>();
@@ -94,31 +95,74 @@ export const useJitsi = () => {
     const recordingIntervalRef = useRef(null);
     const currentRecorderRef = useRef(null);
     const currentStreamRef = useRef(null);
+
     const wsRef = useRef<WebSocket | null>(null);
+    const ws = new WebSocket(WS_RELAY_URL);
 
-    const ws = new WebSocket('ws://localhost:9093');
-    wsRef.current = ws;
+    useEffect(() => {
+      if (!roomId) return;
+  
+      const setupWebSocket = () => {
+        wsRef.current = ws;
+  
+        ws.onopen = () => {
+          console.log('WebSocket connected');
+          ws.send(JSON.stringify({
+            type: 'join-room',
+            roomId,
+            displayName: email || 'Anonymous'
+          }));
+        };
 
-    ws.onopen = () => {
-      console.log('WebSocket connection established');
-    };
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          
+          if (data.type === 'joined-room') {
+            console.log(`Joined room: ${data.roomId}`);
+            toast(`${data.displayName} joined the meeting`, {
+              duration: 3000,
+            })
+          } else if (data.type === 'recording-state') {
+            console.log(`Recording state for room ${data.roomId}: ${data.isRecording}`);
+            dispatch(setIsRecording(data.isRecording));
+            if (data.isRecording) {
+              startRecording(false);
+            } else {
+              stopRecording(false);
+            }
+          }
+        };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('WebSocket message received:', data);
-      
-      if (data.type === 'joined-room') {
-        console.log(`Joined room: ${data.roomId}`);
-      } else if (data.type === 'recording-state') {
-        console.log(`Recording state for room ${data.roomId}: ${data.isRecording}`);
-        dispatch(setIsRecording(data.isRecording));
-        if (data.isRecording) {
-          startRecording(false);
-        } else {
-          stopRecording(false);
-        }
+        ws.onclose = () => {
+          wsRef.current = null;
+          ws.send(JSON.stringify({
+            type: 'leave-room',
+            roomId,
+          }));
+          console.log('WebSocket disconnected');
+        };
+  
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          wsRef.current = null;
+          setTimeout(() => {
+            console.log('Reconnecting WebSocket...');
+            setupWebSocket();
+          }, 5000); 
+        };
       }
-    };
+      setupWebSocket();
+      return () => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          console.log('Closing WebSocket connection...');
+          ws.close(1000, 'Component unmounting');
+        }
+        wsRef.current = null;
+      };
+    }, [roomId, email, dispatch]);
+
+    
 
     const startRecording = async (isHost: boolean) => {
       if (!isConnected || !roomId) {
@@ -126,8 +170,8 @@ export const useJitsi = () => {
         return;
       }
 
-      if(isHost) {
-        ws.send(JSON.stringify({
+      if(isHost && wsRef.current) {
+        wsRef.current.send(JSON.stringify({
           type: 'recording-state',
           roomId,
           isRecording: true
@@ -297,8 +341,8 @@ export const useJitsi = () => {
     const stopRecording = (isHost: boolean) => {
       console.log('Stopping recording...');
 
-      if (isHost){
-        ws.send(JSON.stringify({
+      if (isHost && wsRef.current) {
+        wsRef.current.send(JSON.stringify({
           type: 'recording-state',
           roomId,
           isRecording: false

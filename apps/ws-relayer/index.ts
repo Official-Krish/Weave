@@ -30,7 +30,7 @@ Bun.serve({
                 }
                 participants.get(roomId)?.add(ws);
                 
-                ws.send(JSON.stringify({ type: 'joined-room', roomId }));
+                ws.send(JSON.stringify({ type: 'joined-room', roomId, displayName: data.displayName }));
             }
             
             if (data.type === 'recording-state') {
@@ -51,6 +51,19 @@ Bun.serve({
                     roomId: data.roomId,
                     isRecording: isRecording
                 }));
+            }
+            else if (data.type === 'leave-room') {
+                console.log(`WebSocket left room: ${data.roomId}`);
+                const roomId = data.roomId;
+                const roomParticipants = participants.get(roomId);
+                if (roomParticipants) {
+                    roomParticipants.delete(ws);
+                    if (roomParticipants.size === 0) {
+                        participants.delete(roomId);
+                        roomRecordingStates.delete(roomId);
+                    }
+                }
+                ws.send(JSON.stringify({ type: 'left-room', roomId }));
             }
         }
     }, 
