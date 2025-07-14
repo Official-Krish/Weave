@@ -113,9 +113,9 @@ export const VideoControls = ({
                 label={isRecording ? "Stop Recording" : "Start Recording"}
                 onClick={() => {
                   if (isRecording) {
-                    stopRecording();
+                    stopRecording(true);
                   } else  {
-                    startRecording();
+                    startRecording(true);
                   }
                 }}
               />

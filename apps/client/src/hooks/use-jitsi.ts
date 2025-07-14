@@ -80,7 +80,6 @@ export const useJitsi = () => {
     // Meeting End State
     const [Participants, setParticipants] = useState(0);
     const [Duration, setDuration] = useState("");
-    const [recordingStarted, setRecordingStarted] = useState(false);
   
   
     // Refs
@@ -95,11 +94,44 @@ export const useJitsi = () => {
     const recordingIntervalRef = useRef(null);
     const currentRecorderRef = useRef(null);
     const currentStreamRef = useRef(null);
+    const wsRef = useRef<WebSocket | null>(null);
 
-    const startRecording = async () => {
+    const ws = new WebSocket('ws://localhost:9093');
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('WebSocket connection established');
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('WebSocket message received:', data);
+      
+      if (data.type === 'joined-room') {
+        console.log(`Joined room: ${data.roomId}`);
+      } else if (data.type === 'recording-state') {
+        console.log(`Recording state for room ${data.roomId}: ${data.isRecording}`);
+        dispatch(setIsRecording(data.isRecording));
+        if (data.isRecording) {
+          startRecording(false);
+        } else {
+          stopRecording(false);
+        }
+      }
+    };
+
+    const startRecording = async (isHost: boolean) => {
       if (!isConnected || !roomId) {
         console.log('Cannot start recording: not connected or no roomId');
         return;
+      }
+
+      if(isHost) {
+        ws.send(JSON.stringify({
+          type: 'recording-state',
+          roomId,
+          isRecording: true
+        }));
       }
 
       try {
@@ -110,9 +142,7 @@ export const useJitsi = () => {
         recordingIntervalRef.current = setInterval(async () => {
           await recordAndUpload();
         }, 60 * 1000); // 60 seconds
-        
         dispatch(setIsRecording(true));
-        setRecordingStarted(true);
         console.log('Periodic recording started successfully');
       } catch (error) {
         console.error('Failed to start recording:', error);
@@ -200,7 +230,7 @@ export const useJitsi = () => {
           if (recorder.state === 'recording') {
             recorder.stop();
           }
-        }, 30000); // 30 seconds recording duration
+        }, 60000); // 60 seconds recording duration
 
       } catch (error) {
         console.error('Error during recording:', error);
@@ -264,8 +294,16 @@ export const useJitsi = () => {
       return 'video/webm';
     };
 
-    const stopRecording = () => {
+    const stopRecording = (isHost: boolean) => {
       console.log('Stopping recording...');
+
+      if (isHost){
+        ws.send(JSON.stringify({
+          type: 'recording-state',
+          roomId,
+          isRecording: false
+        }));
+      }
       
       // Clear interval
       if (recordingIntervalRef.current) {
@@ -291,7 +329,7 @@ export const useJitsi = () => {
     // Cleanup recording on unmount or component cleanup
     useEffect(() => {
       return () => {
-        stopRecording();
+        stopRecording(false);
       };
     }, []);
   
@@ -823,7 +861,20 @@ export const useJitsi = () => {
           window.JitsiMeetJS.events.conference.END_CONFERENCE,
           onConferenceEnded
         );
-        
+        conference.on(
+          window.JitsiMeetJS.events.conference.STARTRED_RECORDING,
+          () => {
+            console.log('Recording started');
+            dispatch(setIsRecording(true));
+          }
+        );
+        conference.on(
+          window.JitsiMeetJS.events.conference.STOPPED_RECORDING,
+          () => {
+            console.log('Recording stopped');
+            dispatch(setIsRecording(false));
+          }
+        );
         // Create local tracks
         try {
           const tracks = await window.JitsiMeetJS.createLocalTracks({

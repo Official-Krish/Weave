@@ -16,6 +16,8 @@ declare namespace JitsiMeetJS {
         const DISPLAY_NAME_CHANGED = "conference.displayNameChanged";
         const LOCAL_TRACK_STOPPED = "track.stopped";
         const END_CONFERENCE = "conference.ended";
+        const STARTRED_RECORDING = "conference.recordingStarted";
+        const STOPPED_RECORDING = "conference.recordingStopped";
       }
     }
 

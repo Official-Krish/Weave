@@ -90,7 +90,7 @@ export const VideoChat = ({
     tracks: localTracks,
     name: displayName, 
     isMuted: isMuted,  
-    isVideoOff: isVideoOff 
+    isVideoOff: isVideoOff
   };
 
   const [isLoading, setIsLoading] = useState(true);
