@@ -65,7 +65,7 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
 
                 await prisma.mediaChunks.create({
                     data: {
-                        meetingId: meetingId,
+                        meetingId: meeting.id,
                         bucketLink: `https://storage.googleapis.com/${bucket.name}/${filename}`,
                     },
                 });
