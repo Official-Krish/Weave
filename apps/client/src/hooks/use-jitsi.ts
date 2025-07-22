@@ -97,11 +97,12 @@ export const useJitsi = () => {
     const currentStreamRef = useRef(null);
 
     const wsRef = useRef<WebSocket | null>(null);
-    const ws = new WebSocket(WS_RELAY_URL);
+    
 
     useEffect(() => {
       if (!roomId) return;
-  
+      const ws = new WebSocket(WS_RELAY_URL);
+
       const setupWebSocket = () => {
         wsRef.current = ws;
   
@@ -120,9 +121,6 @@ export const useJitsi = () => {
           
           if (data.type === 'joined-room') {
             console.log(`Joined room: ${data.roomId}`);
-            toast(`${data.displayName} joined the meeting`, {
-              duration: 3000,
-            })
           } else if (data.type === 'recording-state') {
             console.log(`Recording state for room ${data.roomId}: ${data.isRecording}`);
             dispatch(setIsRecording(data.isRecording));
@@ -146,10 +144,6 @@ export const useJitsi = () => {
         ws.onerror = (error) => {
           console.error('WebSocket error:', error);
           wsRef.current = null;
-          setTimeout(() => {
-            console.log('Reconnecting WebSocket...');
-            setupWebSocket();
-          }, 5000); 
         };
       }
       setupWebSocket();
@@ -160,7 +154,7 @@ export const useJitsi = () => {
         }
         wsRef.current = null;
       };
-    }, [roomId, email, dispatch]);
+    }, [roomId]);
 
     
 

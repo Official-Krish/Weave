@@ -89,7 +89,7 @@ const MeetingDetail = () => {
             {/* Video Player */}
             <div className="relative aspect-video bg-primary-900/50 rounded-xl overflow-hidden">
                 <video
-                    src="https://storage.googleapis.com/portfoilio/portfolio/sample.mp4"
+                    src={videoURL}
                     controls
                     className="w-full h-full"
                 />
