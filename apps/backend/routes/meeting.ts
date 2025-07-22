@@ -214,6 +214,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
 });
 
 meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
+    console.log("Ending meeting");
     const userId = req.userId;
     const meetingId = req.params.id;
     try {
@@ -224,6 +225,7 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         });
 
         const meeting = meetings.find((meeting) => meeting.userId === userId);
+        console.log("Meeting found:", meeting);
 
         if (!meeting?.isHost) {
             res.status(201).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
@@ -234,6 +236,7 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "Meeting not found" });
             return;
         }
+        console.log("Ending meeting for participants:", meetings.map(m => m.participants).flat());
 
         meetings.forEach(async (meeting) => {
             await prisma.meeting.update({
@@ -247,18 +250,26 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
             });
         });
 
-        const rawChunks = await prisma.mediaChunks.findMany({
-            where: {
-                meetingId: meetingId,
-            },
-        });
+        const mediaChunks = await Promise.all(meetings.map(async (meeting) => {
+            return await prisma.mediaChunks.findMany({
+                where: {
+                    meetingId: meeting.id,
+                },
+            });
+        }));
 
         await redisClient.rpush("ProcessVideo", JSON.stringify({
             meetingId: meetingId,
-            chunks: rawChunks.map((chunk) => chunk.bucketLink),
+            chunks: mediaChunks.flat().map(c => c.bucketLink),
         }));
         
-        res.status(200).json({ message: "Meeting ended successfully", participants: meeting?.participants.length, duration: Number (meeting?.endTime?.getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
+        res.status(200).json({ 
+            message: "Meeting ended successfully", 
+            participants: meeting?.participants.length, 
+            duration: meeting?.endTime && meeting?.startTime 
+                ? Number(meeting.endTime.getMinutes() - meeting.startTime.getMinutes()) 
+                : 0 
+        });
     } catch (error) {
         console.error("Error fetching meeting:", error);
         res.status(500).json({ message: "Internal server error" });
