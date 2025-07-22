@@ -21,6 +21,7 @@ Bun.serve({
         message(ws, message) {
             // Handle incoming messages
             const data = JSON.parse(typeof message === 'string' ? message : message.toString());
+            console.log(`WebSocket message received: ${JSON.stringify(data)}`);
 
             if (data.type === "join-room"){
                 console.log(`WebSocket joined room: ${data.roomId}`);
@@ -36,11 +37,17 @@ Bun.serve({
             if (data.type === 'recording-state') {
                 console.log(`WebSocket recording state for room: ${data.roomId}, isRecording: ${data.isRecording}`);
                 roomRecordingStates.set(data.roomId, data.isRecording);
-            
-                broadcastToRoom(data.roomId, {
-                    type: 'recording-state',
-                    isRecording: data.isRecording
-                });
+                const roomParticipants = participants.get(data.roomId);
+                if (roomParticipants) {
+                    for (const participant of roomParticipants) {
+                        if (participant !== ws && participant.readyState === WebSocket.OPEN) {
+                            participant.send(JSON.stringify({
+                                type: 'recording-state',
+                                isRecording: data.isRecording
+                            }));
+                        }
+                    }
+                }
                 console.log(`Broadcasted recording state for room: ${data.roomId}, isRecording: ${data.isRecording}`);
             }
             else if (data.type === 'get-recording-state') {
@@ -69,14 +76,3 @@ Bun.serve({
     }, 
     port: 9093,
 });
-
-function broadcastToRoom(roomId: string, message: { type: string; isRecording: boolean }) {
-    const roomParticipants = participants.get(roomId);
-    if (roomParticipants) {
-        for (const ws of roomParticipants) {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(message));
-            }
-        }
-    }
-}
