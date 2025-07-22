@@ -26,7 +26,7 @@ model User {
 
 model meeting {
   id             String   @id @default(uuid())
-  meetingId      String   @unique
+  meetingId      String 
   passcode       String?
   userId         String
   roomName       String?
@@ -46,7 +46,7 @@ model mediaChunks {
   id         String   @id @default(uuid())
   meetingId  String 
   bucketLink String
-  meeting    meeting @relation(fields: [meetingId], references: [meetingId])
+  meeting    meeting @relation(fields: [meetingId], references: [id])
 }
 
 model FinalRecording {
