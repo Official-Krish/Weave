@@ -16,7 +16,10 @@ const Footer = () => {
               transition={{ duration: 0.5 }}
               className="mb-6"
             >
-              <h2 className="text-2xl font-bold text-gradient mb-3">RiverSide</h2>
+              <div className="flex items-center mb-3">  
+                <img src="/logo.png" alt="Weave Logo" className="h-12 w-12 mr-1 rounded-full" />
+                <h2 className="text-2xl font-bold text-gradient">Weave</h2>
+              </div>
               <p className="text-muted-foreground">
                 High-quality video and voice conferencing with local recording technology.
               </p>
@@ -87,7 +90,7 @@ const Footer = () => {
         
         <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-muted-foreground text-sm">
-            &copy; {currentYear} RiverSide. All rights reserved.
+            &copy; {currentYear} Weave. All rights reserved.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="text-sm text-muted-foreground hover:text-white transition-colors">

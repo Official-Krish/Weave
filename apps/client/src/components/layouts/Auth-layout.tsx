@@ -50,7 +50,7 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
       
       {/* Mobile version of benefits - visible only on mobile */}
       <div className="md:hidden px-4 py-8 space-y-6 bg-black">
-        <h2 className="text-xl font-bold text-center mb-4">Why Choose RiverSide?</h2>
+        <h2 className="text-xl font-bold text-center mb-4">Why Choose Weave?</h2>
         
         <div className="space-y-4">
           <div className="glass-card p-4 animate-fade-in" style={{ animationDelay: "0.1s" }}>

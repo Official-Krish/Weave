@@ -235,7 +235,7 @@ const HowItWorksSection = () => {
                   <div className="backdrop-blur-sm p-8 rounded-lg max-w-md text-center">
                     <h3 className="text-xl font-semibold mb-3">See it in action</h3>
                     <p className="text-muted-foreground mb-6">
-                      Watch our detailed walkthrough to see how RiverSide works from start to finish.
+                      Watch our detailed walkthrough to see how Weave works from start to finish.
                     </p>
                     <motion.button 
                       className="inline-flex items-center justify-center rounded-full bg-white text-background hover:bg-white/90 transition-colors px-6 py-3 text-sm font-medium"

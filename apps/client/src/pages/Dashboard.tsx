@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
         transition={{ duration: 0.5 }}
         className="text-center space-y-6"
       >
-        <h1 className="text-5xl font-light">RiverSide Pro</h1>
+        <h1 className="text-5xl font-light">Weave Pro</h1>
         <p className="text-primary-400 max-w-2xl mx-auto">
           Experience crystal-clear video meetings with automatic local recording. 
           No lag, no quality loss, no compromises.

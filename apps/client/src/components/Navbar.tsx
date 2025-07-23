@@ -68,8 +68,14 @@ const Navbar = () => {
           transition={{ duration: 0.5 }}
           onClick={() => window.location.href = "/"}
         >
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="h-10 w-10 hidden md:block rounded-full cursor-pointer mr-1"
+            onClick={() => window.location.href = "/"}
+          />
           <a href="#" className="text-2xl font-bold text-white">
-            River<span className="text-gradient">Side</span>
+            We<span className="text-gradient">ave</span>
           </a>
         </motion.div>
 
@@ -81,15 +87,38 @@ const Navbar = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-white transition-colors">
-              How It Works
-            </a>
-            <a href="#features" className="text-sm text-muted-foreground hover:text-white transition-colors">
-              Features
-            </a>
-            <a href="#use-cases" className="text-sm text-muted-foreground hover:text-white transition-colors">
-              Use Cases
-            </a>
+            {isTokenValid ? (
+              <div className="space-x-4">
+                <a 
+                  className="text-sm text-muted-foreground hover:text-white transition-colors cursor-pointer"
+                  onClick={() => (window.location.href = "/dashboard")}
+                >
+                  Dashboard
+                </a>
+                <a className="text-sm text-muted-foreground hover:text-white transition-colors cursor-pointer"
+                  onClick={() => (window.location.href = "/meeting/create")}
+                >
+                  Create Meeting
+                </a>
+                <a className="text-sm text-muted-foreground hover:text-white transition-colors cursor-pointer"
+                  onClick={() => (window.location.href = "/meeting/join")}
+                >
+                  Join Meeting  
+                </a>
+              </div>
+            ) : (
+              <div className="space-x-4">
+                <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-white transition-colors">
+                How It Works
+                </a>
+                <a href="#features" className="text-sm text-muted-foreground hover:text-white transition-colors">
+                  Features
+                </a>
+                <a href="#use-cases" className="text-sm text-muted-foreground hover:text-white transition-colors">
+                  Use Cases
+                </a>
+              </div>
+            )}
           </motion.div>
 
           {!isTokenValid && (

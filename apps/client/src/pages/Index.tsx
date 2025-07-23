@@ -1,17 +1,15 @@
 
 import { useEffect } from "react";
-import Navbar from "../components/Navbar";
 import HeroSection from "../components/HeroSection";
 import HowItWorksSection from "../components/HowItWorksSection";
 import FeaturesSection from "../components/FeaturesSection";
 import TestimonialsSection from "../components/TestimonialsSection";
 import CTASection from "../components/CTASection";
-import Footer from "../components/Footer";
 
 const Index = () => {
   useEffect(() => {
     // Update document title
-    document.title = "RiverSide - High Quality Video Conferencing";
+    document.title = "Weave - High Quality Video Conferencing";
     
     // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {

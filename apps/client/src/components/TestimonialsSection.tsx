@@ -4,7 +4,7 @@ import { motion, useInView } from "framer-motion";
 
 const testimonials = [
   {
-    quote: "RiverSide has completely transformed our remote podcast production. We get studio-quality recordings without requiring our guests to have professional setups.",
+    quote: "Weave has completely transformed our remote podcast production. We get studio-quality recordings without requiring our guests to have professional setups.",
     author: "Jessica Wong",
     position: "Podcast Producer",
     company: "Digital Insights Media"
@@ -123,7 +123,7 @@ const TestimonialsSection = () => {
           </motion.div>
           <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gradient">Use Cases & Testimonials</h2>
           <p className="text-lg text-muted-foreground">
-            Discover how RiverSide is helping businesses and creators across industries 
+            Discover how Weave is helping businesses and creators across industries 
             improve their remote collaboration and content production.
           </p>
         </motion.div>

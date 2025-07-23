@@ -66,7 +66,7 @@ const CTASection = () => {
                   transition={{ duration: 0.5, delay: 0.3 }}
                 >
                   Join thousands of teams who have already upgraded their remote collaboration 
-                  with RiverSide's revolutionary local recording platform.
+                  with Weave's revolutionary local recording platform.
                 </motion.p>
                 
                 <motion.div 
