@@ -6,58 +6,55 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - riverside.krishdev.xyz
-      secretName: riverside-frontend-tls
+        - api.weave.krishdev.xyz
+      secretName: weave-backend-tls
     - hosts:
-        - api.riverside.krishdev.xyz
-      secretName: riverside-backend-tls
+        - worker.weave.krishdev.xyz
+      secretName: weave-worker-tls
     - hosts:
-        - worker.riverside.krishdev.xyz
-      secretName: riverside-worker-tls
-    - hosts:
-        - k8s-worker.riverside.krishdev.xyz 
-      secretName: riverside-k8s-worker-tls
+        - k8s-worker.weave.krishdev.xyz 
+      secretName: weave-k8s-worker-tls
 
   rules:
-    - host: riverside.krishdev.xyz
+    - host: weave.krishdev.xyz
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: riverside-frontend
+                name: weave-frontend
                 port:
                   number: 80
 
-    - host: api.riverside.krishdev.xyz
+    - host: api.weave.krishdev.xyz
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: riverside-backend
+                name: weave-backend
                 port:
                   number: 80
-    - host: worker.riverside.krishdev.xyz
+    - host: worker.weave.krishdev.xyz
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: riverside-worker
+                name: weave-worker
                 port:
                   number: 80
-    - host: k8s-worker.riverside.krishdev.xyz
+    - host: k8s-worker.weave.krishdev.xyz
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: riverside-k8s-worker
+                name: weave-k8s-worker
                 port:
                   number: 80
 ---

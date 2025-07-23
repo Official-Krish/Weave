@@ -1,55 +1,41 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: riverside-frontend-cert
+  name: weave-backend-cert
   namespace: default
 spec:
-  secretName: riverside-frontend-tls
+  secretName: weave-backend-tls
   issuerRef:
     name: letsencrypt-staging
     kind: ClusterIssuer
-  commonName: riverside.krishdev.xyz
+  commonName: api.weave.krishdev.xyz
   dnsNames:
-  - riverside.krishdev.xyz
+  - api.weave.krishdev.xyz
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: riverside-backend-cert
+  name: weave-worker-cert
   namespace: default
 spec:
-  secretName: riverside-backend-tls
+  secretName: weave-worker-tls
   issuerRef:
     name: letsencrypt-staging
     kind: ClusterIssuer
-  commonName: api.riverside.krishdev.xyz
+  commonName: worker.weave.krishdev.xyz
   dnsNames:
-  - api.riverside.krishdev.xyz
+  - worker.weave.krishdev.xyz
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: riverside-worker-cert
+  name: weave-k8s-worker-cert
   namespace: default
 spec:
-  secretName: riverside-worker-tls
+  secretName: weave-k8s-worker-tls
   issuerRef:
     name: letsencrypt-staging
     kind: ClusterIssuer
-  commonName: worker.riverside.krishdev.xyz
+  commonName: k8s-worker.weave.krishdev.xyz
   dnsNames:
-  - worker.riverside.krishdev.xyz
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: riverside-k8s-worker-cert
-  namespace: default
-spec:
-  secretName: riverside-k8s-worker-tls
-  issuerRef:
-    name: letsencrypt-staging
-    kind: ClusterIssuer
-  commonName: k8s-worker.riverside.krishdev.xyz
-  dnsNames:
-  - k8s-worker.riverside.krishdev.xyz
+  - k8s-worker.weave.krishdev.xyz

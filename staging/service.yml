@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: riverside-frontend
+  name: weave-frontend
 spec:
   selector:
-    app: riverside-frontend
+    app: weave-frontend
   ports:
     - protocol: TCP
       port: 80
@@ -14,10 +14,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: riverside-backend
+  name: weave-backend
 spec:
   selector:
-    app: riverside-backend
+    app: weave-backend
   ports:
     - protocol: TCP
       port: 80
@@ -27,10 +27,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: riverside-k8s-worker
+  name: weave-k8s-worker
 spec:
   selector:
-    app: riverside-k8s-worker
+    app: weave-k8s-worker
   ports:
     - protocol: TCP
       port: 80
@@ -40,12 +40,26 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: riverside-worker
+  name: weave-worker
 spec:
   selector:
-    app: riverside-worker
+    app: weave-worker
   ports:
     - protocol: TCP
       port: 80
       targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: weave
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
   type: ClusterIP

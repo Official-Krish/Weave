@@ -1,108 +1,96 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: riverside-frontend
+  name: weave-frontend
   labels:
-    app: riverside-frontend
+    app: weave-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: riverside-frontend
+      app: weave-frontend
   template:
     metadata:
       labels:
-        app: riverside-frontend
+        app: weave-frontend
     spec:
       containers:
-        - name: riverside-frontend
-          image: krishanand01/riverside-frontend:v1
+        - name: weave-frontend
+          image: krishanand01/weave-frontend:v1
           ports:
             - containerPort: 5173
           volumeMounts:
             - name: env-file
               mountPath: /app/.env
-              subPath: .env
+              subPath: env
       volumes:
         - name: env-file
           secret:
-            secretName: riverside-frontend-env
+            secretName: weave-frontend-env
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: riverside-backend
+  name: weave-backend
   labels:
-    app: riverside-backend
+    app: weave-backend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: riverside-backend
+      app: weave-backend
   template:
     metadata:
       labels:
-        app: riverside-backend
+        app: weave-backend
     spec:
       containers:
-        - name: riverside-backend
-          image: krishanand01/riverside-backend:v1
+        - name: weave-backend
+          image: krishanand01/weave-backend:v1
           ports:
             - containerPort: 3000
-          env:
-            - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: /secrets/gcp/gcp-key.json
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/backend/.env
-              subPath: .env
-            - name: gcp-key-volume
-              mountPath: /secrets/gcp
-              readOnly: true
+              subPath: env
       volumes:
         - name: env-file
           secret:
-            secretName: riverside-backend-env
-        - name: gcp-key-volume
-          secret:
-            secretName: gcp-key-secret
+            secretName: weave-backend-env
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: riverside-worker
+  name: weave-worker
   labels:
-    app: riverside-worker
+    app: weave-worker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: riverside-worker
+      app: weave-worker
   template:
     metadata:
       labels:
-        app: riverside-worker
+        app: weave-worker
     spec:
       containers:
-        - name: riverside-worker
-          image: krishanand01/riverside-worker:v1
+        - name: weave-worker
+          image: krishanand01/weave-worker:v1
           ports:
             - containerPort: 8080
-          env:
-            - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: /secrets/gcp/gcp-key.json
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/worker/.env
               subPath: .env
             - name: gcp-key-volume
-              mountPath: /secrets/gcp
+              mountPath: /app/apps/worker/gcp-key.json
               readOnly: true
       volumes:
         - name: env-file
           secret:
-            secretName: riverside-worker-env
+            secretName: weave-worker-env
         - name: gcp-key-volume
           secret:
             secretName: gcp-key-secret
@@ -110,22 +98,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: riverside-k8s-worker
+  name: weave-k8s-worker
   labels:
-    app: riverside-k8s-worker
+    app: weave-k8s-worker
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: riverside-k8s-worker
+      app: weave-k8s-worker
   template:
     metadata:
       labels:
-        app: riverside-k8s-worker
+        app: weave-k8s-worker
     spec:
       containers:
-        - name: riverside-k8s-worker
-          image: krishanand01/riverside-k8s-worker:v1
+        - name: weave-k8s-worker
+          image: krishanand01/weave-k8s-worker:v1
           ports:
             - containerPort: 9000
           volumeMounts:
@@ -135,27 +123,27 @@ spec:
       volumes:
         - name: env-file
           secret:
-            secretName: riverside-k8s-worker-env
+            secretName: weave-k8s-worker-env
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: riverside-redis-orchastrator
+  name: weave-redis-orchastrator
   labels:
-    app: riverside-redis-orchastrator
+    app: weave-redis-orchastrator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: riverside-redis-orchastrator
+      app: weave-redis-orchastrator
   template:
     metadata:
       labels:
-        app: riverside-redis-orchastrator
+        app: weave-redis-orchastrator
     spec:
       containers:
-        - name: riverside-redis-orchastrator
-          image: krishanand01/riverside-redis-orchastrator:v1
+        - name: weave-redis-orchastrator
+          image: krishanand01/weave-redis-orchastrator:v1
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/redis-orchastrator/.env
@@ -163,7 +151,7 @@ spec:
       volumes:
         - name: env-file
           secret:
-            secretName: riverside-redis-orchastrator-env
+            secretName: weave-redis-orchastrator-env
 ---
 apiVersion: apps/v1
 kind: Deployment
