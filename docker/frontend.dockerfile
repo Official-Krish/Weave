@@ -4,8 +4,8 @@ FROM oven/bun:latest
 WORKDIR /app
 
 # Copy the package.json file
-COPY apps/client/package*.json ./
-COPY apps/client ./
+COPY apps/client/package*.json .
+COPY apps/client .
 
 RUN bun install
 

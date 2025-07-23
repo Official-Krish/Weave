@@ -2,7 +2,7 @@ FROM oven/bun:latest
 
 WORKDIR /app
 
-COPY apps/redis-orchastrator ./
+COPY apps/redis-orchastrator .
 
 RUN bun install
 

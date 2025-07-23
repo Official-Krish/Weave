@@ -1,6 +1,6 @@
 FROM google/cloud-sdk:489.0.0-stable
 
-RUN apt-get update && apt-get install -y ffmpeg bc
+RUN sudo apt update && sudo apt install -y ffmpeg
 
 # Set working directory
 WORKDIR /app
@@ -11,5 +11,5 @@ COPY ./docker/script.sh ./script.sh
 # Make script executable
 RUN chmod +x ./script.sh
 
-# Entrypoint
-ENTRYPOINT ["./script.sh"]
+# Set entrypoint to the script
+ENTRYPOINT ["bash", "script.sh"]
