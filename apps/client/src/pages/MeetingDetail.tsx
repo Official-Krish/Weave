@@ -7,7 +7,7 @@ import { BACKEND_URL } from '../config';
 
 const MeetingDetail = () => {
     const meetingId = window.location.pathname.split('/').pop() || '';
-    const [activeTab, setActiveTab] = useState<'video' | 'transcript' | 'downloads'>('video');
+    const [activeTab, setActiveTab] = useState<'video' | 'downloads'>('video');
     const [transcript, setTrascript] = useState<string>('Not available');
     const [videoURL, setVideoURL] = useState<string>('https://storage.googleapis.com/portfoilio/portfolio/sample.mp4');
     const [AudioURL, setAudioURL] = useState<string>('https://storage.googleapis.com/portfoilio/portfolio/sample.mp3');
@@ -98,7 +98,7 @@ const MeetingDetail = () => {
             {/* Tabs */}
             <div className="border-b border-primary-800">
                 <div className="flex gap-8">
-                {(['video', 'transcript', 'downloads'] as const).map((tab) => (
+                {(['video', 'downloads'] as const).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -135,20 +135,6 @@ const MeetingDetail = () => {
                                 <h3 className="text-sm text-primary-400">Participants</h3>
                                 <p className="text-lg">{participants} people</p>
                             </div>
-                        </div>
-                    </motion.div>
-                )}
-
-                {activeTab === 'transcript' && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="space-y-6"
-                    >
-                        <div className="bg-primary-900/30 rounded-lg p-6">
-                            <pre className="whitespace-pre-wrap font-sans text-primary-200">
-                                {transcript}
-                            </pre>
                         </div>
                     </motion.div>
                 )}

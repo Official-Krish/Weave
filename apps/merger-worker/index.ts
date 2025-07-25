@@ -32,7 +32,7 @@ class WebPVideoMerger {
 
     constructor(meetingId: string, bucketName: string) {
         this.storage = new Storage({
-        keyFilename: './gcp-key.json'
+            keyFilename: './gcp-key.json'
         });
         this.meetingId = meetingId;
         this.bucketName = bucketName;

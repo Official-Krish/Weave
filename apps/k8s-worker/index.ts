@@ -1,9 +1,11 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import express from 'express';
 import cors from 'cors';
 import { prisma } from "@repo/db/client"
 import { KubeConfig } from "@kubernetes/client-node";
 import * as k8s from "@kubernetes/client-node";
 import { redisClient } from './redis';
+import { authMiddleware } from './authMiddleware';
 
 const app = express();
 const PORT = process.env.PORT || 9000;
@@ -17,32 +19,30 @@ const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 const batchV1Api = kc.makeApiClient(k8s.BatchV1Api);
 
 async function listPods() {
-  const res =  await k8sApi.listNamespacedPod({ namespace: "riverside-merger" });
+  const res =  await k8sApi.listNamespacedPod({ namespace: "weave-merger" });
     return res.items.filter(pod => pod.status?.phase === "Running" || pod.status?.phase === "Pending").filter(pod => pod.metadata?.name).map(pod => pod.metadata?.name);
 }
 
 
-async function createPod(meetingId: string, chunksJson: string[]) {
-  console.log("Chunks", chunksJson);
+async function createPod(meetingId: string) {
   await k8sApi.createNamespacedConfigMap({
-    namespace: "riverside-merger", 
+    namespace: "weave-merger", 
     body: {
       metadata: {
-        name: `riverside-merger-config-${meetingId}`,
+        name: `weave-merger-config-${meetingId}`,
         labels: {
-          app: "riverside-merger"
+          app: "weave-merger"
         }
       },
       data: {
         MEETING_ID: meetingId,
         BUCKET_NAME: process.env.BUCKET_NAME!,
-        CHUNKS_JSON: chunksJson ? JSON.stringify(chunksJson) : "",
       }
     }
   });
 
   await batchV1Api.createNamespacedJob({
-    namespace: "riverside-merger",
+    namespace: "weave-merger",
     body: {
       apiVersion: "batch/v1",
       kind: "Job",
@@ -59,26 +59,22 @@ async function createPod(meetingId: string, chunksJson: string[]) {
           spec: {
             containers: [{
               name: `container-${meetingId}`,
-              image: "krishanand01/riverside-ffmpeg-gcp-worker",
+              image: "krishanand01/weave-merger-worker:v1",
               envFrom: [{
                 configMapRef: {
-                  name: `riverside-merger-config-${meetingId}`,
+                  name: `weave-merger-config-${meetingId}`,
                 },
               }],
-              env: [{
-                name: "GOOGLE_APPLICATION_CREDENTIALS",
-                value: "/var/secrets/google/key.json"
-              }],
               volumeMounts: [{
-                name: "riverside-merger-volume",
-                mountPath: "/var/secrets/google",
+                name: "weave-merger-volume",
+                mountPath: "/",
                 readOnly: true
               }],
             }],
             volumes: [{
-              name: "riverside-merger-volume",
+              name: "weave-merger-volume",
               secret: {
-                secretName: "riverside-merger-secret"
+                secretName: "weave-merger-secret"
               }
             }],
             restartPolicy: "Never",
@@ -90,28 +86,28 @@ async function createPod(meetingId: string, chunksJson: string[]) {
 }
 
 
-async function assignPodToMeeting(meetingId: string, chunksJson: string[]) {
+async function assignPodToMeeting(meetingId: string) {
   const pods = await listPods();
   const podExists = pods.find(pod => pod?.includes(meetingId));
 
   if (!podExists) {
     console.log(`No pod found for meeting ${meetingId}, creating a new one.`);
-    await createPod(meetingId, chunksJson);
+    await createPod(meetingId);
     console.log(`Pod created for meeting ${meetingId}`);
   }
 }
 
-app.post("/k8s-worker/start/:meetingId", async (req, res) => {
-  const meetingId = req.params.meetingId;
-  const chunks = req.body.chunks || [];
-  const meeting = await prisma.meeting.findUnique({
-    where: { id: meetingId },
+app.post("/k8s-worker/start", authMiddleware, async (req, res) => {
+  console.log("Received request to start pod for meeting");
+  const meetingId = req.body.meetingId;
+  const meeting = await prisma.meeting.findFirst({
+    where: { meetingId: meetingId },
   });
   if (!meeting) {
     res.status(404).json({ error: "Meeting not found" });
     return;
   }
-  await assignPodToMeeting(meetingId, chunks);
+  await assignPodToMeeting(meetingId);
   await redisClient.rpush("Final-upload", JSON.stringify({
     meetingId: meetingId,
   }));

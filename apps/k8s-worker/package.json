@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@kubernetes/client-node": "^1.2.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "ioredis": "^5.6.1"
   }
 }

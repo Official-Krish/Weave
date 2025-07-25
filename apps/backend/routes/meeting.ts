@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
+import axios from "axios";
 
 const meetingRouter = Router();
 
@@ -214,7 +215,6 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
 });
 
 meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
-    console.log("Ending meeting");
     const userId = req.userId;
     const meetingId = req.params.id;
     try {
@@ -225,7 +225,6 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         });
 
         const meeting = meetings.find((meeting) => meeting.userId === userId);
-        console.log("Meeting found:", meeting);
 
         if (!meeting?.isHost) {
             res.status(201).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
@@ -236,7 +235,6 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "Meeting not found" });
             return;
         }
-        console.log("Ending meeting for participants:", meetings.map(m => m.participants).flat());
 
         meetings.forEach(async (meeting) => {
             await prisma.meeting.update({
@@ -250,19 +248,10 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
             });
         });
 
-        const mediaChunks = await Promise.all(meetings.map(async (meeting) => {
-            return await prisma.mediaChunks.findMany({
-                where: {
-                    meetingId: meeting.id,
-                },
-            });
-        }));
-
         await redisClient.rpush("ProcessVideo", JSON.stringify({
             meetingId: meetingId,
-            chunks: mediaChunks.flat().map(c => c.bucketLink),
         }));
-        
+
         res.status(200).json({ 
             message: "Meeting ended successfully", 
             participants: meeting?.participants.length, 

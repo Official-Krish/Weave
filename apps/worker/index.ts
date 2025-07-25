@@ -5,7 +5,6 @@ import { prisma } from "@repo/db/client";
 import multer from "multer";
 import { authMiddleware } from "./authMiddleware";
 import cors from "cors";
-import { transcribeSpeech } from "./speechToText";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -97,10 +96,8 @@ app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
     const url = `gs://${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
     const AudioUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
 
-    const transcript = await transcribeSpeech(url);
-
     try {
-        const meeting = await prisma.meeting.findUnique({
+        const meeting = await prisma.meeting.findFirst({
             where: { id: meetingId },
         });
         
@@ -116,7 +113,6 @@ app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
                 AudioLink: AudioUrl,
                 format: "webm",
                 quality: "HIGH",
-                transcription: transcript
             },
         });
 

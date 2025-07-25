@@ -7,7 +7,7 @@ const redisClient = new Redis({
 });
 
 async function processQueue(queueName: string, processor: (data: any) => Promise<void>) {
-    console.log(`🚀 Starting ${queueName} queue processor...`);
+    console.log(`Starting ${queueName} queue processor...`);
   
     while (true) {
         try {
@@ -20,7 +20,7 @@ async function processQueue(queueName: string, processor: (data: any) => Promise
             const data = JSON.parse(result[1]);
             await processor(data);
         } catch (err) {
-            console.error(`❌ Error processing ${queueName} queue:`, err);
+            console.error(`Error processing ${queueName} queue:`, err);
         }
     }
 }
@@ -31,16 +31,18 @@ async function processVideoQueue(data: any) {
     console.log(`📥 Received video data for meeting ${meetingId}`, { chunks });
 
     if (!meetingId) {
-        console.error("❌ Invalid data: missing meetingId");
+        console.error("Invalid data: missing meetingId");
         return;
     }
 
-    console.log(`📥 Processing video for meeting ${meetingId}`);
+    console.log(`Processing video for meeting ${meetingId}`);
 
-    const url = `${process.env.K8s_WORKER_URL}/k8s-worker/start/${meetingId}`;
-    const response = await axios.post(url, { chunks });
+    const url = `${process.env.K8s_WORKER_URL}/k8s-worker/start`;
+    const response = await axios.post(url, { 
+        meetingId,
+    });
 
-    console.log(`✅ Sent pod creation request for meeting ${meetingId}`, {
+    console.log(`Sent pod creation request for meeting ${meetingId}`, {
         status: response.status,
         data: response.data
     });
@@ -48,19 +50,19 @@ async function processVideoQueue(data: any) {
 
 async function processFinalQueue(data: any) {
     const meetingId = data.meetingId;
-    console.log(`📥 Received final data for meeting ${meetingId}`);
+    console.log(`Received final data for meeting ${meetingId}`);
 
     if (!meetingId) {
-        console.error("❌ Invalid data: missing meetingId");
+        console.error("Invalid data: missing meetingId");
         return;
     }
 
-    console.log(`📥 Processing final data for meeting ${meetingId}`);
+    console.log(`Processing final data for meeting ${meetingId}`);
 
     const url = `${process.env.WORKER_URL}/api/v1/final-upload/${meetingId}`;
     const response = await axios.post(url);
 
-    console.log(`✅ Sent final processing request for meeting ${meetingId}`, {
+    console.log(`Sent final processing request for meeting ${meetingId}`, {
         status: response.status,
         data: response.data.message
     });
