@@ -3,11 +3,11 @@ RUN apt-get update -y && apt-get install -y openssl
 
 WORKDIR /app
 
+COPY bun.lock .
+COPY package.json .
 COPY apps/worker ./apps/worker
 COPY packages ./packages
 
-COPY bun.lock ./
-COPY package.json ./
 
 RUN bun install
 RUN bun run prisma:generate
