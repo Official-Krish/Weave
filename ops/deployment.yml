@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weave-frontend
+  namespace: weave
   labels:
     app: weave-frontend
 spec:
@@ -32,6 +33,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weave-backend
+  namespace: weave
   labels:
     app: weave-backend
 spec:
@@ -63,6 +65,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weave-worker
+  namespace: weave
   labels:
     app: weave-worker
 spec:
@@ -83,7 +86,7 @@ spec:
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/worker/.env
-              subPath: .env
+              subPath: env
             - name: gcp-key-volume
               mountPath: /app/apps/worker/gcp-key.json
               readOnly: true
@@ -99,6 +102,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weave-k8s-worker
+  namespace: weave
   labels:
     app: weave-k8s-worker
 spec:
@@ -119,7 +123,7 @@ spec:
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/k8s-worker/.env
-              subPath: .env
+              subPath: env
       volumes:
         - name: env-file
           secret:
@@ -129,6 +133,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: weave-redis-orchastrator
+  namespace: weave
   labels:
     app: weave-redis-orchastrator
 spec:
@@ -147,7 +152,7 @@ spec:
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/redis-orchastrator/.env
-              subPath: .env
+              subPath: env
       volumes:
         - name: env-file
           secret:
@@ -157,6 +162,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
+  namespace: weave
 spec:
   replicas: 1
   selector:

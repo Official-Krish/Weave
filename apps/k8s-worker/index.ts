@@ -67,7 +67,7 @@ async function createPod(meetingId: string) {
               }],
               volumeMounts: [{
                 name: "weave-merger-volume",
-                mountPath: "/",
+                mountPath: "/app",
                 readOnly: true
               }],
             }],

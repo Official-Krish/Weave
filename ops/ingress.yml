@@ -2,6 +2,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-nginx
+  namespace: weave
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"  
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"  
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"   
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP" 
 spec:
   ingressClassName: nginx
   tls:
@@ -14,6 +20,9 @@ spec:
     - hosts:
         - k8s-worker.weave.krishdev.xyz 
       secretName: weave-k8s-worker-tls
+    - hosts:
+        - wss.weave.krishdev.xyz
+      secretName: weave-ws-relayer-tls
 
   rules:
     - host: weave.krishdev.xyz
@@ -57,4 +66,13 @@ spec:
                 name: weave-k8s-worker
                 port:
                   number: 80
+
+    - host: wss.weave.krishdev.xyz
+      http:
+        paths:
+        backend:
+          service:
+            name: weave-ws-relayer
+            port:
+              number: 80
 ---

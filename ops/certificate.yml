@@ -2,11 +2,11 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: weave-backend-cert
-  namespace: default
+  namespace: weave
 spec:
   secretName: weave-backend-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   commonName: api.weave.krishdev.xyz
   dnsNames:
@@ -16,11 +16,11 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: weave-worker-cert
-  namespace: default
+  namespace: weave
 spec:
   secretName: weave-worker-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   commonName: worker.weave.krishdev.xyz
   dnsNames:
@@ -30,12 +30,26 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: weave-k8s-worker-cert
-  namespace: default
+  namespace: weave
 spec:
   secretName: weave-k8s-worker-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   commonName: k8s-worker.weave.krishdev.xyz
   dnsNames:
   - k8s-worker.weave.krishdev.xyz
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: weave-ws-relayer-cert
+  namespace: weave
+spec:
+  secretName: weave-ws-relayer-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: wss.weave.krishdev.xyz
+  dnsNames:
+  - wss.weave.krishdev.xyz

@@ -49,6 +49,19 @@ spec:
       port: 80
       targetPort: 8080
   type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weave-ws-relayer
+spec:
+  selector:
+    app: weave-ws-relayer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9093
+  type: ClusterIP
 
 ---
 apiVersion: v1
