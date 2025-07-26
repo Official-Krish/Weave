@@ -1,11 +1,4 @@
-
-# Project Title
-
-A brief description of what this project does and who it's for
-
 # Weave - Advanced Video Conferencing Platform
-
-![Weave Logo](apps/client/public/logo.png)
 
 **High-quality video conferencing with intelligent local recording technology**
 
