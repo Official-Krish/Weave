@@ -117,7 +117,7 @@ spec:
     spec:
       containers:
         - name: weave-k8s-worker
-          image: krishanand01/weave-k8s-worker:v1
+          image: krishanand01/weave-k8s-worker:v1.1
           ports:
             - containerPort: 9000
           volumeMounts:

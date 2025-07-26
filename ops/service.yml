@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weave-frontend
+  namespace: weave
 spec:
   selector:
     app: weave-frontend
@@ -15,6 +16,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weave-backend
+  namespace: weave
 spec:
   selector:
     app: weave-backend
@@ -28,6 +30,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weave-k8s-worker
+  namespace: weave
 spec:
   selector:
     app: weave-k8s-worker
@@ -41,6 +44,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weave-worker
+  namespace: weave
 spec:
   selector:
     app: weave-worker
@@ -54,6 +58,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: weave-ws-relayer
+  namespace: weave
 spec:
   selector:
     app: weave-ws-relayer

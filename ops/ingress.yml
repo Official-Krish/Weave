@@ -70,9 +70,11 @@ spec:
     - host: wss.weave.krishdev.xyz
       http:
         paths:
-        backend:
-          service:
-            name: weave-ws-relayer
-            port:
-              number: 80
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: weave-ws-relayer
+              port:
+                number: 80
 ---
