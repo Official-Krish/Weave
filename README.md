@@ -1,84 +1,275 @@
-# Turborepo starter
 
-This Turborepo starter is maintained by the Turborepo core team.
+# Project Title
 
-## Using this example
+A brief description of what this project does and who it's for
 
-Run the following command:
+# Weave - Advanced Video Conferencing Platform
 
-```sh
-npx create-turbo@latest
-```
+![Weave Logo](apps/client/public/logo.png)
 
-## What's inside?
+**High-quality video conferencing with intelligent local recording technology**
 
-This Turborepo includes the following packages/apps:
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+  [![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
+  [![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js&logoColor=white)](https://nodejs.org/)
 
-### Apps and Packages
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+## 🚀 Overview
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+Weave is a next-generation video conferencing platform that revolutionizes meeting recording by implementing **local recording technology**. Unlike traditional platforms like Zoom that depend on internet quality for recording, Weave Pro captures high-quality video and audio directly on each participant's device, then intelligently merges and processes recordings in the cloud.
 
-### Utilities
+### 🎯 Key Innovation
 
-This Turborepo has some additional tools already setup for you:
+**Local Recording Technology**: Recordings happen locally on each user's device in 60-second chunks, ensuring:
+- **No quality loss** due to internet connectivity issues
+- **Consistent recording quality** regardless of network conditions
+- **Reduced bandwidth usage** during meetings
+- **Automatic chunk upload** and cloud processing
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+## ✨ Features
 
-### Build
+### 🎥 Core Functionality
+- **Real-time video conferencing** with Jitsi Meet integration
+- **Local recording** with automatic chunk upload
+- **Screen sharing** capabilities
+- **Participant management** with host controls
+- **Meeting scheduling** and passcode protection
 
-To build all apps and packages, run the following command:
+### 🔧 Technical Features
+- **Chunk-based recording** (60-second intervals)
+- **Automatic video merging** using FFmpeg
+- **Grid layout generation** for multi-participant recordings
+- **Cloud storage integration** (Google Cloud Storage)
+- **Real-time processing** with Kubernetes workers
+- **Database tracking** of recording chunks and final outputs
 
-```
-cd my-turborepo
-pnpm build
-```
+### 🛡️ Security & Performance
+- **End-to-end encryption** for sensitive meetings
+- **JWT authentication** system
+- **Role-based access control**
+- **Automatic cleanup** of temporary files
+- **Scalable microservices architecture**
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm dev
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+## 🏗️ Architecture
 
 ```
-cd my-turborepo
-npx turbo login
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend API   │    │   Worker        │
+│   (React/TS)    │◄──►│   (Express)     │◄──►│   (Chunk Upload)│
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Jitsi Meet    │    │   PostgreSQL    │    │   Redis Queue   │
+│   Integration   │    │   Database      │    │   Orchestrator  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Local         │    │   Merger        │    │   K8s Worker    │
+│   Recording     │    │   Worker        │    │   (FFmpeg)      │
+│   (Chunks)      │    │   (Video Merge) │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Google Cloud  │    │   Final Video   │    │   User Dashboard│
+│   Storage       │    │   (Grid Layout) │    │   (Recordings)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+## 🛠️ Technology Stack
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **Tailwind CSS** for styling
+- **Framer Motion** for animations
+- **Redux Toolkit** for state management
+- **Jitsi Meet SDK** for video conferencing
+
+### Backend
+- **Node.js** with Express
+- **TypeScript** for type safety
+- **PostgreSQL** with Prisma ORM
+- **Redis** for queue management
+- **JWT** for authentication
+
+### Infrastructure
+- **Google Cloud Storage** for file storage
+- **Kubernetes** for container orchestration
+- **FFmpeg** for video processing
+- **Docker** for containerization
+
+## 📦 Project Structure
 
 ```
-npx turbo link
+video_voice_confrence/
+├── apps/
+│   ├── client/                 # React frontend application
+│   ├── backend/                # Express API server
+│   ├── worker/                 # Chunk upload worker
+│   ├── merger-worker/          # Video merging service
+│   ├── k8s-worker/             # Kubernetes video processor
+│   ├── redis-orchastrator/     # Queue management
+│   └── ws-relayer/             # WebSocket relay service
+├── packages/
+│   ├── db/                     # Database schema and migrations
+│   ├── types/                  # Shared TypeScript types
+│   ├── ui/                     # Shared UI components
+│   └── eslint-config/          # ESLint configurations
+├── docker/                     # Docker configurations
+├── ops/                        # Kubernetes deployments
+└── README.md
 ```
 
-## Useful Links
+## 🚀 Quick Start
 
-Learn more about the power of Turborepo:
+### Prerequisites
+- Node.js 18+ or Bun
+- PostgreSQL 14+
+- Redis 6+
+- Docker & Kubernetes (for production)
+- Google Cloud Storage account
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+### Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Official-Krish/weave
+   cd weave
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   bun install
+   ```
+
+3. **Environment Configuration**
+   ```bash
+   # Copy environment templates
+   cp apps/backend/.env.example apps/backend/.env
+   cp apps/client/.env.example apps/client/.env
+   
+   # Configure your environment variables
+   # See Environment Variables section below
+   ```
+
+4. **Database Setup**
+   ```bash
+   cd packages/db
+   npx prisma generate
+   npx prisma db push
+   ```
+
+5. **Start Development Servers**
+   ```bash
+   # Start all services
+   npm run dev
+   
+   # Or start individually
+   npm run dev:backend
+   npm run dev:client
+   npm run dev:worker
+   ```
+
+## 🔧 Environment Variables
+
+### Backend
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/weave"
+JWT_SECRET="your-jwt-secret"
+REDIS_URL="redis://localhost:6379"
+GOOGLE_CLOUD_PROJECT="your-gcp-project"
+GOOGLE_CLOUD_BUCKET="your-storage-bucket"
+```
+
+### Client
+```env
+VITE_API_URL="http://localhost:3000"
+VITE_WORKER_URL="http://localhost:3001"
+VITE_JITSI_DOMAIN="meet.jit.si"
+```
+
+### Worker Services
+```env
+BUCKET_NAME="your-storage-bucket"
+PROJECT_ID="your-gcp-project"
+K8S_WORKER_URL="http://k8s-worker-service"
+```
+
+## 📱 Usage
+
+### For Users
+
+1. **Create Account**: Sign up at the landing page
+2. **Start Meeting**: Create a new meeting or join with a meeting ID
+3. **Automatic Recording**: Only host can start and stop recording 
+4. **Access Recordings**: View processed recordings in your dashboard
+
+### For Developers
+
+1. **API Integration**: Use the REST API for meeting management
+2. **WebSocket Events**: Listen for real-time meeting updates
+3. **Custom Recording**: Implement custom recording logic using the chunk system
+
+## 🔄 Recording Process
+
+### 1. Local Recording
+- Each participant's device records video/audio in 60-second chunks
+- Chunks are automatically uploaded to cloud storage
+- No quality loss due to internet issues
+
+### 2. Chunk Processing
+- Worker services monitor for new chunks
+- Chunks are validated and stored in database
+- Queue system manages processing order
+
+### 3. Video Merging
+- Merger worker downloads all chunks for a meeting
+- FFmpeg processes and concatenates video chunks
+- Grid layout is generated for multi-participant view
+
+### 4. Final Output
+- Processed video is uploaded to cloud storage
+- Database is updated with final recording links
+- Users can access recordings through dashboard
+
+
+## 📊 Performance
+
+- **Recording Quality**: 1920x1080 @ 60fps
+- **Chunk Size**: 60 seconds per chunk
+- **Processing Time**: ~2-3 minutes for 1-hour meeting
+- **Storage**: Automatic cleanup of temporary files
+- **Scalability**: Kubernetes-based auto-scaling
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+## 🙏 Acknowledgments
+
+- **Jitsi Meet** for the video conferencing foundation
+- **FFmpeg** for video processing capabilities
+- **Google Cloud Platform** for scalable infrastructure
+- **Open Source Community** for various dependencies
+
+---
+
