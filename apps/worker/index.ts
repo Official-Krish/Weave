@@ -29,7 +29,7 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
         const meetingId = req.body.meetingId;
         const userId = req.userId;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `/${meetingId}/raw/users/${userId}/chunk-${timestamp}.webp`;
+        const filename = `weave/${meetingId}/raw/users/${userId}/chunk-${timestamp}.webp`;
 
 
         const file = bucket.file(filename);
@@ -71,7 +71,6 @@ app.post('/api/v1/upload-chunk', upload.single("video"), authMiddleware, async (
 
                 res.status(200).json({
                     message: 'File uploaded successfully',
-                    fileUrl: `https://storage.googleapis.com/${bucket.name}/${filename}`,
                 });
             } catch (e) {
                 console.error('Database error:', e);
@@ -92,9 +91,8 @@ app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
         res.status(400).send('Missing meetingId or videoUrl or AudioUrl');
         return;
     }
-    const videoUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/video/grid.mp4`
-    const url = `gs://${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
-    const AudioUrl = `https://storage.googleapis.com/${bucket}/meetings/${meetingId}/final/audio/Taudio.mp3`;
+
+    const videoUrl = `https://assets.krishdev.xyz/weave/${meetingId}/processed/video/meeting_grid_recording.mp4`
 
     try {
         const meeting = await prisma.meeting.findFirst({
@@ -110,7 +108,6 @@ app.post("/api/v1/final-upload/:meetingId", async (req, res) => {
             data: {
                 meetingId,
                 VideoLink: videoUrl,
-                AudioLink: AudioUrl,
                 format: "webm",
                 quality: "HIGH",
             },

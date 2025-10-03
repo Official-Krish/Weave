@@ -106,7 +106,7 @@ class WebPVideoMerger {
         const bucket = this.storage.bucket(this.bucketName);
         console.log(`Using bucket: ${this.bucketName}`);
         const [files] = await bucket.getFiles({
-            prefix: `/${this.meetingId}/raw/users/`,
+            prefix: `weave/${this.meetingId}/raw/users/`,
         });
         console.log(`Found ${files.length} files in bucket`);
 
@@ -399,7 +399,7 @@ class WebPVideoMerger {
         
         // Upload grid video
         await bucket.upload(gridVideoPath, {
-        destination: `/${this.meetingId}/processed/meeting_grid_recording.mp4`,
+        destination: `weave/${this.meetingId}/processed/meeting_grid_recording.mp4`,
         metadata: {
             contentType: 'video/mp4',
         },

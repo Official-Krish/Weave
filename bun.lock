@@ -60,6 +60,7 @@
         "next-themes": "^0.4.6",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
+        "react-icons": "^5.5.0",
         "react-player": "^2.16.0",
         "react-redux": "^9.2.0",
         "react-router-dom": "^7.1.1",
@@ -98,6 +99,7 @@
         "@kubernetes/client-node": "^1.2.0",
         "cors": "^2.8.5",
         "ioredis": "^5.6.1",
+        "jsonwebtoken": "^9.0.2",
       },
       "devDependencies": {
         "@repo/db": "workspace:*",
@@ -1853,6 +1855,8 @@
     "react-dom": ["react-dom@18.3.1", "", { "dependencies": { "loose-envify": "^1.1.0", "scheduler": "^0.23.2" }, "peerDependencies": { "react": "^18.3.1" } }, "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw=="],
 
     "react-fast-compare": ["react-fast-compare@3.2.2", "", {}, "sha512-nsO+KSNgo1SbJqJEYRE9ERzo7YtYbou/OqjSQKxV7jcKox7+usiUVZOAC+XnDOABXggQTno0Y1CpVnuWEc1boQ=="],
+
+    "react-icons": ["react-icons@5.5.0", "", { "peerDependencies": { "react": "*" } }, "sha512-MEFcXdkP3dLo8uumGI5xN3lDFNsRtrjbOEKDLD7yv76v4wpnEq2Lt2qeHaQOr34I/wPN3s3+N08WkQ+CW37Xiw=="],
 
     "react-is": ["react-is@16.13.1", "", {}, "sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ=="],
 

@@ -54,8 +54,7 @@ model FinalRecording {
   meeting          meeting  @relation(fields: [meetingId], references: [id])
   meetingId        String
   VideoLink        String
-  AudioLink        String
-  transcription    String?
+  AudioLink        String?
   generatedAt      DateTime @default(now())
   format           format
   quality          quality
