@@ -1,14 +1,18 @@
 import { FeatureCard } from "../components/FeatureCard";
-import { PageShell } from "../components/PageShell";
 
 export const LandingPage = () => {
   return (
     <div className="space-y-6">
-      <PageShell
-        eyebrow="Foundation"
-        title="Record meetings from the participant device, not the network."
-        description="This fresh frontend is the clean base for the new architecture. We are keeping the product story simple: live meetings, local chunk uploads, merged recordings, and future editing on the same platform."
-      >
+      <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+          Foundation
+        </p>
+        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+          Record meetings from the participant device, not the network.
+        </h1>
+        <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+          This fresh frontend is the clean base for the new architecture. We are keeping the product story simple: live meetings, local chunk uploads, merged recordings, and future editing on the same platform.
+        </p>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="motion-rise motion-delay-1">
             <FeatureCard
@@ -29,7 +33,7 @@ export const LandingPage = () => {
             />
           </div>
         </div>
-      </PageShell>
+      </section>
     </div>
   );
 };
