@@ -26,6 +26,6 @@
     "packages/*"
   ],
   "dependencies": {
-    "prisma": "^6.7.0"
+    "prisma": "^7.0.0"
   }
 }

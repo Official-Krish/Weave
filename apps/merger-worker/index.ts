@@ -36,7 +36,7 @@ class WebPVideoMerger {
         });
         this.meetingId = meetingId;
         this.bucketName = bucketName;
-        this.tempDir = `/tmp/webp_video_merge_${Date.now()}`;
+        this.tempDir = `/tmp/media_merge_${Date.now()}`;
     }
 
     private async createDirectories() {
@@ -113,15 +113,15 @@ class WebPVideoMerger {
         const userChunks = new Map<string, UserChunk[]>();
 
         for (const file of files) {
-        if (!file.name.includes('chunk-') || !file.name.endsWith('.webp')) {
+        if (!file.name.includes('chunk-') || (!file.name.endsWith('.webm') && !file.name.endsWith('.webp'))) {
             continue;
         }
 
-        // Extract user ID from path: meetingId/raw/users/userId/chunk-timestamp.webp
+        // Extract user ID from path: meetingId/raw/users/userId/chunk-sequence-timestamp.webm
         const pathParts = file.name.split('/');
         const userId = pathParts[pathParts.length - 2];
         const filename = pathParts[pathParts.length - 1];
-        const timestamp = filename?.replace('chunk-', '').replace('.webp', '');
+        const timestamp = filename?.replace('chunk-', '').replace(/\.(webm|webp)$/, '');
 
         if (!userId || !timestamp || !filename) {
             this.log(`Skipping invalid file: ${file.name}`);
@@ -168,7 +168,7 @@ class WebPVideoMerger {
     }
 
     private async createUserVideo(userId: string, chunks: UserChunk[]): Promise<string | null> {
-        this.log(`Creating concatenated video for user ${userId} from ${chunks.length} WEBP video chunks`);
+        this.log(`Creating concatenated video for user ${userId} from ${chunks.length} recorded video chunks`);
         
         if (chunks.length === 0) {
             this.log(`No chunks for user ${userId}`);
@@ -197,7 +197,7 @@ class WebPVideoMerger {
                 // Multiple chunks - concatenate them
                 this.log(`Multiple chunks for user ${userId}, concatenating`);
                 
-                // First, convert all WEBP videos to intermediate MP4 files with consistent format
+                // First, convert all input chunks to intermediate MP4 files with consistent format
                 const intermediateFiles: string[] = [];
                 
                 for (let i = 0; i < chunks.length; i++) {
@@ -399,13 +399,13 @@ class WebPVideoMerger {
         
         // Upload grid video
         await bucket.upload(gridVideoPath, {
-        destination: `weave/${this.meetingId}/processed/meeting_grid_recording.mp4`,
+        destination: `weave/${this.meetingId}/processed/video/meeting_grid_recording.mp4`,
         metadata: {
             contentType: 'video/mp4',
         },
         });
 
-        this.log(`Upload complete: gs://${this.bucketName}/${this.meetingId}/processed/meeting_grid_recording.mp4`);
+        this.log(`Upload complete: gs://${this.bucketName}/weave/${this.meetingId}/processed/video/meeting_grid_recording.mp4`);
     }
 
     private async cleanup(): Promise<void> {
@@ -420,7 +420,7 @@ class WebPVideoMerger {
 
     public async process(): Promise<void> {
         try {
-        this.log('===== Starting WEBP Video Merger (TypeScript) =====');
+        this.log('===== Starting Recorded Video Merger (TypeScript) =====');
         this.log(`Meeting ID: ${this.meetingId}`);
         this.log(`Bucket: ${this.bucketName}`);
         this.log(`Temp directory: ${this.tempDir}`);
@@ -463,7 +463,7 @@ class WebPVideoMerger {
         await this.uploadResults(gridVideoPath);
 
         this.log('===== Processing Complete Successfully =====');
-        this.log(`Final grid video: gs://${this.bucketName}/${this.meetingId}/processed/meeting_grid_recording.mp4`);
+        this.log(`Final grid video: gs://${this.bucketName}/weave/${this.meetingId}/processed/video/meeting_grid_recording.mp4`);
         this.log(`Participants: ${processedUsers.length}`);
         this.log(`Grid layout: ${this.calculateGridDimensions(processedUsers.length).rows}x${this.calculateGridDimensions(processedUsers.length).cols}`);
 

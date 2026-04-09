@@ -1,73 +1,38 @@
-# React + TypeScript + Vite
+# Weave Frontend (Active V1 Client)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app is the single active frontend for V1.
 
-Currently, two official plugins are available:
+## Scope
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Active client: `apps/frontend`
+- Reference-only legacy client: `apps/client`
+- Data layer: TanStack Query
+- API access: `src/https.ts` only
+- Live meetings: Jitsi route at `/meetings/live/:meetingId`
 
-## React Compiler
+## Current Route Contract
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `/signin`
+- `/signup`
+- `/meetings`
+- `/meetings/live/:meetingId`
+- `/recordings`
+- `/editor`
 
-## Expanding the ESLint configuration
+## Development Rules
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Do not add new product features to `apps/client`.
+- Keep meeting/auth/recordings requests centralized via `src/https.ts`.
+- Prefer server state in TanStack Query and local component state for UI-only concerns.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Commands
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+bun run dev
+bun run build
+bun run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## V1 Roadmap
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+The phase-wise V1 plan is tracked in `docs/v1-frontend-roadmap.md`.

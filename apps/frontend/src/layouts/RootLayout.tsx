@@ -1,6 +1,7 @@
 import { Moon, SunMedium } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
 const navItems = [
   { to: "/", label: "Home", end: true },
@@ -29,6 +30,9 @@ function getInitialTheme(): ThemeMode {
 
 export function RootLayout() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const location = useLocation();
+  const { isAuthenticated, name, signOut } = useAuth();
+  const isLiveMeeting = location.pathname.startsWith("/meetings/live/");
 
   useEffect(() => {
     const root = document.documentElement;
@@ -42,8 +46,18 @@ export function RootLayout() {
 
   return (
     <div className="min-h-screen text-foreground transition-colors duration-300">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6 sm:px-8">
-        <header className="motion-rise mb-10 rounded-full border border-border/80 bg-card/80 px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-colors duration-300">
+      <div
+        className={[
+          "mx-auto flex min-h-screen flex-col px-5 py-6 sm:px-8",
+          isLiveMeeting ? "max-w-350" : "max-w-6xl",
+        ].join(" ")}
+      >
+        <header
+          className={[
+            "motion-rise rounded-full border border-border/80 bg-card/80 px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl transition-colors duration-300",
+            isLiveMeeting ? "mb-6" : "mb-10",
+          ].join(" ")}
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <Link to="/" className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(16,115,108,0.30)] transition-shadow duration-300 dark:shadow-[0_8px_20px_rgba(79,210,197,0.22)]">
@@ -94,8 +108,25 @@ export function RootLayout() {
                 to="/signin"
                 className="rounded-full border border-foreground/40 px-4 py-2 font-medium text-foreground transition-all duration-300 hover:bg-foreground hover:text-background"
               >
-                Sign in
+                {isAuthenticated ? name || "Signed in" : "Sign in"}
               </Link>
+              {!isAuthenticated ? (
+                <Link
+                  to="/signup"
+                  className="rounded-full bg-primary px-4 py-2 font-medium text-primary-foreground transition-all duration-300 hover:brightness-105"
+                >
+                  Sign up
+                </Link>
+              ) : null}
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="rounded-full border border-border bg-card px-4 py-2 font-medium text-muted-foreground transition-all duration-300 hover:bg-secondary hover:text-foreground"
+                >
+                  Sign out
+                </button>
+              ) : null}
             </nav>
           </div>
         </header>

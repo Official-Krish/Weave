@@ -2,9 +2,20 @@ import { Router } from "express";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
-import axios from "axios";
 
 const meetingRouter = Router();
+
+function toSingleString(value: string | string[] | undefined): string | null {
+    if (typeof value === "string") {
+        return value;
+    }
+
+    if (Array.isArray(value) && value.length > 0) {
+        return value[0] ?? null;
+    }
+
+    return null;
+}
 
 const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 function generateString() {
@@ -17,13 +28,42 @@ function generateString() {
     return result;
 }
 
+async function getMeetingSessions(meetingId: string) {
+    return prisma.meeting.findMany({
+        where: {
+            meetingId,
+        },
+        include: {
+            finalRecording: true,
+        }
+    });
+}
+
+async function getUserMeetingSession(meetingId: string, userId: string) {
+    return prisma.meeting.findFirst({
+        where: {
+            meetingId,
+            userId,
+        },
+        include: {
+            finalRecording: true,
+        }
+    });
+}
+
 meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
     const userId = req.userId;
     try{
         const meetings = await prisma.meeting.findMany({
             where: {
                 userId: userId
-            }
+            },
+            include: {
+                finalRecording: true,
+            },
+            orderBy: {
+                date: "desc",
+            },
         });
         res.status(200).json(meetings);
     } catch (error) {
@@ -35,9 +75,13 @@ meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
 
 meetingRouter.get("/get/:id", authMiddleware, async (req, res) => {
     const userId = req.userId;
-    const meetingId = req.params.id;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
     try {
-        const meeting = await prisma.meeting.findUnique({
+        const meeting = await prisma.meeting.findFirst({
             where: {
                 id: meetingId,
                 userId: userId
@@ -59,9 +103,13 @@ meetingRouter.get("/get/:id", authMiddleware, async (req, res) => {
 
 meetingRouter.get("/getRaw/:id", authMiddleware, async (req, res) => {
     const userId = req.userId;
-    const meetingId = req.params.id;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
     try {
-        const meeting = await prisma.meeting.findUnique({
+        const meeting = await prisma.meeting.findFirst({
             where: {
                 id: meetingId,
                 userId: userId
@@ -90,7 +138,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
     const { roomName, participants, passcode } = req.body;
 
     try {
-        const user = await prisma.user.findUnique({
+        const user = await prisma.user.findFirst({
             where: {
                 id: userId,
             },
@@ -123,7 +171,11 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
 meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
     console.log("Joining meeting");
     const userId = req.userId;
-    const meetingId = req.params.id;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
     const passcode = req.body.passcode;
     try {
         const meeting = await prisma.meeting.findFirst({
@@ -158,11 +210,11 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         if (ifUserAlreadyJoined){
             if (ifUserAlreadyJoined?.isEnded === false) {
                 console.log("User already joined, returning existing meeting details");
-                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
                 return;
             } if (ifUserAlreadyJoined?.isEnded === true) {
-                console.log("User already joined but meeting ended, creating new meeting entry");
-                res.status(200).json("Meeting ended");
+                console.log("User already joined but meeting ended");
+                res.status(409).json({ message: "Meeting ended" });
                 return;
             }
         }
@@ -182,7 +234,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         participants: meeting.participants
                     }
                 });
-                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
             } else {
                 res.status(403).json({ message: "You are not a participant of this meeting" });
             }
@@ -202,7 +254,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                     }
                 });
                 console.log("Meeting joined successfully");
-                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name });
+                res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
             } else {
                 console.log("Invalid passcode");
                 res.status(403).json({ message: "Invalid passcode" });
@@ -214,49 +266,185 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
     }
 });
 
-meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
+meetingRouter.get("/recording/status/:id", authMiddleware, async (req, res) => {
     const userId = req.userId;
-    const meetingId = req.params.id;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+
     try {
-        const meetings = await prisma.meeting.findMany({
-            where: {
-                meetingId: meetingId,
-            },
-        });
+        const meeting = await getUserMeetingSession(meetingId, userId as string);
 
-        const meeting = meetings.find((meeting) => meeting.userId === userId);
-
-        if (!meeting?.isHost) {
-            res.status(201).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
-            return;
-        }
-
-        if (!meetings ) {
+        if (!meeting) {
             res.status(404).json({ message: "Meeting not found" });
             return;
         }
 
-        meetings.forEach(async (meeting) => {
-            await prisma.meeting.update({
-                where: {
-                    id: meeting.id,
-                },
-                data: {
-                    isEnded: true,
-                    endTime: new Date(),
-                },
-            });
+        res.status(200).json({
+            meetingId: meeting.meetingId,
+            isHost: meeting.isHost,
+            isRecording: meeting.recordingState === "RECORDING",
+            recordingState: meeting.recordingState,
+            recordingStartedAt: meeting.recordingStartedAt,
+            recordingStoppedAt: meeting.recordingStoppedAt,
+            processingStartedAt: meeting.processingStartedAt,
+            processingEndedAt: meeting.processingEndedAt,
+            isEnded: meeting.isEnded,
+        });
+    } catch (error) {
+        console.error("Error fetching recording status:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.post("/recording/start/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+
+    try {
+        const meeting = await getUserMeetingSession(meetingId, userId as string);
+
+        if (!meeting) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+
+        if (!meeting.isHost) {
+            res.status(403).json({ message: "Only the host can start recording" });
+            return;
+        }
+
+        if (meeting.isEnded) {
+            res.status(400).json({ message: "Meeting already ended" });
+            return;
+        }
+
+        const recordingStartedAt = new Date();
+
+        await prisma.meeting.updateMany({
+            where: {
+                meetingId,
+            },
+            data: {
+                recordingState: "RECORDING",
+                recordingStartedAt,
+                recordingStoppedAt: null,
+                processingStartedAt: null,
+                processingEndedAt: null,
+            }
         });
 
-        await redisClient.rpush("ProcessVideo", JSON.stringify({
-            meetingId: meetingId,
-        }));
+        res.status(200).json({
+            meetingId,
+            isRecording: true,
+            recordingState: "RECORDING",
+            recordingStartedAt,
+        });
+    } catch (error) {
+        console.error("Error starting recording:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.post("/recording/stop/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+
+    try {
+        const meeting = await getUserMeetingSession(meetingId, userId as string);
+
+        if (!meeting) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+
+        if (!meeting.isHost) {
+            res.status(403).json({ message: "Only the host can stop recording" });
+            return;
+        }
+
+        const recordingStoppedAt = new Date();
+
+        await prisma.meeting.updateMany({
+            where: {
+                meetingId,
+            },
+            data: {
+                recordingState: "UPLOADING",
+                recordingStoppedAt,
+            }
+        });
+
+        res.status(200).json({
+            meetingId,
+            isRecording: false,
+            recordingState: "UPLOADING",
+            recordingStoppedAt,
+        });
+    } catch (error) {
+        console.error("Error stopping recording:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const meetingId = toSingleString(req.params.id);
+    if (!meetingId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+    try {
+        const meetings = await getMeetingSessions(meetingId);
+
+        const meeting = meetings.find((meeting) => meeting.userId === userId);
+
+        if (!meeting?.isHost) {
+            res.status(403).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
+            return;
+        }
+
+        if (meetings.length === 0) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+
+        const endTime = new Date();
+        const shouldProcessRecording = meetings.some((session) => session.recordingState !== "IDLE");
+
+        await prisma.meeting.updateMany({
+            where: {
+                meetingId,
+            },
+            data: {
+                isEnded: true,
+                endTime,
+                recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
+                processingStartedAt: shouldProcessRecording ? endTime : null,
+            },
+        });
+
+        if (shouldProcessRecording) {
+            await redisClient.rpush("ProcessVideo", JSON.stringify({
+                meetingId: meetingId,
+            }));
+        }
 
         res.status(200).json({ 
             message: "Meeting ended successfully", 
             participants: meeting?.participants.length, 
-            duration: meeting?.endTime && meeting?.startTime 
-                ? Number(meeting.endTime.getMinutes() - meeting.startTime.getMinutes()) 
+            duration: meeting?.startTime 
+                ? Math.max(0, Math.floor((endTime.getTime() - meeting.startTime.getTime()) / 60000))
                 : 0 
         });
     } catch (error) {
@@ -267,7 +455,7 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
 
 meetingRouter.get("/getParticipantDetails", authMiddleware, async (req, res) => {
     const userId = req.userId;
-    const meetingId = req.query.meetingId as string;
+    const meetingId = toSingleString(req.query.meetingId as string | string[] | undefined);
     if (!meetingId) {
         res.status(400).json({ message: "Meeting ID is required" });
         return;
@@ -284,7 +472,9 @@ meetingRouter.get("/getParticipantDetails", authMiddleware, async (req, res) => 
             return;
         }
         res.status(200).json({
-            isHost: meeting.isHost
+            isHost: meeting.isHost,
+            recordingState: meeting.recordingState,
+            isRecording: meeting.recordingState === "RECORDING",
         })
     } catch (error) {
         console.error("Error fetching meeting:", error);
