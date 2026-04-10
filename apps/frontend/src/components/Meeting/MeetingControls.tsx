@@ -1,9 +1,11 @@
 import {
   Circle,
   LayoutGrid,
+  MessageSquare,
   Mic,
   MicOff,
   MonitorUp,
+  OctagonX,
   PhoneOff,
   Sidebar,
   Video,
@@ -17,18 +19,22 @@ type MeetingControlsProps = {
   isVideoOff: boolean;
   isScreenSharing: boolean;
   isSidebarOpen: boolean;
+  isChatOpen: boolean;
   activeLayout: "grid" | "focus";
   isHost: boolean;
   isUploadingChunks: boolean;
   isRecordingBusy: boolean;
   canToggleRecording: boolean;
+  unreadMessages: number;
   recordingButtonLabel: string;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
   onToggleSidebar: () => void;
+  onToggleChat: () => void;
   onToggleLayout: () => void;
   onToggleRecording: () => void;
+  onEndForAll: () => void;
   onLeaveCall: () => void;
 };
 
@@ -37,18 +43,22 @@ export function MeetingControls({
   isVideoOff,
   isScreenSharing,
   isSidebarOpen,
+  isChatOpen,
   activeLayout,
   isHost,
   isUploadingChunks,
   isRecordingBusy,
   canToggleRecording,
+  unreadMessages,
   recordingButtonLabel,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
   onToggleSidebar,
+  onToggleChat,
   onToggleLayout,
   onToggleRecording,
+  onEndForAll,
   onLeaveCall,
 }: MeetingControlsProps) {
   const recordingActive = recordingButtonLabel.toLowerCase().includes("stop");
@@ -129,6 +139,19 @@ export function MeetingControls({
           active={isSidebarOpen}
           icon={<Sidebar size={19} />}
         />
+        <div className="relative">
+          <IconButton
+            label={isChatOpen ? "Hide chat" : "Chat"}
+            onClick={onToggleChat}
+            active={isChatOpen}
+            icon={<MessageSquare size={19} />}
+          />
+          {unreadMessages > 0 && !isChatOpen ? (
+            <span className="absolute right-0 top-0 flex h-5 min-w-5 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
+          ) : null}
+        </div>
 
         {isHost ? (
           <IconButton
@@ -137,6 +160,15 @@ export function MeetingControls({
             active={recordingActive}
             disabled={isRecordingBusy || !canToggleRecording}
             icon={<Circle size={19} className={recordingActive ? "text-red-500" : ""} />}
+          />
+        ) : null}
+
+        {isHost ? (
+          <IconButton
+            label="End all"
+            onClick={onEndForAll}
+            danger
+            icon={<OctagonX size={19} />}
           />
         ) : null}
 

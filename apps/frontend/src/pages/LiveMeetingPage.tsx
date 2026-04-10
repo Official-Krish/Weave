@@ -1,14 +1,17 @@
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { AudioTrackSink } from "../components/Meeting/AudioTrackSink";
 import { MeetingAlerts } from "../components/Meeting/MeetingAlerts";
+import { MeetingChatSidebar } from "../components/Meeting/MeetingChatSidebar";
 import { MeetingControls } from "../components/Meeting/MeetingControls";
 import { MeetingInfo } from "../components/Meeting/MeetingInfo";
 import { RecordingIndicator } from "../components/Meeting/RecordingIndicator";
 import { MeetingStage } from "../components/Meeting/MeetingStage";
 import { ParticipantsSidebar } from "../components/Meeting/ParticipantsSidebar";
+import { useMeetingRealtime } from "../hooks/useMeetingRealtime";
 import { useMeetingRecording } from "../hooks/useMeetingRecording";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
 import { http } from "../https";
@@ -19,10 +22,16 @@ export function LiveMeetingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [ending, setEnding] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const endingRef = useRef(false);
 
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
   const roomName = useMemo(() => meetingId.trim(), [meetingId]);
+
+  useEffect(() => {
+    endingRef.current = ending;
+  }, [ending]);
 
   const {
     connectionState,
@@ -204,6 +213,41 @@ export function LiveMeetingPage() {
     setIsRecording,
   });
 
+  const {
+    connectionStatus: realtimeConnectionStatus,
+    chatMessages,
+    typingNames,
+    unreadCount,
+    sendChatMessage,
+    setTyping,
+    sendMeetingEnded,
+  } = useMeetingRealtime({
+    roomId: roomName,
+    displayName,
+    participantId: localParticipantId,
+    isHost,
+    onRemoteRecordingState: setIsRecording,
+    onParticipantJoined: (participant) => {
+      toast.success(`${participant.displayName} joined the meeting`);
+    },
+    onParticipantLeft: (participant) => {
+      toast(`${participant.displayName} left the meeting`);
+    },
+    onMeetingEnded: ({ displayName: endedBy }) => {
+      if (isHost) {
+        return;
+      }
+
+      if (endingRef.current) {
+        return;
+      }
+
+      toast.error(`Meeting ended by ${endedBy}`);
+      void handleRemoteMeetingEnded();
+    },
+    isChatOpen,
+  });
+
   const endMeetingMutation = useMutation({
     mutationFn: async () => {
       await http.post(`/meeting/end/${meetingId}`);
@@ -234,12 +278,39 @@ export function LiveMeetingPage() {
 
     leaveRoom();
 
-    if (isHost) {
-      await endMeetingMutation.mutateAsync();
+    navigate("/meetings");
+  };
+
+  const handleRemoteMeetingEnded = async () => {
+    setEnding(true);
+
+    if (hasActiveRecorder()) {
+      await stopLocalChunkRecorder();
+    }
+
+    leaveRoom();
+    navigate("/meetings");
+  };
+
+  const handleEndForAll = async () => {
+    if (!isHost || !meetingId || ending) {
       return;
     }
 
-    navigate("/meetings");
+    setEnding(true);
+
+    if (isRecording) {
+      try {
+        await stopRecordingMutation.mutateAsync();
+      } catch {
+        // best effort
+      }
+    }
+
+    sendMeetingEnded();
+    leaveRoom();
+    toast.success("Meeting ended for all participants");
+    await endMeetingMutation.mutateAsync();
   };
 
   if (!roomName) {
@@ -306,16 +377,25 @@ export function LiveMeetingPage() {
         isVideoOff={isVideoOff}
         isScreenSharing={isScreenSharing}
         isSidebarOpen={isSidebarOpen}
+        isChatOpen={isChatOpen}
         activeLayout={activeLayout}
         isHost={isHost}
         isUploadingChunks={isUploadingChunks}
         isRecordingBusy={isRecordingBusy}
         canToggleRecording={connectionState === "connected"}
+        unreadMessages={unreadCount}
         recordingButtonLabel={recordingButtonLabel}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onToggleScreenShare={toggleScreenShare}
-        onToggleSidebar={() => setIsSidebarOpen((value) => !value)}
+        onToggleSidebar={() => {
+          setIsChatOpen(false);
+          setIsSidebarOpen((value) => !value);
+        }}
+        onToggleChat={() => {
+          setIsSidebarOpen(false);
+          setIsChatOpen((value) => !value);
+        }}
         onToggleLayout={() => {
           if (activeLayout === "focus") {
             setActiveLayout("grid");
@@ -333,6 +413,7 @@ export function LiveMeetingPage() {
           }
           startRecordingMutation.mutate();
         }}
+        onEndForAll={handleEndForAll}
         onLeaveCall={handleExit}
       />
 
@@ -341,6 +422,19 @@ export function LiveMeetingPage() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
+
+      <MeetingChatSidebar
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={chatMessages}
+        typingNames={typingNames}
+        onSendMessage={sendChatMessage}
+        onTyping={setTyping}
+      />
+
+      <div className="absolute left-4 top-4 z-30 rounded-full border border-[#2f4452] bg-[#0a141c]/90 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#8fa8b8]">
+        Realtime: {realtimeConnectionStatus}
+      </div>
 
       {ending || endMeetingMutation.isPending ? (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
