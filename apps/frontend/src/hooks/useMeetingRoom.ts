@@ -33,6 +33,7 @@ export function useMeetingRoom({
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [localParticipantId, setLocalParticipantId] = useState<string | null>(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeLayout, setActiveLayout] = useState<"grid" | "focus">("grid");
@@ -168,6 +169,7 @@ export function useMeetingRoom({
     setParticipantsMap({});
     setLocalVideoTrack(null);
     setLocalScreenTrack(null);
+    setLocalParticipantId(null);
     setIsScreenSharing(false);
     setIsMuted(false);
     setIsVideoOff(false);
@@ -405,6 +407,7 @@ export function useMeetingRoom({
             });
 
             conference.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED, () => {
+              setLocalParticipantId(conference.myUserId?.() || null);
               setConnectionState("connected");
             });
 
@@ -482,6 +485,7 @@ export function useMeetingRoom({
     isScreenSharing,
     isRecording,
     setIsRecording,
+    localParticipantId,
     isSidebarOpen,
     setIsSidebarOpen,
     activeLayout,

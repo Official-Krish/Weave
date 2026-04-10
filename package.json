@@ -10,6 +10,7 @@
     "prisma:generate": "cd ./packages/db && bunx prisma generate && cd ../..",
     "backend": "cd ./apps/backend && bun run index.ts",
     "worker": "cd ./apps/worker && bun run index.ts",
+    "merger-worker": "cd ./apps/merger-worker && bun run index.ts",
     "k8s-worker": "cd ./apps/k8s-worker && bun run index.ts"
   },
   "devDependencies": {

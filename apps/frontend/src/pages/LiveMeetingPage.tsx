@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   LayoutGrid,
@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
 import { http } from "../https";
+import type { RecordingStatusResponse } from "../types/api";
 
 function TrackTile({
   title,
@@ -104,10 +105,20 @@ function AudioTrackSink({ track }: { track: any }) {
 }
 
 export function LiveMeetingPage() {
+  const CHUNK_DURATION_MS = 5000;
+
   const { meetingId = "" } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [ending, setEnding] = useState(false);
+  const [isUploadingChunks, setIsUploadingChunks] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recorderStartingRef = useRef(false);
+  const sequenceRef = useRef(0);
+  const uploadChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
@@ -124,6 +135,7 @@ export function LiveMeetingPage() {
     isScreenSharing,
     isRecording,
     setIsRecording,
+    localParticipantId,
     isSidebarOpen,
     setIsSidebarOpen,
     activeLayout,
@@ -221,6 +233,225 @@ export function LiveMeetingPage() {
     };
   }, [activeLayout, allTiles, selectedParticipantId]);
 
+  const recordingStatusQuery = useQuery<RecordingStatusResponse>({
+    queryKey: ["recording-status", meetingId],
+    enabled: Boolean(meetingId),
+    queryFn: async () => {
+      const { data } = await http.get(`/meeting/recording/status/${meetingId}`);
+      return data;
+    },
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    if (!recordingStatusQuery.data) {
+      return;
+    }
+
+    const serverState = recordingStatusQuery.data.recordingState;
+    setIsRecording(serverState === "RECORDING");
+  }, [recordingStatusQuery.data, setIsRecording]);
+
+  const enqueueChunkUpload = (chunk: Blob) => {
+    const meetingKey = roomName;
+
+    if (!meetingKey) {
+      return;
+    }
+
+    const nextSequence = sequenceRef.current++;
+    const startedAt = new Date().toISOString();
+
+    uploadChainRef.current = uploadChainRef.current.then(async () => {
+      const formData = new FormData();
+      formData.append("video", chunk, `chunk-${nextSequence}.webm`);
+      formData.append("meetingId", meetingKey);
+      if (localParticipantId) {
+        formData.append("participantId", localParticipantId);
+      }
+      formData.append("sequenceNumber", String(nextSequence));
+      formData.append("startedAt", startedAt);
+      formData.append("durationMs", String(CHUNK_DURATION_MS));
+      formData.append("mimeType", chunk.type || "video/webm");
+
+      await http.post("/upload-chunk", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+    });
+  };
+
+  const getSupportedMimeType = () => {
+    const types = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+    ];
+
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+
+    return "video/webm";
+  };
+
+  const cleanupRecorder = () => {
+    try {
+      mediaRecorderRef.current?.stop();
+    } catch {
+      // best effort
+    }
+    mediaRecorderRef.current = null;
+
+    if (recordingStreamRef.current) {
+      recordingStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // best effort
+        }
+      });
+      recordingStreamRef.current = null;
+    }
+  };
+
+  const startLocalChunkRecorder = async (includeAudio: boolean) => {
+    if (mediaRecorderRef.current || recorderStartingRef.current) {
+      return;
+    }
+
+    recorderStartingRef.current = true;
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Media capture is not supported in this browser");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: includeAudio,
+      });
+
+      recordingStreamRef.current = stream;
+
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, {
+          mimeType: getSupportedMimeType(),
+        });
+      } catch {
+        recorder = new MediaRecorder(stream);
+      }
+
+      recorder.ondataavailable = (event) => {
+        if (!event.data || event.data.size === 0) {
+          return;
+        }
+        setIsUploadingChunks(true);
+        enqueueChunkUpload(event.data);
+      };
+
+      recorder.onerror = () => {
+        setRecordingError("Chunk recorder failed while capturing meeting.");
+      };
+
+      recorder.onstop = async () => {
+        await uploadChainRef.current;
+        setIsUploadingChunks(false);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(CHUNK_DURATION_MS);
+    } finally {
+      recorderStartingRef.current = false;
+    }
+  };
+
+  const stopLocalChunkRecorder = async () => {
+    cleanupRecorder();
+    await uploadChainRef.current;
+    setIsUploadingChunks(false);
+  };
+
+  const startRecordingMutation = useMutation({
+    mutationFn: async () => {
+      await http.post(`/meeting/recording/start/${meetingId}`);
+      sequenceRef.current = 0;
+      uploadChainRef.current = Promise.resolve();
+      await startLocalChunkRecorder(true);
+    },
+    onSuccess: () => {
+      setRecordingError(null);
+      setIsRecording(true);
+      recordingStatusQuery.refetch();
+    },
+    onError: () => {
+      cleanupRecorder();
+      setRecordingError("Could not start recording. Check permissions and try again.");
+      setIsRecording(false);
+    },
+  });
+
+  const stopRecordingMutation = useMutation({
+    mutationFn: async () => {
+      await stopLocalChunkRecorder();
+      await http.post(`/meeting/recording/stop/${meetingId}`);
+    },
+    onSuccess: () => {
+      setIsRecording(false);
+      recordingStatusQuery.refetch();
+    },
+    onError: () => {
+      setRecordingError("Could not stop recording cleanly.");
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      cleanupRecorder();
+    };
+  }, []);
+
+  useEffect(() => {
+    const serverState = recordingStatusQuery.data?.recordingState;
+    if (!serverState || connectionState !== "connected") {
+      return;
+    }
+
+    const shouldRecord = serverState === "RECORDING";
+
+    if (shouldRecord) {
+      startLocalChunkRecorder(isHost).catch(() => {
+        setRecordingError(
+          isHost
+            ? "Could not start local recording. Please allow camera and microphone permission."
+            : "Could not start local recording. Please allow camera permission."
+        );
+      });
+      return;
+    }
+
+    if (mediaRecorderRef.current) {
+      void stopLocalChunkRecorder();
+    }
+  }, [connectionState, localParticipantId, recordingStatusQuery.data?.recordingState]);
+
+  const isRecordingBusy = startRecordingMutation.isPending || stopRecordingMutation.isPending;
+  const recordingButtonLabel = stopRecordingMutation.isPending
+    ? "Stopping..."
+    : startRecordingMutation.isPending
+      ? "Starting..."
+      : isRecording
+        ? "Stop recording"
+        : "Start recording";
+
   const endMeetingMutation = useMutation({
     mutationFn: async () => {
       await http.post(`/meeting/end/${meetingId}`);
@@ -236,6 +467,19 @@ export function LiveMeetingPage() {
     }
 
     setEnding(true);
+
+    if (isRecording && isHost) {
+      try {
+        await stopRecordingMutation.mutateAsync();
+      } catch {
+        // best effort
+      }
+    }
+
+    if (!isHost && mediaRecorderRef.current) {
+      await stopLocalChunkRecorder();
+    }
+
     leaveRoom();
 
     if (isHost) {
@@ -312,6 +556,12 @@ export function LiveMeetingPage() {
       {error ? (
         <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
+        </div>
+      ) : null}
+
+      {recordingError ? (
+        <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {recordingError}
         </div>
       ) : null}
 
@@ -416,11 +666,24 @@ export function LiveMeetingPage() {
             {isHost ? (
               <button
                 type="button"
-                onClick={() => setIsRecording((value) => !value)}
+                onClick={() => {
+                  if (isRecording) {
+                    stopRecordingMutation.mutate();
+                    return;
+                  }
+                  startRecordingMutation.mutate();
+                }}
+                disabled={isRecordingBusy || connectionState !== "connected"}
                 className="inline-flex items-center gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm text-red-600 hover:bg-red-500/20 dark:text-red-300"
               >
-                {isRecording ? "Stop recording" : "Start recording"}
+                {recordingButtonLabel}
               </button>
+            ) : null}
+
+            {isHost && isUploadingChunks ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+                Uploading chunks...
+              </span>
             ) : null}
           </div>
         </div>

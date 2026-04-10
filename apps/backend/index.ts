@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import userRouter from './routes/user';
 import meetingRouter from './routes/meeting';
+import workerRouter from './routes/worker';
 import { authMiddleware } from './utils/authMiddleware';
 
 const app = express();
@@ -10,6 +11,7 @@ app.use(cors());
 
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/meeting", meetingRouter);
+app.use("/api/v1", workerRouter);
 
 app.get("/api/v1/verify-token", authMiddleware,(req, res) => {
     res.status(200).json({

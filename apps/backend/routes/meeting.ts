@@ -169,7 +169,6 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
 });
 
 meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
-    console.log("Joining meeting");
     const userId = req.userId;
     const meetingId = toSingleString(req.params.id);
     if (!meetingId) {
@@ -198,29 +197,24 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "User not found" });
             return;
         }
-        console.log("User found:", user.email);
         const ifUserAlreadyJoined = await prisma.meeting.findFirst({
             where: {
                 meetingId: meetingId,
                 userId: userId as string,
             },
         });
-        console.log("User already joined:", ifUserAlreadyJoined);
 
         if (ifUserAlreadyJoined){
             if (ifUserAlreadyJoined?.isEnded === false) {
-                console.log("User already joined, returning existing meeting details");
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
                 return;
             } if (ifUserAlreadyJoined?.isEnded === true) {
-                console.log("User already joined but meeting ended");
                 res.status(409).json({ message: "Meeting ended" });
                 return;
             }
         }
 
         if (!passcode){
-            console.log("No passcode provided, checking if user is participant");
             const checkIfParticipant = meeting.participants.find((participant) => participant === user.email);
             if (checkIfParticipant) {
                 await prisma.meeting.create({
@@ -241,7 +235,6 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         }
         else {
             if (meeting.passcode === passcode) {
-                console.log("Passcode matched");
                 await prisma.meeting.create({
                     data: {
                         meetingId: meeting.meetingId,
@@ -253,10 +246,8 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         participants: [...meeting.participants, user.email!]
                     }
                 });
-                console.log("Meeting joined successfully");
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
             } else {
-                console.log("Invalid passcode");
                 res.status(403).json({ message: "Invalid passcode" });
             }
         }

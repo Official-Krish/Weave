@@ -47,3 +47,15 @@ export type MeetingListItem = {
 export type MeetingDetail = MeetingListItem & {
   finalRecording: FinalRecording[];
 };
+
+export type RecordingStatusResponse = {
+  meetingId: string;
+  isHost: boolean;
+  isRecording: boolean;
+  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+  recordingStartedAt?: string | null;
+  recordingStoppedAt?: string | null;
+  processingStartedAt?: string | null;
+  processingEndedAt?: string | null;
+  isEnded: boolean;
+};
