@@ -251,8 +251,8 @@ workerRouter.post("/final-upload/:meetingId", async (req, res) => {
 
     const localFinalPath = path.join(
       recordingsRoot,
-      "final",
       meetingId,
+      "final",
       "meeting_grid_recording.mp4"
     );
 

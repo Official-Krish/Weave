@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { Redis } from "ioredis";
@@ -17,6 +18,11 @@ interface ProcessedUser {
   hasAudio: boolean;
 }
 
+interface FailedUser {
+  userId: string;
+  estimatedDuration: number;
+}
+
 class LocalVideoMerger {
   private readonly meetingId: string;
   private readonly recordingsRoot: string;
@@ -25,7 +31,7 @@ class LocalVideoMerger {
 
   private config = {
     frameRate: 30,
-    audioBitrate: "192k",
+    audioBitrate: "256k",
   };
 
   private readonly ffmpegBin: string;
@@ -35,7 +41,7 @@ class LocalVideoMerger {
     this.meetingId = meetingId;
     this.recordingsRoot = path.resolve(process.cwd(), "../../recordings");
     this.tempDir = path.join(this.recordingsRoot, "tmp", `media_merge_${Date.now()}`);
-    this.outputDir = path.join(this.recordingsRoot, "final", this.meetingId);
+    this.outputDir = path.join(this.recordingsRoot, this.meetingId, "final");
     this.ffmpegBin = process.env.FFMPEG_PATH || ffmpegStatic || "ffmpeg";
     this.ffprobeBin = process.env.FFPROBE_PATH || ffprobeStatic.path || "ffprobe";
   }
@@ -216,41 +222,29 @@ class LocalVideoMerger {
         const userTmp = path.join(this.tempDir, "videos", `${userId}-tmp`);
         await fs.mkdir(userTmp, { recursive: true });
 
-        const converted: string[] = [];
-        for (let i = 0; i < chunks.length; i++) {
-          const out = path.join(userTmp, `part-${i}.mp4`);
-          await this.executeFFmpeg([
-            "-y",
-            "-i",
-            chunks[i]!.localPath,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-pix_fmt",
-            "yuv420p",
-            "-vf",
-            "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2",
-            "-r",
-            this.config.frameRate.toString(),
-            out,
-          ]);
-          converted.push(out);
+        const combinedWebmPath = path.join(userTmp, "combined.webm");
+        const chunkBuffers: Buffer[] = [];
+
+        for (const chunk of chunks) {
+          chunkBuffers.push(await fs.readFile(chunk.localPath));
         }
 
-        const concatListPath = path.join(userTmp, "concat.txt");
-        await fs.writeFile(concatListPath, converted.map((file) => `file '${file}'`).join("\n"));
+        await fs.writeFile(combinedWebmPath, Buffer.concat(chunkBuffers));
 
         await this.executeFFmpeg([
           "-y",
-          "-f",
-          "concat",
-          "-safe",
-          "0",
           "-i",
-          concatListPath,
-          "-c",
-          "copy",
+          combinedWebmPath,
+          "-c:v",
+          "libx264",
+          "-preset",
+          "fast",
+          "-pix_fmt",
+          "yuv420p",
+          "-vf",
+          "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2",
+          "-r",
+          this.config.frameRate.toString(),
           outputVideo,
         ]);
       }
@@ -260,6 +254,30 @@ class LocalVideoMerger {
       this.log(`Failed creating user video for ${userId}: ${error}`);
       return null;
     }
+  }
+
+  private async createBlackPlaceholderVideo(userId: string, duration: number): Promise<string> {
+    const safeDuration = Math.max(1, Math.ceil(duration));
+    const outputVideo = path.join(this.tempDir, "videos", `${userId}_placeholder.mp4`);
+
+    await this.executeFFmpeg([
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=black:s=640x480:r=${this.config.frameRate}`,
+      "-t",
+      safeDuration.toString(),
+      "-c:v",
+      "libx264",
+      "-preset",
+      "fast",
+      "-pix_fmt",
+      "yuv420p",
+      outputVideo,
+    ]);
+
+    return outputVideo;
   }
 
   private async normalizeVideoDurations(processedUsers: ProcessedUser[]): Promise<ProcessedUser[]> {
@@ -343,12 +361,14 @@ class LocalVideoMerger {
 
     for (let i = 0; i < normalizedUsers.length; i++) {
       inputs.push("-i", normalizedUsers[i]!.videoPath);
-      filter += `[${i}:v]scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=decrease,pad=${tileWidth}:${tileHeight}:(ow-iw)/2:(oh-ih)/2[v${i}];`;
+      filter += `[${i}:v]scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=decrease,pad=${tileWidth}:${tileHeight}:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=0:w=iw:h=ih:color=#1f2937@0.6:t=2[v${i}];`;
     }
 
     const layout: string[] = [];
     for (let i = 0; i < normalizedUsers.length; i++) {
-      layout.push(`${i % cols}_${Math.floor(i / cols)}`);
+      const x = (i % cols) * tileWidth;
+      const y = Math.floor(i / cols) * tileHeight;
+      layout.push(`${x}_${y}`);
     }
 
     filter += `${Array.from({ length: normalizedUsers.length }, (_, i) => `[v${i}]`).join("")}xstack=inputs=${normalizedUsers.length}:layout=${layout.join("|")}:fill=black[video];`;
@@ -360,7 +380,7 @@ class LocalVideoMerger {
 
     let audioMap: string[] = [];
     if (audioInputs.length > 0) {
-      filter += `${audioInputs.map((i) => `[${i}:a]`).join("")}amix=inputs=${audioInputs.length}:duration=longest[audio]`;
+      filter += `${audioInputs.map((i) => `[${i}:a]`).join("")}amix=inputs=${audioInputs.length}:duration=longest:normalize=0[audio]`;
       audioMap = ["-map", "[audio]"];
     } else {
       inputs.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
@@ -415,6 +435,11 @@ class LocalVideoMerger {
     await fs.rm(this.tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
 
+  private async cleanupLegacyRecordingsTmp(): Promise<void> {
+    const legacyTmpDir = path.join(this.recordingsRoot, "tmp");
+    await fs.rm(legacyTmpDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+
   public async process(): Promise<string> {
     this.log(`Starting local merge for meeting ${this.meetingId}`);
     this.log(`Recordings root: ${this.recordingsRoot}`);
@@ -424,14 +449,43 @@ class LocalVideoMerger {
 
       const userChunks = await this.collectUserChunks();
       const processedUsers: ProcessedUser[] = [];
+      const failedUsers: FailedUser[] = [];
 
       for (const [userId, chunks] of userChunks.entries()) {
         const userVideo = await this.createUserVideo(userId, chunks);
-        if (!userVideo) continue;
+        if (!userVideo) {
+          failedUsers.push({
+            userId,
+            estimatedDuration: Math.max(1, chunks.length * 5),
+          });
+          continue;
+        }
 
         const duration = await this.getVideoDuration(userVideo);
         const hasAudio = await this.hasAudioStream(userVideo);
         processedUsers.push({ userId, videoPath: userVideo, duration, hasAudio });
+      }
+
+      if (failedUsers.length > 0) {
+        const baseDuration =
+          processedUsers.length > 0
+            ? Math.max(...processedUsers.map((user) => user.duration))
+            : Math.max(...failedUsers.map((user) => user.estimatedDuration));
+
+        for (const failedUser of failedUsers) {
+          const placeholderDuration = Math.max(baseDuration, failedUser.estimatedDuration);
+          const placeholderPath = await this.createBlackPlaceholderVideo(
+            failedUser.userId,
+            placeholderDuration
+          );
+
+          processedUsers.push({
+            userId: failedUser.userId,
+            videoPath: placeholderPath,
+            duration: placeholderDuration,
+            hasAudio: false,
+          });
+        }
       }
 
       if (processedUsers.length === 0) {
@@ -441,6 +495,7 @@ class LocalVideoMerger {
       const normalized = await this.normalizeVideoDurations(processedUsers);
       const gridVideo = await this.createGridVideo(normalized);
       const finalPath = await this.persistFinal(gridVideo);
+      await this.cleanupLegacyRecordingsTmp();
       this.log(`Final local recording stored at ${finalPath}`);
 
       return finalPath;
@@ -514,4 +569,23 @@ async function processQueue() {
   }
 }
 
-processQueue();
+async function runSingleMerge(meetingId: string) {
+  console.log(`Running single merge for ${meetingId}...`);
+
+  try {
+    const merger = new LocalVideoMerger(meetingId);
+    const finalPath = await merger.process();
+    console.log(`Single merge completed for ${meetingId}: ${finalPath}`);
+  } catch (error) {
+    console.error(`Single merge failed for ${meetingId}:`, error);
+    process.exitCode = 1;
+  }
+}
+
+const directMeetingId = process.env.MERGE_MEETING_ID;
+
+if (directMeetingId) {
+  void runSingleMerge(directMeetingId);
+} else {
+  void processQueue();
+}

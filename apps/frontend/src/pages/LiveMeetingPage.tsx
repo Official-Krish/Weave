@@ -318,7 +318,7 @@ export function LiveMeetingPage() {
     }
   };
 
-  const startLocalChunkRecorder = async (includeAudio: boolean) => {
+  const startLocalChunkRecorder = async () => {
     if (mediaRecorderRef.current || recorderStartingRef.current) {
       return;
     }
@@ -336,7 +336,7 @@ export function LiveMeetingPage() {
           height: { ideal: 720 },
           frameRate: { ideal: 30 },
         },
-        audio: includeAudio,
+        audio: true,
       });
 
       recordingStreamRef.current = stream;
@@ -385,7 +385,7 @@ export function LiveMeetingPage() {
       await http.post(`/meeting/recording/start/${meetingId}`);
       sequenceRef.current = 0;
       uploadChainRef.current = Promise.resolve();
-      await startLocalChunkRecorder(true);
+      await startLocalChunkRecorder();
     },
     onSuccess: () => {
       setRecordingError(null);
@@ -428,12 +428,8 @@ export function LiveMeetingPage() {
     const shouldRecord = serverState === "RECORDING";
 
     if (shouldRecord) {
-      startLocalChunkRecorder(isHost).catch(() => {
-        setRecordingError(
-          isHost
-            ? "Could not start local recording. Please allow camera and microphone permission."
-            : "Could not start local recording. Please allow camera permission."
-        );
+      startLocalChunkRecorder().catch(() => {
+        setRecordingError("Could not start local recording. Please allow camera and microphone permission.");
       });
       return;
     }
