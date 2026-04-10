@@ -103,7 +103,8 @@ Weave is a next-generation video conferencing platform that revolutionizes meeti
 ```
 video_voice_confrence/
 ├── apps/
-│   ├── client/                 # React frontend application
+│   ├── frontend/               # Active V1 frontend application
+│   ├── client/                 # Legacy frontend (reference only)
 │   ├── backend/                # Express API server
 │   ├── worker/                 # Chunk upload worker
 │   ├── merger-worker/          # Video merging service

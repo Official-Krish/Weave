@@ -11,7 +11,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -25,28 +24,42 @@ model User {
 }
 
 model meeting {
-  id             String   @id @default(uuid())
-  meetingId      String 
-  passcode       String?
-  userId         String
-  roomName       String?
-  date           DateTime @default(now())
-  startTime      DateTime?
-  endTime        DateTime?
-  isEnded        Boolean  @default(false)
-  participants   String[]
-  isHost         Boolean
-  user           User     @relation(fields: [userId], references: [id])
-  rawChunks      mediaChunks[]
-  finalRecording FinalRecording[]
+  id                  String         @id @default(uuid())
+  meetingId           String
+  passcode            String?
+  userId              String
+  roomName            String?
+  date                DateTime       @default(now())
+  startTime           DateTime?
+  endTime             DateTime?
+  isEnded             Boolean        @default(false)
+  participants        String[]
+  isHost              Boolean
+  recordingState      RecordingState @default(IDLE)
+  recordingStartedAt  DateTime?
+  recordingStoppedAt  DateTime?
+  processingStartedAt DateTime?
+  processingEndedAt   DateTime?
+  user                User           @relation(fields: [userId], references: [id])
+  rawChunks           mediaChunks[]
+  finalRecording      FinalRecording[]
 }
 
 
 model mediaChunks {
-  id         String   @id @default(uuid())
-  meetingId  String 
-  bucketLink String
-  meeting    meeting @relation(fields: [meetingId], references: [id])
+  id             String            @id @default(uuid())
+  meetingId      String
+  bucketLink     String
+  mimeType       String?
+  uploaderUserId String?
+  sequenceNumber Int?
+  durationMs     Int?
+  startedAt      DateTime?
+  createdAt      DateTime          @default(now())
+  status         ChunkUploadStatus @default(UPLOADED)
+  meeting        meeting           @relation(fields: [meetingId], references: [id])
+
+  @@index([meetingId, uploaderUserId, sequenceNumber])
 }
 
 model FinalRecording {
@@ -71,4 +84,20 @@ enum format {
   MP4
   WAV
   OGG
+}
+
+enum RecordingState {
+  IDLE
+  RECORDING
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ChunkUploadStatus {
+  UPLOADED
+  PROCESSING
+  MERGED
+  FAILED
 }
