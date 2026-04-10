@@ -1,13 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: "Epilogue", "Geist Variable", sans-serif;
+  --font-sans: "DM Sans", "Geist Variable", sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -168,11 +167,53 @@
     animation-delay: 270ms;
   }
 
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-scroll {
+    animation: scroll 30s linear infinite;
+  }
+
+  .grain-overlay {
+    background-image: radial-gradient(rgba(255, 241, 214, 0.18) 0.65px, transparent 0.65px);
+    background-size: 4px 4px;
+    opacity: 0.03;
+  }
+
+  .glass-card {
+    background: color-mix(in oklab, var(--card) 78%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .signature-glow {
+    background: linear-gradient(135deg, #f6c35c 0%, #ef9e2f 55%, #d96e1c 100%);
+  }
+
+  .blob-bg {
+    filter: blur(96px);
+  }
+
+  .font-headline {
+    font-family: "Epilogue", "Syne", sans-serif;
+  }
+
+  .font-syne {
+    font-family: "Syne", "Epilogue", sans-serif;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .motion-rise,
     .motion-delay-1,
     .motion-delay-2,
-    .motion-delay-3 {
+    .motion-delay-3,
+    .animate-scroll {
       animation: none;
     }
 

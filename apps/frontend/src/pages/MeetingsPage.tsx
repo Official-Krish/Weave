@@ -1,8 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
-import { LoaderCircle, LogIn, Video } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FeatureCard } from "../components/FeatureCard";
+import { CreateMeetingForm } from "../components/Meetings/CreateMeetingForm";
+import { DevicePreview } from "../components/Meetings/DevicePreview";
+import { JoinMeetingForm } from "../components/Meetings/JoinMeetingForm";
+import { ModeToggle } from "../components/Meetings/ModeToggle";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
@@ -14,18 +16,93 @@ import type {
 export function MeetingsPage() {
   const navigate = useNavigate();
   const { isAuthenticated, name } = useAuth();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [mode, setMode] = useState<"create" | "join">("create");
   const [createRoomName, setCreateRoomName] = useState("");
   const [createPasscode, setCreatePasscode] = useState("");
   const [joinMeetingId, setJoinMeetingId] = useState("");
   const [joinPasscode, setJoinPasscode] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [invites, setInvites] = useState<string[]>([]);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [selectedMicId, setSelectedMicId] = useState("");
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const addInvite = () => {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !email.includes("@") || invites.includes(email)) {
+      return;
+    }
+    setInvites((current) => [...current, email]);
+    setInviteEmail("");
+  };
+
+  const removeInvite = (email: string) => {
+    setInvites((current) => current.filter((item) => item !== email));
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    let stream: MediaStream | null = null;
+
+    const loadPreview = async () => {
+      try {
+        setPreviewError(null);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: selectedCameraId
+            ? { deviceId: { exact: selectedCameraId } }
+            : true,
+          audio: selectedMicId
+            ? { deviceId: { exact: selectedMicId } }
+            : true,
+        });
+
+        if (mounted && videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter((device) => device.kind === "videoinput");
+        const microphones = devices.filter((device) => device.kind === "audioinput");
+
+        if (mounted) {
+          setCameraDevices(cameras);
+          setMicDevices(microphones);
+
+          if (!selectedCameraId && cameras[0]?.deviceId) {
+            setSelectedCameraId(cameras[0].deviceId);
+          }
+          if (!selectedMicId && microphones[0]?.deviceId) {
+            setSelectedMicId(microphones[0].deviceId);
+          }
+        }
+      } catch {
+        if (mounted) {
+          setPreviewError("Could not access camera/microphone for preview.");
+        }
+      }
+    };
+
+    void loadPreview();
+
+    return () => {
+      mounted = false;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [selectedCameraId, selectedMicId]);
 
   const createMeetingMutation = useMutation({
     mutationFn: async () => {
       const response = await http.post<CreateMeetingResponse>("/meeting/create", {
         roomName: createRoomName,
         passcode: createPasscode || undefined,
-        participants: [],
+        participants: invites,
       });
 
       return response.data;
@@ -75,20 +152,29 @@ export function MeetingsPage() {
   const isBusy =
     createMeetingMutation.isPending || joinMeetingMutation.isPending;
 
+  const busyLabel = useMemo(() => {
+    if (createMeetingMutation.isPending) {
+      return "Creating room...";
+    }
+    if (joinMeetingMutation.isPending) {
+      return "Joining room...";
+    }
+    return null;
+  }, [createMeetingMutation.isPending, joinMeetingMutation.isPending]);
+
   return (
-    <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
-      <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-        Meetings
-      </p>
-      <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-        Phase 1 starts here: meeting lifecycle and recording state.
-      </h1>
-      <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-        This page is a placeholder for create, join, and active meeting flows. We will connect it to the backend once the new recording-control API replaces the WebSocket layer.
-      </p>
+    <section className="rounded-[2rem] border border-border/80 bg-card/85 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-8">
+      <div className="mb-7 text-center">
+        <h1 className="text-3xl font-light text-foreground sm:text-5xl">
+          Start or join a meeting
+        </h1>
+        <p className="mt-3 text-sm text-muted-foreground sm:text-base">
+          Match the client experience with the same setup flow, wired to your current frontend meeting APIs.
+        </p>
+      </div>
 
       {!isAuthenticated ? (
-        <div className="mt-8 rounded-[1.5rem] border border-border bg-secondary/70 p-6">
+        <div className="rounded-[1.5rem] border border-border bg-secondary/70 p-6">
           <h2 className="text-xl font-semibold text-foreground">
             Sign in to create or join meetings
           </h2>
@@ -105,105 +191,68 @@ export function MeetingsPage() {
           </button>
         </div>
       ) : (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="motion-rise motion-delay-1 rounded-[1.5rem] border border-border bg-card/94 p-6">
-            <h2 className="text-xl font-semibold text-foreground">
-              Create a meeting
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Start a new room as host and move straight into the Jitsi call.
-            </p>
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <DevicePreview
+            videoRef={videoRef}
+            cameraDevices={cameraDevices}
+            micDevices={micDevices}
+            selectedCameraId={selectedCameraId}
+            selectedMicId={selectedMicId}
+            onCameraChange={setSelectedCameraId}
+            onMicChange={setSelectedMicId}
+            previewError={previewError}
+          />
 
-            <div className="mt-6 space-y-4">
-              <input
-                value={createRoomName}
-                onChange={(event) => setCreateRoomName(event.target.value)}
-                placeholder="Weekly sync"
-                className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-sm outline-none transition-all duration-300 placeholder:text-muted-foreground/85 focus:border-primary focus:ring-2 focus:ring-primary/35"
-              />
-              <input
-                value={createPasscode}
-                onChange={(event) => setCreatePasscode(event.target.value)}
-                placeholder="Optional passcode"
-                className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-sm outline-none transition-all duration-300 placeholder:text-muted-foreground/85 focus:border-primary focus:ring-2 focus:ring-primary/35"
-              />
-              <button
-                type="button"
-                onClick={() => {
+          <div className="rounded-[1.5rem] border border-border bg-background/40 p-5">
+            <ModeToggle mode={mode} onChange={setMode} />
+
+            {mode === "create" ? (
+              <CreateMeetingForm
+                roomName={createRoomName}
+                passcode={createPasscode}
+                inviteEmail={inviteEmail}
+                invites={invites}
+                isBusy={isBusy}
+                isPending={createMeetingMutation.isPending}
+                onRoomNameChange={setCreateRoomName}
+                onPasscodeChange={setCreatePasscode}
+                onInviteEmailChange={setInviteEmail}
+                onAddInvite={addInvite}
+                onRemoveInvite={removeInvite}
+                onSubmit={() => {
                   setErrorMessage(null);
                   createMeetingMutation.mutate();
                 }}
-                disabled={isBusy || !createRoomName.trim()}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-[0_10px_20px_rgba(16,115,108,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:brightness-105 disabled:translate-y-0 disabled:opacity-60"
-              >
-                {createMeetingMutation.isPending ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Video className="h-4 w-4" />
-                )}
-                Create and join
-              </button>
-            </div>
-          </div>
-
-          <div className="motion-rise motion-delay-2 rounded-[1.5rem] border border-border bg-card/94 p-6">
-            <h2 className="text-xl font-semibold text-foreground">
-              Join a meeting
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Enter a meeting ID and optional passcode to join an existing room.
-            </p>
-
-            <div className="mt-6 space-y-4">
-              <input
-                value={joinMeetingId}
-                onChange={(event) => setJoinMeetingId(event.target.value)}
-                placeholder="meeting id"
-                className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-sm outline-none transition-all duration-300 placeholder:text-muted-foreground/85 focus:border-primary focus:ring-2 focus:ring-primary/35"
               />
-              <input
-                value={joinPasscode}
-                onChange={(event) => setJoinPasscode(event.target.value)}
-                placeholder="Passcode if required"
-                className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-sm outline-none transition-all duration-300 placeholder:text-muted-foreground/85 focus:border-primary focus:ring-2 focus:ring-primary/35"
-              />
-              <button
-                type="button"
-                onClick={() => {
+            ) : (
+              <JoinMeetingForm
+                meetingId={joinMeetingId}
+                passcode={joinPasscode}
+                isBusy={isBusy}
+                isPending={joinMeetingMutation.isPending}
+                onMeetingIdChange={setJoinMeetingId}
+                onPasscodeChange={setJoinPasscode}
+                onSubmit={() => {
                   setErrorMessage(null);
                   joinMeetingMutation.mutate();
                 }}
-                disabled={isBusy || !joinMeetingId.trim()}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 text-sm font-medium text-foreground transition-all duration-300 hover:bg-secondary disabled:opacity-60"
-              >
-                {joinMeetingMutation.isPending ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <LogIn className="h-4 w-4" />
-                )}
-                Join meeting
-              </button>
-            </div>
+              />
+            )}
+
+            {busyLabel ? (
+              <p className="mt-4 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                {busyLabel}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
 
       {errorMessage ? (
-        <p className="mt-5 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {errorMessage}
         </p>
       ) : null}
-
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        <FeatureCard
-          title="Create meeting"
-          description="Host creates a room, invites participants, and becomes the source of truth for recording control."
-        />
-        <FeatureCard
-          title="Join meeting"
-          description="Participants fetch meeting state from the backend and upload local chunks during or after the session."
-        />
-      </div>
     </section>
   );
 }
