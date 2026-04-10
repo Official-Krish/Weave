@@ -15,14 +15,22 @@ export async function authMiddleware(
   next: NextFunction
 ) {
   try {
-    const token = req.headers["authorization"]?.split(" ")[1];
+    const authorization = req.headers["authorization"];
+    const token = typeof authorization === "string" && authorization.startsWith("Bearer ")
+      ? authorization.slice(7)
+      : null;
 
     if (!token) {
       res.status(401).json({ message: "No token provided" });
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "mysecret", {
+    if (!process.env.JWT_SECRET) {
+      res.status(500).json({ message: "JWT_SECRET is not configured" });
+      return;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ["HS256"],
     });
 
@@ -36,7 +44,6 @@ export async function authMiddleware(
     }
 
 
-    // Attach the user ID and email to the request
     req.userId = userId;
 
     next();

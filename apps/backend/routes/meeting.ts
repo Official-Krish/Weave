@@ -213,6 +213,13 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
             return;
         }
 
+        if (!user.email) {
+            res.status(400).json({ message: "User email is required to create a meeting" });
+            return;
+        }
+
+        const normalizedParticipants = normalizeEmails(participants);
+
         const randomPascode = Math.random().toString(36).slice(2, 10);
         const newMeeting = await prisma.meeting.create({
             data: {
@@ -222,7 +229,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
                 passcode: passcode ? passcode : randomPascode,
                 startTime: new Date(),
                 isHost: true,
-                participants: [user.email!, ...(participants || [])],
+                participants: [...new Set([user.email.toLowerCase(), ...normalizedParticipants])],
             }
         });
         res.status(200).json({ meetingId: newMeeting.meetingId, passcode: newMeeting.passcode, name: user.name, id: newMeeting.id });
@@ -261,6 +268,13 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "User not found" });
             return;
         }
+
+        if (!user.email) {
+            res.status(400).json({ message: "User email is required to join a meeting" });
+            return;
+        }
+
+        const normalizedEmail = user.email.toLowerCase();
         const ifUserAlreadyJoined = await prisma.meeting.findFirst({
             where: {
                 meetingId: meetingId,
@@ -279,7 +293,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         }
 
         if (!passcode){
-            const checkIfParticipant = meeting.participants.find((participant) => participant === user.email);
+            const checkIfParticipant = meeting.participants.find((participant) => participant.toLowerCase() === normalizedEmail);
             if (checkIfParticipant) {
                 await prisma.meeting.create({
                     data: {
@@ -289,7 +303,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         passcode: meeting.passcode,
                         startTime: new Date(),
                         isHost: false,
-                        participants: meeting.participants
+                        participants: [...new Set([...meeting.participants.map((email) => email.toLowerCase()), normalizedEmail])]
                     }
                 });
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
@@ -307,7 +321,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         passcode: meeting.passcode,
                         startTime: new Date(),
                         isHost: false,
-                        participants: [...meeting.participants, user.email!]
+                        participants: [...new Set([...meeting.participants.map((email) => email.toLowerCase()), normalizedEmail])]
                     }
                 });
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
@@ -465,7 +479,7 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         const meeting = meetings.find((meeting) => meeting.userId === userId);
 
         if (!meeting?.isHost) {
-            res.status(403).json({ message: "Meeting not found or meeting is not hosted by the user", participants: meeting?.participants.length, duration: Number (new Date().getMinutes()) - Number (meeting?.startTime?.getMinutes()) });
+            res.status(403).json({ message: "Only host can end this meeting" });
             return;
         }
 
@@ -555,9 +569,14 @@ meetingRouter.get("/recording/visibility/:id", authMiddleware, async (req, res) 
             },
         });
 
+        const hostUser = await prisma.user.findFirst({
+            where: { id: userId as string },
+            select: { email: true },
+        });
+
         res.status(200).json({
             meetingId,
-            hostEmail: participants.find((p) => p.id === userId)?.email || null,
+            hostEmail: hostUser?.email || null,
             visibleToEmails: hostSession.finalRecording[0]?.visibleToEmails ?? [],
             participants,
         });
@@ -599,9 +618,23 @@ meetingRouter.put("/recording/visibility/:id", authMiddleware, async (req, res) 
         const allowedSet = new Set(hostSession.participants.map((email) => email.toLowerCase()));
         const sanitizedEmails = requestedEmails.filter((email) => allowedSet.has(email));
 
-        await prisma.finalRecording.updateMany({
+        const latestRecording = await prisma.finalRecording.findFirst({
             where: {
                 meetingId: hostSession.id,
+            },
+            orderBy: {
+                generatedAt: "desc",
+            },
+        });
+
+        if (!latestRecording) {
+            res.status(404).json({ message: "No final recording found for this meeting" });
+            return;
+        }
+
+        await prisma.finalRecording.update({
+            where: {
+                id: latestRecording.id,
             },
             data: {
                 visibleToEmails: sanitizedEmails,

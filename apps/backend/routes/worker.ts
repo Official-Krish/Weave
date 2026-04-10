@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Request } from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
@@ -11,6 +12,16 @@ const upload = multer({ storage: multer.memoryStorage() });
 const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
 type WorkerRecordingState = "PROCESSING" | "READY" | "FAILED";
+
+function hasValidWorkerToken(req: Request) {
+  const requiredToken = process.env.WORKER_CALLBACK_TOKEN;
+  if (!requiredToken) {
+    return true;
+  }
+
+  const token = req.headers["x-worker-token"];
+  return typeof token === "string" && token === requiredToken;
+}
 
 function sanitizePathSegment(value: unknown) {
   const text = String(value || "").trim();
@@ -42,6 +53,11 @@ function getFileExtension(mimeType?: string) {
 }
 
 workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
+  if (!hasValidWorkerToken(req)) {
+    res.status(401).json({ message: "Unauthorized worker callback" });
+    return;
+  }
+
   const meetingId = req.params.meetingId;
   const status = String(req.body?.status || "") as WorkerRecordingState;
   const finalPath = req.body?.finalPath ? String(req.body.finalPath) : null;
@@ -212,6 +228,11 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
 });
 
 workerRouter.post("/final-upload/:meetingId", async (req, res) => {
+  if (!hasValidWorkerToken(req)) {
+    res.status(401).json({ message: "Unauthorized worker callback" });
+    return;
+  }
+
     const meetingId = req.params.meetingId;
 
     if (!meetingId) {
@@ -236,15 +257,24 @@ workerRouter.post("/final-upload/:meetingId", async (req, res) => {
             "meeting_grid_recording.mp4"
         );
 
-        await prisma.finalRecording.create({
-            data: {
-                meetingId: meeting.id,
-                VideoLink: localFinalPath,
-                visibleToEmails: [],
-                format: "MP4",
-                quality: "HIGH",
-            },
+        const existingFinal = await prisma.finalRecording.findFirst({
+          where: {
+            meetingId: meeting.id,
+            VideoLink: localFinalPath,
+          },
         });
+
+        if (!existingFinal) {
+          await prisma.finalRecording.create({
+            data: {
+              meetingId: meeting.id,
+              VideoLink: localFinalPath,
+              visibleToEmails: [],
+              format: "MP4",
+              quality: "HIGH",
+            },
+          });
+        }
 
         await prisma.meeting.updateMany({
             where: {
