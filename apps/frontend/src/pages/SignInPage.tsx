@@ -2,10 +2,10 @@ import { useMutation } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import type { LoginResponse } from "@repo/types/api";
 import { http } from "../https";
 import { persistAuth } from "../lib/auth";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { LoginResponse } from "../types/api";
 
 export function SignInPage() {
   const navigate = useNavigate();

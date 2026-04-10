@@ -1,4 +1,3 @@
-require("dotenv").config();
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -19,13 +18,10 @@ userRouter.post("/signup", async ( req,res ) => {
 
     const { email, password, name } = parsedData.data;
 
-    if (!email || !password) {
-        res.status(400).json({ message: "Email and password are required" });
-    }
-
     const existingUser = await prisma.user.findFirst({ where: { email } });
     if (existingUser) {
         res.status(400).json({ message: "User already exists" });
+        return;
     }
 
     try {
@@ -38,7 +34,7 @@ userRouter.post("/signup", async ( req,res ) => {
         }
     });
 
-    const token = jwt.sign({ userId: user.id, name: name }, JWT_SECRET, { expiresIn: "1Day" });
+    const token = jwt.sign({ userId: user.id, name }, JWT_SECRET, { expiresIn: "1Day" });
     res.cookie('token', token, {
         httpOnly: true,
         secure: true,
@@ -63,9 +59,6 @@ userRouter.post("/login", async ( req,res ) => {
     }
 
     const { email, password } = parsedData.data;
-    if (!email || !password) {
-        res.status(400).json({ message: "Email and password are required" });
-    }
     const user = await prisma.user.findUnique({ where: {
             email : email
         } 
@@ -90,7 +83,7 @@ userRouter.post("/login", async ( req,res ) => {
         path: '/',      
         maxAge: 60 * 60 * 1000
     });
-    res.status(200).json({ message: "User logged in successfully", token: token, name: user.name });
+    res.status(200).json({ message: "User logged in successfully", token, name: user.name });
 })
 
 

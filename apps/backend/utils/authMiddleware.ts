@@ -1,14 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-require("dotenv").config();
 
 declare global {
   namespace Express {
     interface Request {
       userId?: string;
-      user?: {
-        email: string;
-      };
     }
   }
 }

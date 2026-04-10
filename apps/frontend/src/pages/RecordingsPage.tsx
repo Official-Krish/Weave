@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CalendarDays, LoaderCircle, Users, Video } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { MeetingListItem } from "@repo/types/api";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { MeetingListItem } from "../types/api";
 
 export function RecordingsPage() {
   const { isAuthenticated } = useAuth();

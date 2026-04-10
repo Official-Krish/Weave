@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CreateMeetingResponse, JoinMeetingResponse } from "@repo/types/api";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { CreateMeetingResponse, JoinMeetingResponse } from "../types/api";
 
 type UseMeetingSetupArgs = {
   displayNameFallback: string;

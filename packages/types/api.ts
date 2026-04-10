@@ -27,9 +27,23 @@ export type FinalRecording = {
   meetingId: string;
   VideoLink: string;
   AudioLink?: string | null;
+  visibleToEmails: string[];
   generatedAt: string;
   format: string;
   quality: string;
+};
+
+export type RecordingVisibilityParticipant = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+};
+
+export type RecordingVisibilityResponse = {
+  meetingId: string;
+  hostEmail?: string | null;
+  visibleToEmails: string[];
+  participants: RecordingVisibilityParticipant[];
 };
 
 export type MeetingListItem = {

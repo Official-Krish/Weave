@@ -1,5 +1,7 @@
 import z from 'zod';
 
+export * from "./api";
+
 export const SignupSchema = z.object({
     name: z.string().min(2),
     email: z.string().min(5).email(),

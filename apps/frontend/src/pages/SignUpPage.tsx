@@ -5,7 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { http } from "../https";
 import { persistAuth } from "../lib/auth";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { SignupResponse } from "../types/api";
+import type { SignupResponse } from "@repo/types/api";
 
 export function SignUpPage() {
   const navigate = useNavigate();
