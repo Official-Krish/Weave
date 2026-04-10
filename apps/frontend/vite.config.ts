@@ -6,6 +6,22 @@ import path from "path"
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(),],
+  server: {
+  proxy: {
+    '/jitsi/http-bind': {
+      target: process.env.VITE_PUBLIC_JITSI_URL || 'https://localhost:8443',
+      changeOrigin: true,
+      secure: false,
+      rewrite: (path) => path.replace(/^\/jitsi/, ''),
+    },
+    '/jitsi': {
+      target: process.env.VITE_PUBLIC_JITSI_URL || 'https://localhost:8443',
+      changeOrigin: true,
+      secure: false,          
+      rewrite: (path) => path.replace(/^\/jitsi/, ''),
+    },
+  },
+},
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

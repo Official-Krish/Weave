@@ -71,6 +71,38 @@ function TrackTile({
   );
 }
 
+function AudioTrackSink({ track }: { track: any }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (!track || !audioRef.current) {
+      return;
+    }
+
+    try {
+      track.attach(audioRef.current);
+      const maybePromise = audioRef.current.play?.();
+      if (maybePromise && typeof maybePromise.catch === "function") {
+        maybePromise.catch(() => {
+          // Autoplay can be blocked until the browser considers this tab user-activated.
+        });
+      }
+    } catch {
+      // no-op
+    }
+
+    return () => {
+      try {
+        track.detach(audioRef.current);
+      } catch {
+        // no-op
+      }
+    };
+  }, [track]);
+
+  return <audio ref={audioRef} autoPlay playsInline className="hidden" />;
+}
+
 export function LiveMeetingPage() {
   const { meetingId = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -85,6 +117,7 @@ export function LiveMeetingPage() {
     connectionState,
     error,
     localVideoTrack,
+    localScreenTrack,
     participants,
     isMuted,
     isVideoOff,
@@ -107,29 +140,70 @@ export function LiveMeetingPage() {
   });
 
   const allTiles = useMemo(() => {
-    const remoteTiles = participants.map((participant) => {
-      const mainTrack =
+    const remoteTiles = participants.flatMap((participant) => {
+      const cameraTrack =
         participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") ||
         null;
+      const screenTrack =
+        participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") ||
+        null;
 
-      return {
-        id: participant.id,
-        title: participant.displayName || participant.id,
-        subtitle: "Remote participant",
-        track: mainTrack,
-      };
+      const participantName = participant.displayName || participant.id;
+      const tiles = [
+        {
+          id: participant.id,
+          title: participantName,
+          subtitle: "Remote participant",
+          track: cameraTrack,
+        },
+      ];
+
+      if (screenTrack) {
+        tiles.push({
+          id: `${participant.id}-screen`,
+          title: `${participantName} screen`,
+          subtitle: "Screen share",
+          track: screenTrack,
+        });
+      }
+
+      return tiles;
     });
 
-    return [
+    const tiles = [
       {
         id: "local",
         title: displayName,
         subtitle: "You",
         track: localVideoTrack,
       },
+    ];
+
+    if (localScreenTrack) {
+      tiles.push({
+        id: "local-screen",
+        title: `${displayName} screen`,
+        subtitle: "Your screen share",
+        track: localScreenTrack,
+      });
+    }
+
+    return [
+      ...tiles,
       ...remoteTiles,
     ];
-  }, [displayName, localVideoTrack, participants]);
+  }, [displayName, localScreenTrack, localVideoTrack, participants]);
+
+  const remoteAudioTracks = useMemo(
+    () =>
+      participants
+        .map((participant) => ({
+          id: participant.id,
+          track: participant.tracks.find((track) => track.getType?.() === "audio") || null,
+        }))
+        .filter((item) => item.track),
+    [participants]
+  );
 
   const focusedTiles = useMemo(() => {
     if (activeLayout !== "focus" || !selectedParticipantId) {
@@ -240,6 +314,10 @@ export function LiveMeetingPage() {
           {error}
         </div>
       ) : null}
+
+      {remoteAudioTracks.map((item) => (
+        <AudioTrackSink key={`audio-${item.id}`} track={item.track} />
+      ))}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_290px]">
         <div className="rounded-[2rem] border border-border/80 bg-card/90 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.14)]">

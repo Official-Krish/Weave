@@ -2,12 +2,12 @@ export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/api/v1";
 
 function normalizeJitsi(value: string | undefined) {
-  const fallbackBaseUrl = "http://localhost";
+  const fallbackBaseUrl = "http://localhost:8000";
 
   if (!value || !value.trim()) {
     return {
       baseUrl: fallbackBaseUrl,
-      domain: "localhost",
+      domain: "localhost:8000",
     };
   }
 
@@ -23,13 +23,13 @@ function normalizeJitsi(value: string | undefined) {
     } catch {
       return {
         baseUrl: fallbackBaseUrl,
-        domain: "localhost",
+        domain: "localhost:8000",
       };
     }
   }
 
   return {
-    baseUrl: `http://${trimmed}`,
+    baseUrl: `https://${trimmed}`,
     domain: trimmed,
   };
 }

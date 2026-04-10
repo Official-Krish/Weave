@@ -45,6 +45,7 @@ export function useMeetingRoom({
   const localScreenTrackRef = useRef<JitsiTrack | null>(null);
 
   const [localVideoTrack, setLocalVideoTrack] = useState<JitsiTrack | null>(null);
+  const [localScreenTrack, setLocalScreenTrack] = useState<JitsiTrack | null>(null);
   const [participantsMap, setParticipantsMap] = useState<Record<string, ParticipantState>>({});
 
   const parsedBase = useMemo(() => {
@@ -58,18 +59,31 @@ export function useMeetingRoom({
   const fetchJitsiConnectionConfig = useCallback(async () => {
     const fallbackDomain = parsedBase.hostname;
     const fallbackMuc = `conference.${fallbackDomain}`;
-    const fallbackBosh = `${parsedBase.protocol}//${parsedBase.host}/http-bind`;
+    // Use proxied BOSH endpoint with absolute URL (goes through local dev server, avoiding cert issues)
+    const fallbackBosh = `http://${window.location.host}/jitsi/http-bind`;
     const fallbackWebsocket = `${parsedBase.protocol === "https:" ? "wss" : "ws"}://${parsedBase.host}/xmpp-websocket`;
 
     try {
-      const response = await fetch(`${JITSI_BASE_URL}/config.js`, { cache: "no-store" });
+      const proxyUrl = `/jitsi/config.js`;
+      const response = await fetch(proxyUrl, { cache: "no-store" });
       const configText = await response.text();
 
       const extract = (pattern: RegExp) => configText.match(pattern)?.[1]?.trim();
 
       const domain = extract(/config\.hosts\.domain\s*=\s*'([^']+)'/) || fallbackDomain;
-      const muc = extract(/config\.hosts\.muc\s*=\s*'([^']+)'/) || fallbackMuc;
-      const bosh = extract(/config\.bosh\s*=\s*'([^']+)'/) || fallbackBosh;
+      const rawMuc = extract(/config\.hosts\.muc\s*=\s*'([^']+)'/);
+      // Some Jitsi config.js files build muc using string concatenation, which regex can partially read as "muc.".
+      const muc = rawMuc && rawMuc !== "muc." && !rawMuc.includes("+") ? rawMuc : `muc.${domain}`;
+      // Extract path from BOSH URL and proxy through /jitsi/
+      let bosh = fallbackBosh;
+      const extractedBosh = extract(/config\.bosh\s*=\s*'([^']+)'/);
+      if (extractedBosh) {
+        // Convert 'https://localhost:8443/http-bind' to absolute proxied URL
+        const boshPath = extractedBosh.replace(/^[a-z]+:\/\/[^/]+/, '');
+        // Ensure it's not empty or just "/"
+        const safeBoshPath = boshPath && boshPath !== '/' ? boshPath : '/http-bind';
+        bosh = `http://${window.location.host}/jitsi${safeBoshPath}`;
+      }
       const websocket = extract(/config\.websocket\s*=\s*'([^']+)'/) || fallbackWebsocket;
 
       return {
@@ -153,6 +167,7 @@ export function useMeetingRoom({
   const clearRoomState = useCallback(() => {
     setParticipantsMap({});
     setLocalVideoTrack(null);
+    setLocalScreenTrack(null);
     setIsScreenSharing(false);
     setIsMuted(false);
     setIsVideoOff(false);
@@ -246,6 +261,7 @@ export function useMeetingRoom({
       }
       disposeTrack(localScreenTrackRef.current);
       localScreenTrackRef.current = null;
+      setLocalScreenTrack(null);
       setIsScreenSharing(false);
       return;
     }
@@ -258,7 +274,13 @@ export function useMeetingRoom({
       }
       localScreenTrackRef.current = screenTrack;
       conference.addTrack?.(screenTrack);
+      setLocalScreenTrack(screenTrack);
       setIsScreenSharing(true);
+
+      screenTrack.addEventListener?.("LOCAL_TRACK_STOPPED", () => {
+        setLocalScreenTrack(null);
+        setIsScreenSharing(false);
+      });
     } catch {
       setError("Could not start screen sharing.");
     }
@@ -282,7 +304,7 @@ export function useMeetingRoom({
             const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
             if (existing) {
               existing.addEventListener("load", () => resolve(), { once: true });
-              existing.addEventListener("error", () => reject(new Error("load error")), { once: true });
+              existing.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
               return;
             }
 
@@ -291,7 +313,7 @@ export function useMeetingRoom({
             script.async = true;
             script.src = `${JITSI_BASE_URL}/libs/lib-jitsi-meet.min.js`;
             script.addEventListener("load", () => resolve(), { once: true });
-            script.addEventListener("error", () => reject(new Error("load error")), { once: true });
+            script.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
             document.body.appendChild(script);
           });
         }
@@ -301,22 +323,31 @@ export function useMeetingRoom({
         }
 
         const JitsiMeetJS = window.JitsiMeetJS;
-        JitsiMeetJS.init({ disableAudioLevels: true });
+        console.log("JitsiMeetJS loaded:", JitsiMeetJS);
+        JitsiMeetJS.init({
+          disableAudioLevels: true,
+          disableThirdPartyRequests: true,
+        });
         JitsiMeetJS.setLogLevel?.(JitsiMeetJS.logLevels?.ERROR ?? "error");
 
         setConnectionState("connecting");
 
         const runtimeConfig = await fetchJitsiConnectionConfig();
+        console.log("Jitsi config:", runtimeConfig);
+        
         const connection = new JitsiMeetJS.JitsiConnection(null, null, {
           hosts: {
             domain: runtimeConfig.domain,
             muc: runtimeConfig.muc,
           },
-          serviceUrl: runtimeConfig.websocket,
-          bosh: runtimeConfig.bosh,
+          // Use serviceUrl for BOSH endpoint (bosh is deprecated in newer Jitsi versions)
+          serviceUrl: runtimeConfig.bosh,
           clientNode: "http://jitsi.org/jitsimeet",
+          enableLipSync: false,
+          externalConnectUrl: null,
         });
 
+        console.log("JitsiConnection created:", connection);
         connectionRef.current = connection;
 
         connection.addEventListener(
@@ -328,6 +359,11 @@ export function useMeetingRoom({
 
             const conference = connectionRef.current.initJitsiConference(meetingId, {
               openBridgeChannel: true,
+              p2p: {
+                enabled: true,
+              },
+              useStunTurn: false,
+              disableSimulcast: true,
             });
             conferenceRef.current = conference;
 
@@ -396,7 +432,7 @@ export function useMeetingRoom({
         connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED, () => {
           setConnectionState("failed");
           setError(
-            "Could not connect to Jitsi XMPP. If using localhost, open https://localhost:8443 once to trust the local certificate, then retry."
+            `Could not connect to Jitsi XMPP at ${JITSI_BASE_URL}. Verify Jitsi is running and reachable.`
           );
         });
 
@@ -405,10 +441,11 @@ export function useMeetingRoom({
         });
 
         connection.connect();
-      } catch {
+      } catch (err) {
+        console.error("Jitsi initialization error:", err);
         if (!cancelled) {
           setConnectionState("failed");
-          setError("Could not initialize custom Jitsi meeting.");
+          setError(`Jitsi error: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     };
@@ -438,6 +475,7 @@ export function useMeetingRoom({
     connectionState,
     error,
     localVideoTrack,
+    localScreenTrack,
     participants,
     isMuted,
     isVideoOff,
