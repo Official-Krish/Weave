@@ -68,6 +68,7 @@ model FinalRecording {
   meetingId        String
   VideoLink        String
   AudioLink        String?
+  visibleToEmails  String[] @default([])
   generatedAt      DateTime @default(now())
   format           format
   quality          quality

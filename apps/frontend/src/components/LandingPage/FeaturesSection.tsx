@@ -1,66 +1,99 @@
+import { Link } from "react-router-dom";
+
+type FeatureCard = {
+  title: string;
+  description: string;
+  image: string;
+  colSpan: string;
+  imageHeight?: string;
+};
+
+const featureCards: FeatureCard[] = [
+  {
+    title: "Local-first recording",
+    description:
+      "Each participant is recorded at the source, so weak internet does not destroy the original quality.",
+    image: "https://framerusercontent.com/images/XOJqmYJPjtxJe9UgAQjlk34wiA.png?width=1014&height=1056",
+    colSpan: "lg:col-span-4",
+    imageHeight: "h-52",
+  },
+  {
+    title: "Resilient background uploads",
+    description:
+      "Chunks upload continuously during the meeting with retry support, so progress is never lost.",
+    image: "https://framerusercontent.com/images/7FvUbWvGfIYyBfH97MBjQuVo4.png?width=1536&height=1024",
+    colSpan: "lg:col-span-8",
+    imageHeight: "h-52",
+  },
+  {
+    title: "Smart merge pipeline",
+    description:
+      "Participant tracks are stitched into a polished final recording with consistent timing and audio sync.",
+    image: "https://framerusercontent.com/images/dzwGl9XM1iSJQTeMvB3RXyGOTW4.png?width=1536&height=1024",
+    colSpan: "md:col-span-6 lg:col-span-4",
+  },
+  {
+    title: "Team-ready meeting flows",
+    description:
+      "Create rooms, invite collaborators, and manage recordings with a workflow built for fast-moving teams.",
+    image: "https://framerusercontent.com/images/PdHbKxInipkAAn0CgqbYpjXE8g.png?width=1536&height=1024",
+    colSpan: "md:col-span-6 lg:col-span-4",
+  },
+  {
+    title: "Playback and editing foundation",
+    description:
+      "Review merged output instantly and prepare assets for your editing and post-production process.",
+    image: "https://framerusercontent.com/images/hfz4pInQcKxS8aKqzmzro9uFvBE.png?width=1536&height=1024",
+    colSpan: "md:col-span-12 lg:col-span-4",
+  },
+];
+
 export function FeaturesSection() {
   return (
-    <section id="features" className="mx-auto max-w-7xl px-6 py-20 sm:px-8">
-      <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-primary">Built for heavy hitters</p>
-          <h2 className="mt-3 font-syne text-3xl font-bold text-foreground sm:text-4xl">Production-grade where it matters.</h2>
+    <section id="features" className="px-6 py-20 sm:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="bg-linear-to-r from-zinc-400 via-zinc-200 to-white bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-5xl">
+            Features built for reliable recordings
+          </h2>
+          <p className="mt-5 text-base leading-7 text-zinc-400 sm:text-lg">
+            Weave helps teams capture high-quality meetings, protect uploads on unstable
+            networks, and deliver final recordings ready for review and production.
+          </p>
         </div>
-        <p className="max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-          The product should feel calm on the surface and serious underneath:
-          resilient capture, predictable processing, and assets that still make
-          sense after the call ends.
-        </p>
-      </div>
-      <div className="grid auto-rows-[180px] gap-4 md:grid-cols-12 sm:auto-rows-[200px]">
-        <article className="relative overflow-hidden rounded-[1.5rem] border border-border/75 bg-[linear-gradient(135deg,rgba(16,115,108,0.16)_0%,rgba(255,255,255,0.2)_38%,rgba(255,255,255,0.1)_100%)] p-6 dark:bg-[linear-gradient(135deg,rgba(16,115,108,0.22)_0%,rgba(15,23,42,0.38)_45%,rgba(15,23,42,0.24)_100%)] md:col-span-8">
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent,rgba(16,115,108,0.08))]" />
-          <div className="absolute right-5 top-5 rounded-full border border-primary/35 bg-background/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-            Universal compatibility
-          </div>
-          <div className="relative z-10 flex h-full flex-col justify-between">
-            <div>
-              <h3 className="font-headline text-2xl font-bold text-foreground">Lossless local recording, then cloud delivery.</h3>
-              <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-                Record in the browser with deterministic chunk uploads, merge
-                after the session, stream through HLS, and keep the project ready
-                for the in-platform editor.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {["Chunk sequencing", "Merge pipeline", "Playback assets"].map((item) => (
-                <div key={item} className="rounded-xl border border-border/70 bg-background/65 px-4 py-3 text-sm text-foreground">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-        <article className="rounded-[1.5rem] border border-primary/35 bg-primary/12 p-6 text-foreground md:col-span-4">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">Privacy first</p>
-          <h3 className="mt-3 font-headline text-xl font-bold">Local-only mode for sensitive workflows.</h3>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Keep high-stakes interviews and internal reviews off the network until
-            your team is ready to publish them.
-          </p>
-        </article>
-        <article className="rounded-[1.5rem] border border-border/75 bg-card/75 p-6 md:col-span-4">
-          <h4 className="font-headline text-lg font-bold text-foreground">Hardware-level security posture</h4>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Encrypted uploads, recoverable chunk history, and fewer single points
-            of failure than cloud-only recording stacks.
-          </p>
-        </article>
-        <article className="flex items-center justify-between gap-8 rounded-[1.5rem] border border-border/75 bg-card/75 p-6 md:col-span-8">
-          <div>
-            <h4 className="font-headline text-xl font-bold text-foreground">Resilience engine</h4>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Crash-safe chunk capture and status-driven processing keep the path
-              from live call to final export understandable and recoverable.
-            </p>
-          </div>
-          <div className="flex h-18 w-18 items-center justify-center rounded-full border border-primary/35 bg-primary/10 text-2xl font-black text-primary">R</div>
-        </article>
+
+        <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-12">
+          {featureCards.map((card) => (
+            <article
+              key={card.title}
+              className={`group relative overflow-hidden rounded-3xl border border-white/10 bg-[#0a111a]/90 ${card.colSpan}`}
+            >
+              <div className={`relative overflow-hidden ${card.imageHeight ?? "h-44"}`}>
+                <img
+                  src={card.image}
+                  alt={card.title}
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-[#0a111a] via-[#0a111a]/35 to-transparent" />
+              </div>
+
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-white sm:text-xl">{card.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-zinc-300/85">{card.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-10 flex justify-center">
+          <Link
+            to="/product"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/10"
+          >
+            Explore product capabilities
+            <span aria-hidden="true">{"->"}</span>
+          </Link>
+        </div>
       </div>
     </section>
   );

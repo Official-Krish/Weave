@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { http } from "../https";
-import type { RecordingStatusResponse } from "../types/api";
+import type { RecordingStatusResponse } from "@repo/types/api";
 
 type ConnectionState = "idle" | "loading-lib" | "connecting" | "connected" | "failed";
 

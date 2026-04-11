@@ -1,8 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CreateMeetingResponse, JoinMeetingResponse } from "@repo/types/api";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { CreateMeetingResponse, JoinMeetingResponse } from "../types/api";
 
 type UseMeetingSetupArgs = {
   displayNameFallback: string;
@@ -108,7 +108,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     },
     onSuccess: (data) => {
       navigate(
-        `/meetings/live/${data.meetingId}?name=${encodeURIComponent(
+        `/meeting/live/${data.meetingId}?name=${encodeURIComponent(
           data.name || displayNameFallback || "Host"
         )}&role=host`
       );
@@ -133,7 +133,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     },
     onSuccess: (data) => {
       navigate(
-        `/meetings/live/${data.id}?name=${encodeURIComponent(
+        `/meeting/live/${data.id}?name=${encodeURIComponent(
           data.name || displayNameFallback || "Guest"
         )}&role=guest`
       );

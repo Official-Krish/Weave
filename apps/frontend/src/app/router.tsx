@@ -10,6 +10,7 @@ import { MeetingsPage } from "../pages/MeetingsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProductPage } from "../pages/ProductPage";
 import { RecordingDetailPage } from "../pages/RecordingDetailPage";
+import { FinalRecordingPage } from "../pages/FinalRecordingPage";
 import { RecordingsPage } from "../pages/RecordingsPage";
 import { SignInPage } from "../pages/SignInPage";
 import { SignUpPage } from "../pages/SignUpPage";
@@ -33,7 +34,7 @@ const router = createBrowserRouter([
         element: <MeetingsPage />,
       },
       {
-        path: "meetings/live/:meetingId",
+        path: "meeting/live/:meetingId",
         element: <LiveMeetingPage />,
       },
       {
@@ -43,6 +44,10 @@ const router = createBrowserRouter([
       {
         path: "recordings/:recordingId",
         element: <RecordingDetailPage />,
+      },
+      {
+        path: "recordings/:recordingId/final",
+        element: <FinalRecordingPage />,
       },
       {
         path: "editor",

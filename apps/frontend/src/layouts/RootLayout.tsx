@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Appbar } from "../components/Appbar";
 import { Footer } from "../components/Footer";
 import { useAuth } from "../hooks/useAuth";
+import { useEffect, useState } from "react";
 
 type ThemeMode = "light" | "dark";
 
@@ -40,34 +40,27 @@ export function RootLayout() {
   };
 
   return (
-    <div className="min-h-screen text-foreground transition-colors duration-300">
-      <div
-        className={[
-          "mx-auto flex min-h-screen flex-col px-5 py-6 sm:px-8",
-          isLiveMeeting ? "max-w-350" : isLanding ? "max-w-[1280px]" : "max-w-6xl",
-        ].join(" ")}
+    <div>
+      <Appbar
+        isLiveMeeting={isLiveMeeting}
+        isLanding={isLanding}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isAuthenticated={isAuthenticated}
+        name={name}
+        signOut={signOut}
+      />
+
+      <motion.main
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
+        className="flex-1"
       >
-        <Appbar
-          isLiveMeeting={isLiveMeeting}
-          isLanding={isLanding}
-          theme={theme}
-          isAuthenticated={isAuthenticated}
-          name={name}
-          toggleTheme={toggleTheme}
-          signOut={signOut}
-        />
+        <Outlet />
+      </motion.main>
 
-        <motion.main
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
-          className="flex-1"
-        >
-          <Outlet />
-        </motion.main>
-
-        {!isLiveMeeting ? <Footer isLanding={isLanding} /> : null}
-      </div>
+      {!isLiveMeeting ? <Footer isLanding={isLanding} /> : null}
     </div>
   );
 }

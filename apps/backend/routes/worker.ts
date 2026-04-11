@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Request } from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
@@ -10,7 +11,26 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
+function toPublicRecordingLink(localPath: string) {
+  const normalizedRelative = path.relative(recordingsRoot, localPath).split(path.sep).join("/");
+  if (!normalizedRelative || normalizedRelative.startsWith("..")) {
+    return localPath;
+  }
+
+  return `/api/v1/recordings/${normalizedRelative}`;
+}
+
 type WorkerRecordingState = "PROCESSING" | "READY" | "FAILED";
+
+function hasValidWorkerToken(req: Request) {
+  const requiredToken = process.env.WORKER_CALLBACK_TOKEN;
+  if (!requiredToken) {
+    return true;
+  }
+
+  const token = req.headers["x-worker-token"];
+  return typeof token === "string" && token === requiredToken;
+}
 
 function sanitizePathSegment(value: unknown) {
   const text = String(value || "").trim();
@@ -42,11 +62,11 @@ function getFileExtension(mimeType?: string) {
 }
 
 workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
-    console.log("Received recording status update from worker", {
-        meetingId: req.params.meetingId,
-        status: req.body?.status,
-        finalPath: req.body?.finalPath,
-    });
+  if (!hasValidWorkerToken(req)) {
+    res.status(401).json({ message: "Unauthorized worker callback" });
+    return;
+  }
+
   const meetingId = req.params.meetingId;
   const status = String(req.body?.status || "") as WorkerRecordingState;
   const finalPath = req.body?.finalPath ? String(req.body.finalPath) : null;
@@ -64,6 +84,7 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
   try {
     const meeting = await prisma.meeting.findFirst({
       where: { meetingId },
+      orderBy: { date: "asc" },
     });
 
     if (!meeting) {
@@ -103,10 +124,12 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
       return;
     }
 
+    const publicFinalPath = toPublicRecordingLink(finalPath);
+
     const existingFinal = await prisma.finalRecording.findFirst({
       where: {
         meetingId: meeting.id,
-        VideoLink: finalPath,
+        VideoLink: publicFinalPath,
       },
     });
 
@@ -114,7 +137,8 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
       await prisma.finalRecording.create({
         data: {
           meetingId: meeting.id,
-          VideoLink: finalPath,
+          VideoLink: publicFinalPath,
+          visibleToEmails: [],
           format: "MP4",
           quality: "HIGH",
         },
@@ -137,12 +161,6 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
 });
 
 workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async (req, res) => {
-    console.log("Received chunk upload request", {
-        meetingId: req.body.meetingId,
-        durationMs: req.body.durationMs,
-        userId: req.userId,
-    participantId: req.body.participantId,
-    });
   if (!req.file || !req.body.meetingId) {
     res.status(400).json({ message: "Missing file or meetingId" });
     return;
@@ -190,11 +208,15 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
     await fs.writeFile(outputPath, req.file.buffer);
 
     const meeting = await prisma.meeting.findFirst({
-      where: { meetingId },
+      where: {
+        meetingId,
+        userId,
+      },
     });
 
     if (!meeting) {
-      res.status(404).json({ message: "Meeting not found" });
+      console.warn(`Meeting session not found for uploaded chunk: meetingId=${meetingId}, userId=${userId}`);
+      res.status(404).json({ message: "Meeting session not found for uploader" });
       return;
     }
 
@@ -211,13 +233,6 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
       },
     });
 
-    // GCP upload flow retained for future use (intentionally commented, not removed).
-    // const storage = new Storage({ projectId: process.env.PROJECT_ID });
-    // const bucket = storage.bucket(process.env.BUCKET_NAME!);
-    // await bucket.file(`weave/${meetingId}/raw/users/${userId}/chunk-${chunkSuffix}.${extension}`).save(req.file.buffer, {
-    //   metadata: { contentType: req.file.mimetype },
-    // });
-
     res.status(200).json({
       message: "Chunk uploaded successfully",
       path: outputPath,
@@ -229,71 +244,81 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
 });
 
 workerRouter.post("/final-upload/:meetingId", async (req, res) => {
-    console.log("Received final upload request for meeting", {
-        meetingId: req.params.meetingId,
-    });
-  const meetingId = req.params.meetingId;
-
-  if (!meetingId) {
-    res.status(400).json({ message: "Missing meetingId" });
+  if (!hasValidWorkerToken(req)) {
+    res.status(401).json({ message: "Unauthorized worker callback" });
     return;
   }
 
-  try {
-    const meeting = await prisma.meeting.findFirst({
-      where: { meetingId },
-    });
+    const meetingId = req.params.meetingId;
 
-    if (!meeting) {
-      res.status(404).json({ message: "Meeting not found" });
-      return;
+    if (!meetingId) {
+        res.status(400).json({ message: "Missing meetingId" });
+        return;
     }
 
-    const localFinalPath = path.join(
-      recordingsRoot,
-      meetingId,
-      "final",
-      "meeting_grid_recording.mp4"
-    );
+    try {
+        const meeting = await prisma.meeting.findFirst({
+            where: { meetingId },
+        });
 
-    await prisma.finalRecording.create({
-      data: {
-        meetingId: meeting.id,
-        VideoLink: localFinalPath,
-        format: "MP4",
-        quality: "HIGH",
-      },
-    });
+        if (!meeting) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
 
-    await prisma.meeting.updateMany({
-      where: {
-        meetingId,
-      },
-      data: {
-        recordingState: "READY",
-        processingEndedAt: new Date(),
-      },
-    });
+        const localFinalPath = path.join(
+            recordingsRoot,
+            meetingId,
+            "final",
+            "meeting_grid_recording.mp4"
+        );
+        const publicFinalPath = toPublicRecordingLink(localFinalPath);
 
-    // GCP final-upload flow retained for future use (intentionally commented, not removed).
-    // const videoUrl = `https://assets.krishdev.xyz/weave/${meetingId}/processed/video/meeting_grid_recording.mp4`;
+        const existingFinal = await prisma.finalRecording.findFirst({
+          where: {
+            meetingId: meeting.id,
+            VideoLink: publicFinalPath,
+          },
+        });
 
-    res.status(200).json({
-      message: "Final recording finalized successfully",
-      path: localFinalPath,
-    });
-  } catch (error) {
-    console.error("Final upload error:", error);
-    await prisma.meeting.updateMany({
-      where: {
-        meetingId,
-      },
-      data: {
-        recordingState: "FAILED",
-      },
-    });
-    res.status(500).json({ message: "Final upload failed" });
-  }
+        if (!existingFinal) {
+          await prisma.finalRecording.create({
+            data: {
+              meetingId: meeting.id,
+              VideoLink: publicFinalPath,
+              visibleToEmails: [],
+              format: "MP4",
+              quality: "HIGH",
+            },
+          });
+        }
+
+        await prisma.meeting.updateMany({
+            where: {
+                meetingId,
+            },
+            data: {
+                recordingState: "READY",
+                processingEndedAt: new Date(),
+            },
+        });
+
+        res.status(200).json({
+            message: "Final recording finalized successfully",
+            path: localFinalPath,
+        });
+    } catch (error) {
+        console.error("Final upload error:", error);
+        await prisma.meeting.updateMany({
+            where: {
+                meetingId,
+            },
+            data: {
+                recordingState: "FAILED",
+            },
+        });
+        res.status(500).json({ message: "Final upload failed" });
+    }
 });
 
 export default workerRouter;

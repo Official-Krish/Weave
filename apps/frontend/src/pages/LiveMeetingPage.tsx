@@ -221,6 +221,7 @@ export function LiveMeetingPage() {
     sendChatMessage,
     setTyping,
     sendMeetingEnded,
+    sendRecordingState,
   } = useMeetingRealtime({
     roomId: roomName,
     displayName,
@@ -407,11 +408,24 @@ export function LiveMeetingPage() {
           setSelectedParticipantId(allTiles[0]?.id ?? null);
         }}
         onToggleRecording={() => {
-          if (isRecording) {
-            stopRecordingMutation.mutate();
+          if (!isHost) {
             return;
           }
-          startRecordingMutation.mutate();
+
+          if (isRecording) {
+            stopRecordingMutation.mutate(undefined, {
+              onSuccess: () => {
+                sendRecordingState(false);
+              },
+            });
+            return;
+          }
+
+          startRecordingMutation.mutate(undefined, {
+            onSuccess: () => {
+              sendRecordingState(true);
+            },
+          });
         }}
         onEndForAll={handleEndForAll}
         onLeaveCall={handleExit}

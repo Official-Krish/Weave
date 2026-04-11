@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CalendarDays, LoaderCircle, Users, Video } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { MeetingListItem } from "@repo/types/api";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import type { MeetingListItem } from "../types/api";
 
 export function RecordingsPage() {
   const { isAuthenticated } = useAuth();
@@ -73,6 +73,21 @@ export function RecordingsPage() {
       ) : (
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           {recordings.map((meeting, index) => (
+            (() => {
+              const statusLabel =
+                meeting.recordingState === "READY"
+                  ? "Ready"
+                  : meeting.recordingState === "FAILED"
+                    ? "Failed"
+                    : meeting.recordingState === "PROCESSING" || meeting.recordingState === "UPLOADING"
+                      ? "Processing"
+                      : meeting.recordingState === "RECORDING"
+                        ? "Recording"
+                        : meeting.isEnded
+                          ? "Ended"
+                          : "Live";
+
+              return (
             <Link
               key={meeting.id}
               to={`/recordings/${meeting.id}`}
@@ -91,7 +106,7 @@ export function RecordingsPage() {
                   </h2>
                 </div>
                 <span className="rounded-full border border-border bg-secondary/60 px-3 py-1 text-xs text-muted-foreground">
-                  {meeting.isEnded ? "Processing" : "Live"}
+                  {statusLabel}
                 </span>
               </div>
 
@@ -110,6 +125,8 @@ export function RecordingsPage() {
                 </p>
               </div>
             </Link>
+              );
+            })()
           ))}
         </div>
       )}
