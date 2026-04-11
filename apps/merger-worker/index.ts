@@ -558,9 +558,8 @@ async function processQueue() {
             try {
                 const merger = new LocalVideoMerger(meetingId);
                 const finalPath = await merger.process();
-
-                await reportWorkerStatus(meetingId, "READY", finalPath);
-                console.log(`Merge completed for ${meetingId}`);
+                await redisClient.rpush("TranscodeVideo", JSON.stringify({ meetingId, finalPath }));
+                console.log(`Merge completed for ${meetingId}. Queued for transcoding.`);
             } catch (error) {
                 console.error(`Merge failed for ${meetingId}:`, error);
                 try {

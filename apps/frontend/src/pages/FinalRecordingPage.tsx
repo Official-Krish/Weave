@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, LoaderCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { MeetingDetail } from "@repo/types/api";
+import { VideoPlayer } from "../components/videoPlayer";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
+import { resolveMediaUrl } from "../lib/mediaUrl";
 
 export function FinalRecordingPage() {
   const { recordingId = "" } = useParams();
@@ -21,6 +23,26 @@ export function FinalRecordingPage() {
 
   const meeting = meetingQuery.data;
   const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
+  const baseRecordingsUrl = meeting?.meetingId
+    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls`)
+    : "";
+
+  const hlsManifestUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/master.m3u8` : "";
+  const thumbnailVttUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/thumbnails.vtt` : "";
+  const posterUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/poster.jpg` : undefined;
+  const mp4Url = resolveMediaUrl(latestAsset?.VideoLink);
+
+  const hlsAvailabilityQuery = useQuery({
+    queryKey: ["hls-availability", meeting?.meetingId],
+    enabled: Boolean(hlsManifestUrl),
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch(hlsManifestUrl, { method: "HEAD" });
+      return response.ok;
+    },
+  });
+
+  const playbackUrl = hlsAvailabilityQuery.data ? hlsManifestUrl : mp4Url || "/meeting_grid_recording.mp4";
 
   return (
     <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
@@ -69,16 +91,14 @@ export function FinalRecordingPage() {
         </div>
       ) : latestAsset ? (
         <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
-          <video
-            src="/meeting_grid_recording.mp4"
-            controls
-            playsInline
+          <VideoPlayer
+            src={playbackUrl}
+            poster={posterUrl}
+            thumbnailSrc={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
             className="w-full rounded-xl border border-border bg-black"
-          >
-            <track kind="captions" />
-          </video>
+          />
           <p className="mt-4 text-sm text-muted-foreground">
-            This is a temporary in-browser test player using the native video tag.
+            Video.js player with HLS playback and sprite thumbnails (when transcoded assets are available).
           </p>
         </div>
       ) : (

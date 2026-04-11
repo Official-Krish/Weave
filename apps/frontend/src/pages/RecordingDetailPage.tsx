@@ -17,6 +17,7 @@ import type { MeetingDetail, RecordingVisibilityResponse } from "@repo/types/api
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
+import { resolveMediaUrl } from "../lib/mediaUrl";
 
 export function RecordingDetailPage() {
   const { recordingId = "" } = useParams();
@@ -34,6 +35,7 @@ export function RecordingDetailPage() {
   const meeting = meetingQuery.data;
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
+  const resolvedVideoLink = resolveMediaUrl(latestAsset?.VideoLink);
   const startedAt = meeting?.startTime ? new Date(meeting.startTime) : null;
   const endedAt = meeting?.endTime ? new Date(meeting.endTime) : null;
   const durationLabel =
@@ -160,7 +162,7 @@ export function RecordingDetailPage() {
                   Format: {latestAsset.format} | Quality: {latestAsset.quality}
                 </p>
                 <a
-                  href={latestAsset.VideoLink}
+                  href={resolvedVideoLink}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
