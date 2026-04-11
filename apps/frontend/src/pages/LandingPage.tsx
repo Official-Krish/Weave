@@ -1,4 +1,3 @@
-import { BrandStrip } from "../components/LandingPage/BrandStrip";
 import { FeaturesSection } from "../components/LandingPage/FeaturesSection";
 import { FinalCtaSection } from "../components/LandingPage/FinalCtaSection";
 import { HeroSection } from "../components/LandingPage/HeroSection";
@@ -18,8 +17,6 @@ export const LandingPage = () => {
       </div>
 
       <HeroSection />
-
-      <BrandStrip />
       <ProblemSection />
       <HowItWorksSection />
       <FeaturesSection />
