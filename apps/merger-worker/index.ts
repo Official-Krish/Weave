@@ -511,12 +511,19 @@ class LocalVideoMerger {
 
 async function reportWorkerStatus(meetingId: string, status: "PROCESSING" | "READY" | "FAILED", finalPath?: string) {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:3000/api/v1";
+    const workerToken = process.env.WORKER_CALLBACK_TOKEN;
+
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+    };
+
+    if (workerToken) {
+        headers["x-worker-token"] = workerToken;
+    }
 
     await fetch(`${backendUrl}/worker/recording-status/${meetingId}`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers,
             body: JSON.stringify({
             status,
             finalPath,

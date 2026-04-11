@@ -25,10 +25,10 @@ export function HeroSection() {
             <HoverArrowButton href="/signup" label="Try for free" />
 
             <a
-              href="/docs"
+              href="/features"
               className="inline-flex h-12 items-center rounded-xl border border-transparent px-1 text-sm font-medium text-white/85 transition hover:text-white"
             >
-              Read Documentation
+              Explore Features
               <span className="ml-2 text-base">→</span>
             </a>
           </div>

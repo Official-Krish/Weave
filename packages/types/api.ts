@@ -56,6 +56,7 @@ export type MeetingListItem = {
   isEnded: boolean;
   participants: string[];
   isHost: boolean;
+  recordingState?: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
 };
 
 export type MeetingDetail = MeetingListItem & {

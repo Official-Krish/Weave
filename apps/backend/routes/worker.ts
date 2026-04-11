@@ -11,6 +11,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
+function toPublicRecordingLink(localPath: string) {
+  const normalizedRelative = path.relative(recordingsRoot, localPath).split(path.sep).join("/");
+  if (!normalizedRelative || normalizedRelative.startsWith("..")) {
+    return localPath;
+  }
+
+  return `/api/v1/recordings/${normalizedRelative}`;
+}
+
 type WorkerRecordingState = "PROCESSING" | "READY" | "FAILED";
 
 function hasValidWorkerToken(req: Request) {
@@ -75,6 +84,7 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
   try {
     const meeting = await prisma.meeting.findFirst({
       where: { meetingId },
+      orderBy: { date: "asc" },
     });
 
     if (!meeting) {
@@ -114,10 +124,12 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
       return;
     }
 
+    const publicFinalPath = toPublicRecordingLink(finalPath);
+
     const existingFinal = await prisma.finalRecording.findFirst({
       where: {
         meetingId: meeting.id,
-        VideoLink: finalPath,
+        VideoLink: publicFinalPath,
       },
     });
 
@@ -125,7 +137,7 @@ workerRouter.post("/worker/recording-status/:meetingId", async (req, res) => {
       await prisma.finalRecording.create({
         data: {
           meetingId: meeting.id,
-          VideoLink: finalPath,
+          VideoLink: publicFinalPath,
           visibleToEmails: [],
           format: "MP4",
           quality: "HIGH",
@@ -196,11 +208,15 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
     await fs.writeFile(outputPath, req.file.buffer);
 
     const meeting = await prisma.meeting.findFirst({
-      where: { meetingId },
+      where: {
+        meetingId,
+        userId,
+      },
     });
 
     if (!meeting) {
-      res.status(404).json({ message: "Meeting not found" });
+      console.warn(`Meeting session not found for uploaded chunk: meetingId=${meetingId}, userId=${userId}`);
+      res.status(404).json({ message: "Meeting session not found for uploader" });
       return;
     }
 
@@ -256,11 +272,12 @@ workerRouter.post("/final-upload/:meetingId", async (req, res) => {
             "final",
             "meeting_grid_recording.mp4"
         );
+        const publicFinalPath = toPublicRecordingLink(localFinalPath);
 
         const existingFinal = await prisma.finalRecording.findFirst({
           where: {
             meetingId: meeting.id,
-            VideoLink: localFinalPath,
+            VideoLink: publicFinalPath,
           },
         });
 
@@ -268,7 +285,7 @@ workerRouter.post("/final-upload/:meetingId", async (req, res) => {
           await prisma.finalRecording.create({
             data: {
               meetingId: meeting.id,
-              VideoLink: localFinalPath,
+              VideoLink: publicFinalPath,
               visibleToEmails: [],
               format: "MP4",
               quality: "HIGH",

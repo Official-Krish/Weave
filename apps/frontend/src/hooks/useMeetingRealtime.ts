@@ -323,6 +323,17 @@ export function useMeetingRealtime({
     });
   }, [roomId, safeSend]);
 
+  const sendRecordingState = useCallback(
+    (isRecording: boolean) => {
+      return safeSend({
+        type: "recording-state",
+        roomId,
+        isRecording,
+      });
+    },
+    [roomId, safeSend]
+  );
+
   return {
     connectionStatus,
     chatMessages,
@@ -331,5 +342,6 @@ export function useMeetingRealtime({
     sendChatMessage,
     setTyping,
     sendMeetingEnded,
+    sendRecordingState,
   };
 }

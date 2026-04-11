@@ -1,9 +1,11 @@
 import { Router } from "express";
+import path from "node:path";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
 
 const meetingRouter = Router();
+const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
 function toSingleString(value: string | string[] | undefined): string | null {
     if (typeof value === "string") {
@@ -79,6 +81,26 @@ function normalizeEmails(values: unknown): string[] {
     return [...new Set(normalized)];
 }
 
+function normalizeFinalRecordingLinks<T extends { VideoLink: string }>(recordings: T[]): T[] {
+    return recordings.map((recording) => {
+        const videoLink = recording.VideoLink || "";
+
+        if (videoLink.startsWith("/api/v1/recordings/")) {
+            return recording;
+        }
+
+        const normalizedRelative = path.relative(recordingsRoot, videoLink).split(path.sep).join("/");
+        if (!normalizedRelative || normalizedRelative.startsWith("..")) {
+            return recording;
+        }
+
+        return {
+            ...recording,
+            VideoLink: `/api/v1/recordings/${normalizedRelative}`,
+        };
+    });
+}
+
 meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
     const userId = req.userId;
     try{
@@ -103,12 +125,14 @@ meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
 
         const filtered = meetings.map((meeting) => ({
             ...meeting,
-            finalRecording: meeting.finalRecording.filter((recording) =>
-                canViewFinalRecording({
-                    isHost: meeting.isHost,
-                    userEmail,
-                    visibleToEmails: recording.visibleToEmails ?? [],
-                })
+            finalRecording: normalizeFinalRecordingLinks(
+                meeting.finalRecording.filter((recording) =>
+                    canViewFinalRecording({
+                        isHost: meeting.isHost,
+                        userEmail,
+                        visibleToEmails: recording.visibleToEmails ?? [],
+                    })
+                )
             ),
         }));
 
@@ -151,12 +175,14 @@ meetingRouter.get("/get/:id", authMiddleware, async (req, res) => {
 
         res.status(200).json({
             ...meeting,
-            finalRecording: meeting.finalRecording.filter((recording) =>
-                canViewFinalRecording({
-                    isHost: meeting.isHost,
-                    userEmail,
-                    visibleToEmails: recording.visibleToEmails ?? [],
-                })
+            finalRecording: normalizeFinalRecordingLinks(
+                meeting.finalRecording.filter((recording) =>
+                    canViewFinalRecording({
+                        isHost: meeting.isHost,
+                        userEmail,
+                        visibleToEmails: recording.visibleToEmails ?? [],
+                    })
+                )
             ),
         });
     } catch (error) {

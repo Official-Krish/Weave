@@ -70,7 +70,7 @@ export function FinalRecordingPage() {
       ) : latestAsset ? (
         <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
           <video
-            src={latestAsset.VideoLink}
+            src="/meeting_grid_recording.mp4"
             controls
             playsInline
             className="w-full rounded-xl border border-border bg-black"
