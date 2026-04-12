@@ -39,12 +39,6 @@ export function SignInPage() {
 
   return (
     <section className="relative min-h-[calc(100vh-76px)] overflow-hidden px-6 py-10 sm:px-8">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[#0d0c0a] dark:bg-[#070706]" />
-        <div className="absolute top-12 left-10 h-64 w-64 rounded-full bg-[#f5a623]/8 blur-3xl" />
-        <div className="absolute bottom-10 right-8 h-48 w-48 rounded-full bg-[#f5a623]/6 blur-3xl" />
-      </div>
-
       <div className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[1.05fr_1fr]">
         <div className="rounded-3xl border border-[#f5a623]/12 bg-linear-to-br from-[#100d09] to-[#12100c] p-8 sm:p-10">
           <p className="text-[10px] font-bold uppercase tracking-[0.26em] text-[#f5a623]/65">Welcome back</p>

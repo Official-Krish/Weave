@@ -6,12 +6,11 @@ import { RootLayout } from "../layouts/RootLayout";
 import { EditorPage } from "../pages/EditorPage";
 import { LandingPage } from "../pages/LandingPage";
 import { LiveMeetingPage } from "../pages/LiveMeetingPage";
-import { MeetingsPage } from "../pages/MeetingsPage";
+import { Dashboard } from "../pages/Dashboard";
 import { NotFoundPage } from "../pages/NotFoundPage";
-import { ProductPage } from "../pages/ProductPage";
+import { MeetingSetupPage } from "../pages/MeetingSetupPage";
 import { RecordingDetailPage } from "../pages/RecordingDetailPage";
 import { FinalRecordingPage } from "../pages/FinalRecordingPage";
-import { RecordingsPage } from "../pages/RecordingsPage";
 import { SignInPage } from "../pages/SignInPage";
 import { SignUpPage } from "../pages/SignUpPage";
 
@@ -26,20 +25,16 @@ const router = createBrowserRouter([
         element: <LandingPage />,
       },
       {
-        path: "product",
-        element: <ProductPage />,
+        path: "dashboard",
+        element: <Dashboard />,
       },
       {
-        path: "meetings",
-        element: <MeetingsPage />,
+        path: "meetingSetup",
+        element: <MeetingSetupPage />,
       },
       {
         path: "meeting/live/:meetingId",
         element: <LiveMeetingPage />,
-      },
-      {
-        path: "recordings",
-        element: <RecordingsPage />,
       },
       {
         path: "recordings/:recordingId",

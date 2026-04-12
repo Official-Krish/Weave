@@ -9,7 +9,6 @@ import '@fontsource/epilogue/900.css'
 import '@fontsource/syne/400.css'
 import '@fontsource/syne/700.css'
 import '@fontsource/syne/800.css'
-import '@fontsource-variable/geist'
 import './index.css'
 import App from './App.tsx'
 

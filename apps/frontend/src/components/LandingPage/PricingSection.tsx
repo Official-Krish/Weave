@@ -119,7 +119,6 @@ export function PricingSection() {
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1.15fr_1fr] gap-4 md:items-stretch">
           {plans.map((plan, i) => {
             const price = annual ? plan.price.annual : plan.price.monthly;
-            const isFree = plan.id === "free";
             const isPro = plan.featured;
             const isTeam = plan.id === "team";
 

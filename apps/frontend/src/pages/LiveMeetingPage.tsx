@@ -339,7 +339,7 @@ export function LiveMeetingPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: "easeOut" }}
       className="relative h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-[#253a48] bg-[#050c12]"
-    >
+      >
       <RecordingIndicator isRecording={isRecording} />
 
       <MeetingInfo meetingId={meetingId} participantCount={participantList.length} />

@@ -10,11 +10,8 @@ type NavItem = {
 };
 
 const authenticatedNavItems: NavItem[] = [
-  { to: "/", label: "Home", end: true },
-  { to: "/product", label: "Product" },
-  { to: "/meetings", label: "Meetings" },
-  { to: "/recordings", label: "Recordings" },
-  { to: "/editor", label: "Editor" },
+  { to: "/dashboard", label: "Dashboard", end: true },
+  { to: "/meetingSetup", label: "Create or Join Meeting" },
 ];
 
 const guestNavItems: NavItem[] = [
