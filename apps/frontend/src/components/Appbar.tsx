@@ -64,8 +64,11 @@ export function Appbar({
       <div className="mx-auto flex max-w-7xl items-center justify-between py-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5">
-          <img src="/favicon-512x512.png" alt="Weave logo" className="h-10 w-auto" />
-          <span className="text-[15px] font-semibold text-white">Weave</span>
+          <img
+            src={theme === "dark" ? "/logo-dark.svg" : "/logo-light.svg"}
+            alt="Weave logo"
+            className="h-8 w-auto"
+          />
         </Link>
 
         {/* Nav Links */}
