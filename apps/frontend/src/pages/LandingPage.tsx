@@ -1,28 +1,82 @@
-import { FeaturesSection } from "../components/LandingPage/FeaturesSection";
-import { FinalCtaSection } from "../components/LandingPage/FinalCtaSection";
-import { HeroSection } from "../components/LandingPage/HeroSection";
-import { HowItWorksSection } from "../components/LandingPage/HowItWorksSection";
-import { PricingSection } from "../components/LandingPage/PricingSection";
-import { ProblemSection } from "../components/LandingPage/ProblemSection";
+import { FeaturesSection } from "@/components/LandingPage/FeaturesSection";
+import { FinalCtaSection } from "@/components/LandingPage/FinalCtaSection";
+import { HeroSection } from "@/components/LandingPage/HeroSection";
+import { HowItWorksSection } from "@/components/LandingPage/HowItWorksSection";
+import { HLSPrivacySection } from "@/components/LandingPage/HLSPrivacySection";
+import { PricingSection } from "@/components/LandingPage/PricingSection";
+import { ProblemSection } from "@/components/LandingPage/ProblemSection";
+import { QualityFormatsSection } from "@/components/LandingPage/QualityFormatsSection";
+import { VideoEditorPreviewSection } from "@/components/LandingPage/VideoEditorPreviewSection";
+import { motion } from "motion/react";
 
 export const LandingPage = () => {
   return (
-    <div className="relative overflow-x-clip bg-[#060d14] pb-18 text-[#e9f0f4] dark:bg-[#060d14] dark:text-[#e9f0f4]">
+    <div className="relative isolate overflow-x-clip bg-background pb-18 text-foreground">
       <div className="pointer-events-none absolute inset-0 z-1 grain-overlay" />
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(0,180,172,0.22),transparent_32%),radial-gradient(circle_at_78%_28%,rgba(0,132,122,0.2),transparent_38%),linear-gradient(180deg,rgba(5,11,18,0.96)_0%,rgba(5,12,20,1)_70%)]" />
-        <div className="absolute inset-y-0 left-[34%] w-px bg-[#11413f]/35" />
-        <div className="absolute inset-y-0 left-[68%] w-px bg-[#11413f]/25" />
-        <div className="absolute inset-x-0 top-[44%] h-px bg-[#11413f]/22" />
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        {/* Main black base with very soft amber tint */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at 74% 18%, rgba(245,166,35,0.04) 0%, transparent 30%), linear-gradient(180deg, rgba(8,8,9,1) 0%, rgba(11,10,10,1) 55%, rgba(7,7,8,1) 100%)",
+          }}
+        />
+
+        {/* Tiny moving amber circles */}
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            top: "16%",
+            left: "10%",
+            width: "180px",
+            height: "180px",
+            background: "radial-gradient(circle, rgba(245,166,35,0.08) 0%, rgba(245,166,35,0.02) 35%, transparent 72%)",
+            filter: "blur(8px)",
+          }}
+          animate={{ x: [0, 18, -12, 0], y: [0, -14, 10, 0] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            top: "42%",
+            right: "12%",
+            width: "220px",
+            height: "220px",
+            background: "radial-gradient(circle, rgba(245,166,35,0.07) 0%, rgba(245,166,35,0.02) 38%, transparent 74%)",
+            filter: "blur(10px)",
+          }}
+          animate={{ x: [0, -20, 10, 0], y: [0, 16, -8, 0] }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            bottom: "8%",
+            left: "42%",
+            width: "200px",
+            height: "200px",
+            background: "radial-gradient(circle, rgba(245,166,35,0.065) 0%, rgba(245,166,35,0.02) 36%, transparent 72%)",
+            filter: "blur(9px)",
+          }}
+          animate={{ x: [0, 14, -10, 0], y: [0, -12, 8, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        />
       </div>
 
-      <HeroSection />
-      <ProblemSection />
-      <HowItWorksSection />
-      <FeaturesSection />
+      <div className="relative z-2">
+        <HeroSection />
+        <ProblemSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <HLSPrivacySection />
+        <QualityFormatsSection />
+        <VideoEditorPreviewSection />
 
-      <PricingSection />
-      <FinalCtaSection />
+        <PricingSection />
+        <FinalCtaSection />
+      </div>
     </div>
   );
 };

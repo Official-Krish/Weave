@@ -51,12 +51,12 @@ export function Appbar({
       transition={{ duration: 0.35, ease: "easeOut" }}
       className={[
         isLanding
-          ? "fixed top-0 left-0"
+          ? "fixed top-0 left-0 border-b border-white/15 bg-background/20 backdrop-blur-xl supports-backdrop-filter:bg-background/15"
           : isLiveMeeting
             ? "relative"
             : "sticky top-0",
         "z-50 w-full px-6 lg:px-8",
-        !isLanding && "border-b border-white/10 bg-black/60 backdrop-blur-xl",
+        !isLanding && "border-b border-white/15 bg-background/80 backdrop-blur-xl",
       ]
         .filter(Boolean)
         .join(" ")}
