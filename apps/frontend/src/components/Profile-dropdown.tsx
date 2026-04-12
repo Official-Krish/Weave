@@ -1,131 +1,233 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-	ChevronDown,
-	LogOut,
-	Moon,
-	Settings,
-	Sparkles,
-	SunMedium,
-	UserPen,
+  ChevronDown, LogOut, Moon, Settings,
+  Sparkles, SunMedium, UserPen,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import type { UserProfileResponse } from "@repo/types/api";
+import { http } from "../https";
 
 type ProfileDropdownProps = {
-	name?: string | null;
-	theme: "light" | "dark";
-	toggleTheme: () => void;
-	signOut: () => void;
+  name?: string | null;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+  signOut: () => void;
 };
 
-function getDisplayEmail(name: string) {
-	const normalized = name.trim().toLowerCase().replace(/\s+/g, "");
-	return `${normalized || "user"}@weave.app`;
+export function ProfileDropdown({ name, theme, toggleTheme, signOut }: ProfileDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const profileQuery = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const response = await http.get<UserProfileResponse>("/user/me");
+      return response.data.user;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const displayName = profileQuery.data?.name?.trim() || name?.trim() || "Weave User";
+  const displayEmail = profileQuery.data?.email?.trim() || "";
+  const initial = displayName.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, []);
+
+  return (
+    <div ref={rootRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen((c) => !c)}
+        className={[
+          "inline-flex items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition cursor-pointer",
+          theme === "dark"
+            ? "border border-white/12 bg-black/50 hover:border-white/20"
+            : "border border-[#b47800]/20 bg-[#fffdf7] shadow-sm hover:border-[#b47800]/35",
+        ].join(" ")}
+      >
+        <Avatar initial={initial} size="sm" />
+        <span className="hidden md:flex md:flex-col">
+          <span className={["text-sm font-bold leading-none", theme === "dark" ? "text-[#fff5de]" : "text-[#1a1200]"].join(" ")}>
+            {displayName}
+          </span>
+          <span className={["mt-1 text-[11px]", theme === "dark" ? "text-white/45" : "text-[#785a00]/60"].join(" ")}>
+            Free plan
+          </span>
+        </span>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="inline-flex"
+        >
+          <ChevronDown className={["size-3.5", theme === "dark" ? "text-white/50" : "text-[#785a00]/50"].join(" ")} />
+        </motion.span>
+      </button>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className={[
+              "absolute right-0 z-60 mt-2 w-66 overflow-hidden rounded-[18px]",
+              theme === "dark"
+                ? "border border-[#f5a623]/12 bg-[#100e09]"
+                : "border border-[#b47800]/18 bg-[#fffdf7]",
+            ].join(" ")}
+          >
+            {/* Header */}
+            <div className={["px-4 py-3.5", theme === "dark" ? "border-b border-[#f5a623]/10" : "border-b border-[#b47800]/12"].join(" ")}>
+              <div className="flex items-center gap-2.5">
+                <Avatar initial={initial} size="md" />
+                <div>
+                  <p className={["text-[15px] font-bold leading-tight", theme === "dark" ? "text-[#fff5de]" : "text-[#1a1200]"].join(" ")}>
+                    {displayName}
+                  </p>
+                  <p className={["mt-0.5 text-[11px] truncate", theme === "dark" ? "text-[#c8a870]/60" : "text-[#785a00]/55"].join(" ")}>
+                    {profileQuery.isLoading ? "Loading…" : displayEmail}
+                  </p>
+                </div>
+              </div>
+              {/* Plan badge */}
+              <div className={[
+                "mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]",
+                theme === "dark"
+                  ? "border border-[#f5a623]/18 bg-[#f5a623]/10 text-[#f5a623]/80"
+                  : "border border-[#b47800]/22 bg-[#f5a623]/10 text-[#7a4d00]",
+              ].join(" ")}>
+                <span className="size-1.5 rounded-full bg-[#f5a623]" />
+                Free plan
+              </div>
+            </div>
+
+            {/* Menu items */}
+            <div className="space-y-0.5 p-2">
+              <MenuButton theme={theme} label="Edit profile" icon={<UserPen className="size-3.5" />} shortcut="E" />
+              <MenuButton theme={theme} label="Widget settings" icon={<Settings className="size-3.5" />} shortcut="W" />
+              <MenuButton
+                theme={theme}
+                label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                icon={theme === "dark" ? <SunMedium className="size-3.5" /> : <Moon className="size-3.5" />}
+                onClick={toggleTheme}
+              />
+              {/* Upgrade CTA */}
+              <button
+                type="button"
+                className={[
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+                  theme === "dark"
+                    ? "border border-[#f5a623]/14 bg-[#f5a623]/8 hover:bg-[#f5a623]/13"
+                    : "border border-[#b47800]/2 bg-[#f5a623]/10 hover:bg-[#f5a623]/16",
+                ].join(" ")}
+              >
+                <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#ffcf6b] to-[#f5a623] flex-shrink-0">
+                  <Sparkles className="size-3.5 text-[#1b1100]" />
+                </span>
+                <div>
+                  <p className={["text-[13px] font-bold", theme === "dark" ? "text-[#f5c050]" : "text-[#7a4d00]"].join(" ")}>
+                    Upgrade to Pro
+                  </p>
+                  <p className={["text-[11px]", theme === "dark" ? "text-[#c8a060]/60" : "text-[#785a00]/50"].join(" ")}>
+                    Unlock all features
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className={["p-2", theme === "dark" ? "border-t border-[#f5a623]/8" : "border-t border-[#b47800]/10"].join(" ")}>
+              <button
+                type="button"
+                onClick={signOut}
+                className={[
+                  "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+                  theme === "dark" ? "hover:bg-red-500/10" : "hover:bg-red-500/7",
+                ].join(" ")}
+              >
+                <span className={[
+                  "flex size-8 items-center justify-center rounded-lg flex-shrink-0",
+                  theme === "dark" ? "bg-red-500/10" : "bg-red-500/7",
+                ].join(" ")}>
+                  <LogOut className={["size-3.5", theme === "dark" ? "text-red-400/70" : "text-red-700/70"].join(" ")} />
+                </span>
+                <span className={["text-[13px] font-medium", theme === "dark" ? "text-red-400/80" : "text-red-700/80"].join(" ")}>
+                  Log out
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
-export function ProfileDropdown({
-	name,
-	theme,
-	toggleTheme,
-	signOut,
-}: ProfileDropdownProps) {
-	const [open, setOpen] = useState(false);
-	const rootRef = useRef<HTMLDivElement | null>(null);
-
-	const displayName = name?.trim() || "Weave User";
-	const displayEmail = getDisplayEmail(displayName);
-	const initial = displayName.charAt(0).toUpperCase();
-
-	useEffect(() => {
-		const onPointerDown = (event: MouseEvent) => {
-			if (!rootRef.current?.contains(event.target as Node)) {
-				setOpen(false);
-			}
-		};
-
-		const onEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setOpen(false);
-			}
-		};
-
-		document.addEventListener("mousedown", onPointerDown);
-		document.addEventListener("keydown", onEscape);
-
-		return () => {
-			document.removeEventListener("mousedown", onPointerDown);
-			document.removeEventListener("keydown", onEscape);
-		};
-	}, []);
-
-	return (
-		<div ref={rootRef} className="relative">
-			<button
-				type="button"
-				onClick={() => setOpen((current) => !current)}
-				className="inline-flex items-center gap-3 rounded-xl border border-white/15 bg-black/45 px-2.5 py-1.5 text-left text-white transition hover:border-white/25"
-			>
-				<span className="inline-flex size-9 items-center justify-center rounded-full bg-[#f4a62a] text-sm font-bold text-[#1b1309]">
-					{initial}
-				</span>
-				<span className="hidden md:flex md:flex-col">
-					<span className="text-sm font-semibold leading-none">{displayName}</span>
-					<span className="mt-1 text-xs text-white/60">User</span>
-				</span>
-				<ChevronDown className={`size-4 text-white/70 transition ${open ? "rotate-180" : ""}`} />
-			</button>
-
-			{open ? (
-				<div className="absolute right-0 z-60 mt-3 w-[320px] overflow-hidden rounded-3xl border border-white/15 bg-[#111]/95 text-white shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-					<div className="border-b border-white/10 px-5 py-4">
-						<p className="text-2xl font-semibold leading-tight">{displayName}</p>
-						<p className="mt-1 text-sm text-white/60">{displayEmail}</p>
-					</div>
-
-					<div className="space-y-2 p-3">
-						<MenuButton label="Edit profile" icon={<UserPen className="size-5" />} shortcut="E" />
-						<MenuButton label="Widget settings" icon={<Settings className="size-5" />} shortcut="W" />
-						<MenuButton
-							label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-							icon={theme === "dark" ? <SunMedium className="size-5" /> : <Moon className="size-5" />}
-							onClick={toggleTheme}
-						/>
-						<MenuButton label="Upgrade to professional" icon={<Sparkles className="size-5" />} />
-					</div>
-
-					<div className="border-t border-white/10 p-3">
-						<button
-							type="button"
-							onClick={signOut}
-							className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-white/90 transition hover:bg-white/8"
-						>
-							<LogOut className="size-5" />
-							Log out
-						</button>
-					</div>
-				</div>
-			) : null}
-		</div>
-	);
+function Avatar({ initial, size }: { initial: string; size: "sm" | "md" }) {
+  const dim = size === "sm" ? "size-8 text-sm" : "size-10 text-base";
+  return (
+    <span className={`inline-flex ${dim} items-center justify-center rounded-full bg-gradient-to-br from-[#ffcf6b] to-[#f5a623] font-extrabold text-[#1b1100] flex-shrink-0`}>
+      {initial}
+    </span>
+  );
 }
 
 type MenuButtonProps = {
-	label: string;
-	icon: ReactNode;
-	shortcut?: string;
-	onClick?: () => void;
+  label: string;
+  icon: ReactNode;
+  shortcut?: string;
+  onClick?: () => void;
+  theme: "light" | "dark";
 };
 
-function MenuButton({ label, icon, shortcut, onClick }: MenuButtonProps) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/8"
-		>
-			<span className="text-white/90">{icon}</span>
-			<span className="flex-1 text-lg text-white/90">{label}</span>
-			{shortcut ? (
-				<span className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/50">{shortcut}</span>
-			) : null}
-		</button>
-	);
+function MenuButton({ label, icon, shortcut, onClick, theme }: MenuButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+        theme === "dark" ? "hover:bg-[#f5a623]/7" : "hover:bg-[#b47800]/7",
+      ].join(" ")}
+    >
+      <span className={[
+        "flex size-8 items-center justify-center rounded-lg flex-shrink-0",
+        theme === "dark" ? "bg-white/6" : "bg-black/4",
+      ].join(" ")}>
+        <span className={theme === "dark" ? "text-[#f5c878]/85" : "text-[#96670a]"}>
+          {icon}
+        </span>
+      </span>
+      <span className={["flex-1 text-[13px] font-medium", theme === "dark" ? "text-[#fff5de]/90" : "text-[#2a1e00]"].join(" ")}>
+        {label}
+      </span>
+      {shortcut && (
+        <span className={[
+          "rounded-md px-2 py-0.5 text-[10px] font-semibold",
+          theme === "dark"
+            ? "border border-white/10 bg-white/6 text-white/35"
+            : "border border-black/10 bg-black/5 text-black/35",
+        ].join(" ")}>
+          {shortcut}
+        </span>
+      )}
+    </button>
+  );
 }

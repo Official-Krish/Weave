@@ -51,12 +51,12 @@ export function Appbar({
       transition={{ duration: 0.35, ease: "easeOut" }}
       className={[
         isLanding
-          ? "fixed top-0 left-0"
+          ? "fixed top-0 left-0 border-b border-white/15 bg-background/20 backdrop-blur-xl supports-backdrop-filter:bg-background/15"
           : isLiveMeeting
             ? "relative"
             : "sticky top-0",
         "z-50 w-full px-6 lg:px-8",
-        !isLanding && "border-b border-white/10 bg-black/60 backdrop-blur-xl",
+        !isLanding && "border-b border-white/15 bg-background/80 backdrop-blur-xl",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -64,8 +64,11 @@ export function Appbar({
       <div className="mx-auto flex max-w-7xl items-center justify-between py-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5">
-          <img src="/favicon-512x512.png" alt="Weave logo" className="h-10 w-auto" />
-          <span className="text-[15px] font-semibold text-white">Weave</span>
+          <img
+            src={theme === "dark" ? "/logo-dark.svg" : "/logo-light.svg"}
+            alt="Weave logo"
+            className="h-8 w-auto"
+          />
         </Link>
 
         {/* Nav Links */}

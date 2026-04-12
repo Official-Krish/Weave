@@ -4,6 +4,19 @@ export type LoginResponse = {
   name?: string | null;
 };
 
+export type UserProfile = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UserProfileResponse = {
+  message: string;
+  user: UserProfile;
+};
+
 export type SignupResponse = {
   message: string;
   token: string;
