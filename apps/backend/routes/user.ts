@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { LoginSchema, SignupSchema } from "@repo/types";
 import { prisma } from "@repo/db/client";
+import { authMiddleware } from "../utils/authMiddleware";
 
 const userRouter: Router = Router();
 
@@ -94,6 +95,76 @@ userRouter.post("/login", async ( req,res ) => {
         res.status(500).json({ message: "Internal server error" });
     }
 })
+
+userRouter.get("/me", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+
+    if (!userId) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+
+    try {
+        const user = await prisma.user.findFirst({
+            where: { id: userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        res.status(200).json({
+            message: "User profile fetched successfully",
+            user,
+        });
+    } catch (error) {
+        console.error("Fetch profile failed:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+userRouter.get("/profile", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+
+    if (!userId) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+
+    try {
+        const user = await prisma.user.findFirst({
+            where: { id: userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+
+        res.status(200).json({
+            message: "User profile fetched successfully",
+            user,
+        });
+    } catch (error) {
+        console.error("Fetch profile failed:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 
 export default userRouter;
