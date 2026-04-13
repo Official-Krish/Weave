@@ -17,8 +17,8 @@ export function MeetingStage({
 }: MeetingStageProps) {
   if (connectionState === "connecting" || connectionState === "loading-lib") {
     return (
-      <div className="flex h-screen items-center justify-center text-[#93aaba]">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[#2a3b47] bg-[#0c141b] px-4 py-2 text-sm">
+      <div className="flex h-full items-center justify-center text-[#c9af79]">
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/16 bg-[#130f0a]/92 px-4 py-2 text-sm">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           Connecting custom room...
         </span>
@@ -32,7 +32,7 @@ export function MeetingStage({
     const sideTiles = allTiles.filter((tile) => tile.id !== selectedScreen.id);
 
     return (
-      <div className="flex h-screen w-full gap-2 p-2">
+      <div className="flex min-h-screen w-full gap-2 p-3">
         <div className="h-full w-[75%]">
           <TrackTile
             title={selectedScreen.title}
@@ -44,7 +44,7 @@ export function MeetingStage({
           />
         </div>
         <div className="h-full w-[25%] overflow-y-auto">
-          <div className="flex flex-col gap-2 pr-1">
+          <div className="flex flex-col gap-2 pr-1.5">
             {sideTiles.map((tile) => (
               <div key={tile.id} className="h-30 min-h-24">
                 <TrackTile
@@ -66,7 +66,7 @@ export function MeetingStage({
 
   if (focusedTiles) {
     return (
-      <div className="flex h-screen w-full gap-2 p-2">
+      <div className="flex h-full w-full gap-2 p-3">
         <div className="h-full w-[75%]">
           <TrackTile
             title={focusedTiles.selected.title}
@@ -78,7 +78,7 @@ export function MeetingStage({
           />
         </div>
         <div className="h-full w-[25%] overflow-y-auto">
-          <div className="flex flex-col gap-2 pr-1">
+          <div className="flex flex-col gap-2 pr-1.5">
             {focusedTiles.others.map((tile) => (
               <div key={tile.id} className="h-30 min-h-24">
                 <TrackTile
@@ -103,7 +103,7 @@ export function MeetingStage({
 
   return (
     <div
-      className="grid h-screen w-full gap-2 p-2"
+      className="grid h-full w-full gap-2 p-3"
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
       {allTiles.map((tile) => (

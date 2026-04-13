@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, LoaderCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, LoaderCircle, Play } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { MeetingDetail } from "@repo/types/api";
 import { VideoPlayer } from "../components/videoPlayer";
@@ -23,14 +23,15 @@ export function FinalRecordingPage() {
 
   const meeting = meetingQuery.data;
   const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
-  const baseRecordingsUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls`)
+  const hlsManifestUrl = meeting?.meetingId
+    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/master.m3u8`)
     : "";
-
-  const hlsManifestUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/master.m3u8` : "";
-  const thumbnailVttUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/thumbnails.vtt` : "";
-  const posterUrl = baseRecordingsUrl ? `${baseRecordingsUrl}/poster.jpg` : undefined;
-  const mp4Url = resolveMediaUrl(latestAsset?.VideoLink);
+  const thumbnailVttUrl = meeting?.meetingId
+    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/thumbnails.vtt`)
+    : "";
+  const posterUrl = meeting?.meetingId
+    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/poster.jpg`)
+    : "";
 
   const hlsAvailabilityQuery = useQuery({
     queryKey: ["hls-availability", meeting?.meetingId],
@@ -41,8 +42,9 @@ export function FinalRecordingPage() {
       return response.ok;
     },
   });
+  console.log("HLS availability:", hlsAvailabilityQuery.data);
 
-  const playbackUrl = hlsAvailabilityQuery.data ? hlsManifestUrl : mp4Url || "/meeting_grid_recording.mp4";
+  const playbackUrl = hlsManifestUrl;
 
   return (
     <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
@@ -93,13 +95,21 @@ export function FinalRecordingPage() {
         <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
           <VideoPlayer
             src={playbackUrl}
-            poster={posterUrl}
+            poster={posterUrl || undefined}
             thumbnailSrc={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
-            className="w-full rounded-xl border border-border bg-black"
+            className="w-full rounded-xl border border-[#f5a623]/12 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
           />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Video.js player with HLS playback and sprite thumbnails (when transcoded assets are available).
-          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/12 bg-[#f5a623]/6 px-3 py-1 text-[#c8a870]">
+              <Play className="h-3.5 w-3.5" />
+              {hlsAvailabilityQuery.data ? "HLS streaming" : "Local asset playback"}
+            </span>
+            <span>
+              {hlsAvailabilityQuery.data
+                ? "Adaptive stream served from the local recordings folder (no CDN)."
+                : "Video served from the local recordings folder. No CDN is used on this page."}
+            </span>
+          </div>
         </div>
       ) : (
         <div className="mt-8 rounded-2xl border border-border bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">

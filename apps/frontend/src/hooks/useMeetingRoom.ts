@@ -187,6 +187,46 @@ export function useMeetingRoom({
     }
   };
 
+  const syncLocalTrackFlags = useCallback((track: JitsiTrack) => {
+    const trackType = track.getType?.();
+
+    const refreshState = () => {
+      const muted = Boolean(track.isMuted?.());
+
+      if (trackType === "audio") {
+        setIsMuted(muted);
+      }
+
+      if (trackType === "video") {
+        setIsVideoOff(muted);
+      }
+    };
+
+    refreshState();
+
+    const onMuteChanged = () => {
+      refreshState();
+    };
+
+    const onStopped = () => {
+      if (trackType === "audio") {
+        setIsMuted(true);
+      }
+
+      if (trackType === "video") {
+        setIsVideoOff(true);
+      }
+    };
+
+    track.addEventListener?.("TRACK_MUTE_CHANGED", onMuteChanged);
+    track.addEventListener?.("LOCAL_TRACK_STOPPED", onStopped);
+
+    return () => {
+      track.removeEventListener?.("TRACK_MUTE_CHANGED", onMuteChanged);
+      track.removeEventListener?.("LOCAL_TRACK_STOPPED", onStopped);
+    };
+  }, []);
+
   const leaveRoom = useCallback(() => {
     try {
       const conference = conferenceRef.current;
@@ -416,6 +456,7 @@ export function useMeetingRoom({
             });
 
             const localTracks = await JitsiMeetJS.createLocalTracks({ devices: ["audio", "video"] });
+
             localTracks.forEach((track: JitsiTrack) => {
               conference.addTrack(track);
               if (track.getType?.() === "audio") {
@@ -425,6 +466,8 @@ export function useMeetingRoom({
                 localVideoTrackRef.current = track;
                 setLocalVideoTrack(track);
               }
+
+              syncLocalTrackFlags(track);
             });
 
             conference.setDisplayName?.(displayName || "Guest");
@@ -468,6 +511,7 @@ export function useMeetingRoom({
     parsedBase.hostname,
     parsedBase.protocol,
     fetchJitsiConnectionConfig,
+    syncLocalTrackFlags,
     removeRemoteTrackById,
     updateParticipantName,
   ]);

@@ -22,7 +22,7 @@ export function SignUpPage() {
     },
     onSuccess: (data) => {
       persistAuth(data.token, name);
-      navigate("/meetings");
+      navigate("/dashboard");
     },
     onError: (error) => {
       setErrorMessage(getHttpErrorMessage(error, "Could not create your account. Try a different email."));
@@ -31,13 +31,6 @@ export function SignUpPage() {
 
   return (
     <section className="relative min-h-[calc(100vh-76px)] overflow-hidden px-6 py-10 sm:px-8">
-      {/* Background */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[#0d0c0a] dark:bg-[#070706]" />
-        <div className="absolute top-12 right-10 h-64 w-64 rounded-full bg-[#f5a623]/8 blur-3xl" />
-        <div className="absolute bottom-10 left-8 h-48 w-48 rounded-full bg-[#f5a623]/6 blur-3xl" />
-      </div>
-
       <div className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[1fr_1.1fr]">
         {/* Form card */}
         <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-8">

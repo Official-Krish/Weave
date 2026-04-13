@@ -11,49 +11,70 @@
   display: block;
 }
 
+/* ── Controls bar ── */
 .media-controls {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
   display: flex;
+  flex-direction: column;        /* stack time slider above buttons */
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0.6rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0) 100%);
+}
+
+/* Row that holds button groups + time display */
+.media-controls-row {
+  display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.6rem;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
 }
 
 .media-button-group {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.25rem;
+  flex-shrink: 0;               /* never let button groups shrink */
+}
+
+/* Time group sits between left and right button groups */
+.media-time-group {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
 }
 
 .media-button {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(18, 18, 18, 0.6);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(18,18,18,0.6);
   color: #fff;
   border-radius: 0.5rem;
   padding: 0.35rem;
+  cursor: pointer;
 }
 
+/* ── Time slider (full width row of its own) ── */
 .media-time-controls {
-  flex: 1;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  width: 100%;
 }
 
 .media-slider {
   flex: 1;
+  min-width: 0;
 }
 
 .media-time,
 .media-time-separator {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255,255,255,0.85);
   font-size: 0.78rem;
+  white-space: nowrap;
 }
 
+/* ── Misc ── */
 .media-tooltip,
 .media-popover,
 .media-error {

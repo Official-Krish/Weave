@@ -11,6 +11,11 @@ type UseMeetingSetupArgs = {
 
 export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSetupArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const monitorAudioRef = useRef<HTMLAudioElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const micMonitorEnabledRef = useRef(false);
 
   const [mode, setMode] = useState<"create" | "join">("create");
   const [createRoomName, setCreateRoomName] = useState("");
@@ -23,8 +28,37 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [selectedMicId, setSelectedMicId] = useState("");
+  const [micLevel, setMicLevel] = useState(0);
+  const [micMonitorEnabled, setMicMonitorEnabled] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    micMonitorEnabledRef.current = micMonitorEnabled;
+  }, [micMonitorEnabled]);
+
+  const syncMonitorAudio = async () => {
+    const audioElement = monitorAudioRef.current;
+    const currentStream = streamRef.current;
+
+    if (!audioElement || !currentStream) {
+      return;
+    }
+
+    if (!micMonitorEnabledRef.current) {
+      audioElement.pause();
+      audioElement.srcObject = null;
+      return;
+    }
+
+    audioElement.srcObject = currentStream;
+
+    try {
+      await audioElement.play();
+    } catch {
+      // Playback can be blocked until the user interacts with the page.
+    }
+  };
 
   const addInvite = () => {
     const email = inviteEmail.trim().toLowerCase();
@@ -48,9 +82,21 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     let mounted = true;
     let stream: MediaStream | null = null;
 
+    const stopAudioMeter = () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      void audioContextRef.current?.close();
+      audioContextRef.current = null;
+    };
+
     const loadPreview = async () => {
       try {
         setPreviewError(null);
+        setMicLevel(0);
+        stopAudioMeter();
         stream = await navigator.mediaDevices.getUserMedia({
           video: selectedCameraId
             ? { deviceId: { exact: selectedCameraId } }
@@ -60,8 +106,14 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
             : true,
         });
 
+        streamRef.current = stream;
+
         if (mounted && videoRef.current) {
           videoRef.current.srcObject = stream;
+        }
+
+        if (mounted) {
+          void syncMonitorAudio();
         }
 
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -79,9 +131,36 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
             setSelectedMicId(microphones[0].deviceId);
           }
         }
+
+        const audioTracks = stream.getAudioTracks();
+        if (mounted && audioTracks.length > 0 && typeof AudioContext !== "undefined") {
+          const audioContext = new AudioContext();
+          audioContextRef.current = audioContext;
+
+          const source = audioContext.createMediaStreamSource(stream);
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+
+          const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+
+          const updateMicLevel = () => {
+            if (!mounted) {
+              return;
+            }
+
+            analyser.getByteFrequencyData(frequencyData);
+            const average = frequencyData.reduce((sum, value) => sum + value, 0) / frequencyData.length;
+            setMicLevel(Math.min(100, Math.round((average / 255) * 100)));
+            animationFrameRef.current = requestAnimationFrame(updateMicLevel);
+          };
+
+          updateMicLevel();
+        }
       } catch {
         if (mounted) {
           setPreviewError("Could not access camera/microphone for preview.");
+          setMicLevel(0);
         }
       }
     };
@@ -90,11 +169,28 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
 
     return () => {
       mounted = false;
+      stopAudioMeter();
+
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      if (monitorAudioRef.current) {
+        monitorAudioRef.current.pause();
+        monitorAudioRef.current.srcObject = null;
+      }
+
+      streamRef.current = null;
     };
   }, [selectedCameraId, selectedMicId]);
+
+  useEffect(() => {
+    void syncMonitorAudio();
+  }, [micMonitorEnabled]);
 
   const createMeetingMutation = useMutation({
     mutationFn: async () => {
@@ -170,8 +266,13 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     joinMeetingMutation.mutate();
   };
 
+  const toggleMicMonitor = () => {
+    setMicMonitorEnabled((current) => !current);
+  };
+
   return {
     videoRef,
+    monitorAudioRef,
     mode,
     setMode,
     createRoomName,
@@ -191,6 +292,9 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     setSelectedCameraId,
     selectedMicId,
     setSelectedMicId,
+    micLevel,
+    micMonitorEnabled,
+    toggleMicMonitor,
     previewError,
     errorMessage,
     setErrorMessage,
