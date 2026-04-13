@@ -27,7 +27,7 @@ export function RootLayout() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const location = useLocation();
   const { isAuthenticated, name, signOut } = useAuth();
-  const isLiveMeeting = location.pathname.startsWith("/meetings/live/");
+  const isLiveMeeting = location.pathname.startsWith("/meeting/live/");
   const isLanding = location.pathname === "/";
   const isDashboard = location.pathname === "/dashboard";
 
@@ -46,7 +46,7 @@ export function RootLayout() {
       <GlobalBackground />
       
       <div className="relative z-10 flex min-h-screen flex-col">
-        {isDashboard ? null : (
+        {isDashboard || isLiveMeeting ? null : (
           <Appbar
             isLiveMeeting={isLiveMeeting}
             isLanding={isLanding}

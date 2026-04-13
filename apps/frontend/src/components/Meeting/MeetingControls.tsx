@@ -86,18 +86,18 @@ export function MeetingControls({
         onClick={onClick}
         disabled={disabled}
         className={[
-          "flex h-11 w-11 items-center justify-center rounded-full transition",
+          "flex h-11 w-11 items-center justify-center rounded-full border transition cursor-pointer",
           danger
-            ? "bg-red-600 text-white hover:bg-red-500"
+            ? "border-red-500/40 bg-red-600/85 text-white hover:bg-red-500/90"
             : active
-              ? "bg-white text-black"
-              : "bg-[#1d2b37] text-[#e8f0f4] hover:bg-[#263544]",
+              ? "border-[#f5a623]/35 bg-linear-to-r from-[#ffcf6b] via-[#f5a623] to-[#d98a10] text-[#1b1100]"
+              : "border-[#f5a623]/16 bg-[#1a140d] text-[#f4e2bf] hover:border-[#f5a623]/28 hover:bg-[#21180f]",
           disabled ? "cursor-not-allowed opacity-55" : "",
         ].join(" ")}
       >
         {icon}
       </motion.button>
-      <span className="text-[10px] font-medium text-[#91a7b7]">{label}</span>
+      <span className="text-[10px] font-medium text-[#c6a96f]">{label}</span>
     </div>
   );
 
@@ -107,7 +107,7 @@ export function MeetingControls({
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="pointer-events-auto flex items-end gap-3 rounded-full border border-[#2b3d49] bg-[#0b1218]/88 px-4 py-2.5 backdrop-blur-md"
+        className="pointer-events-auto flex items-end gap-3 rounded-full border border-[#f5a623]/16 bg-[#0e0b08]/88 px-4 py-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.45)] backdrop-blur-md"
       >
         <IconButton
           label={isMuted ? "Unmute" : "Mute"}
@@ -159,7 +159,7 @@ export function MeetingControls({
             onClick={onToggleRecording}
             active={recordingActive}
             disabled={isRecordingBusy || !canToggleRecording}
-            icon={<Circle size={19} className={recordingActive ? "text-red-500" : ""} />}
+            icon={<Circle size={19} className={recordingActive ? "text-red-500" : "text-[#a57a26]"} />}
           />
         ) : null}
 
@@ -181,7 +181,7 @@ export function MeetingControls({
       </motion.div>
 
       {isHost && isUploadingChunks ? (
-        <span className="absolute -top-7 rounded-full bg-[#0b1218]/90 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#86a5ba]">
+        <span className="absolute -top-7 rounded-full border border-[#f5a623]/18 bg-[#120f0a]/94 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#d0af72]">
           Uploading chunks
         </span>
       ) : null}

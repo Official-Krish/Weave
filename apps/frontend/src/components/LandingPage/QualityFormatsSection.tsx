@@ -37,11 +37,11 @@ const formats: Format[] = [
   },
   {
     id: "audio",
-    label: "Audio MP3/WAV",
+    label: "Audio WAV/FLAC",
     tag: "PODCAST",
-    bitrate: "128–320 kbps",
+    bitrate: "256–1411 kbps",
     useCase: "Podcast & audio extraction",
-    fileSize: "~70 MB/hr",
+    fileSize: "~120 MB/hr",
   },
 ];
 
@@ -77,7 +77,7 @@ export function QualityFormatsSection() {
                 {isActive && (
                   <motion.div
                     layoutId="format-underline"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#F5A623]"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#F5A623]"
                     transition={{ type: "spring", stiffness: 400, damping: 35 }}
                   />
                 )}

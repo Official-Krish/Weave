@@ -214,7 +214,6 @@ export function LiveMeetingPage() {
   });
 
   const {
-    connectionStatus: realtimeConnectionStatus,
     chatMessages,
     typingNames,
     unreadCount,
@@ -254,7 +253,7 @@ export function LiveMeetingPage() {
       await http.post(`/meeting/end/${meetingId}`);
     },
     onSettled: () => {
-      navigate("/recordings");
+      navigate("/dashboard");
     },
   });
 
@@ -338,20 +337,14 @@ export function LiveMeetingPage() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: "easeOut" }}
-      className="relative h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-[#253a48] bg-[#050c12]"
-      >
+      className="relative h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-[#f5a623]/16 bg-[#060504]"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(245,166,35,0.09),transparent_40%),radial-gradient(circle_at_86%_22%,rgba(255,207,107,0.07),transparent_34%),radial-gradient(circle_at_50%_82%,rgba(245,166,35,0.05),transparent_42%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-size-[180px_180px] bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] opacity-60" />
+
       <RecordingIndicator isRecording={isRecording} />
 
       <MeetingInfo meetingId={meetingId} participantCount={participantList.length} />
-
-      <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2">
-        <Link
-          to="/meetings"
-          className="inline-flex rounded-full border border-[#2d414f] bg-black/40 px-4 py-1.5 text-xs uppercase tracking-[0.18em] text-[#9cb3c1] transition hover:text-white"
-        >
-          Back
-        </Link>
-      </div>
 
       <div className="absolute inset-0">
         <MeetingStage
@@ -445,14 +438,9 @@ export function LiveMeetingPage() {
         onSendMessage={sendChatMessage}
         onTyping={setTyping}
       />
-
-      <div className="absolute left-4 top-4 z-30 rounded-full border border-[#2f4452] bg-[#0a141c]/90 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#8fa8b8]">
-        Realtime: {realtimeConnectionStatus}
-      </div>
-
       {ending || endMeetingMutation.isPending ? (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="rounded-xl border border-[#2b3d49] bg-[#0a1218] px-5 py-3 text-sm text-[#dce7ee]">
+          <div className="rounded-xl border border-[#f5a623]/18 bg-[#120f0a] px-5 py-3 text-sm text-[#f4e7cc]">
             Ending meeting...
           </div>
         </div>

@@ -47,15 +47,15 @@ export function TrackTile({
       type="button"
       onClick={onClick}
       className={[
-        "relative h-full w-full overflow-hidden rounded-lg border border-[#27404c] bg-[#081018] text-left transition hover:border-[#3a5666]",
+        "group relative h-full w-full overflow-hidden rounded-xl border border-[#f5a623]/14 bg-[#0b0806] text-left transition hover:border-[#f5a623]/30",
         className ?? "",
       ].join(" ")}
     >
       {track ? (
         <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-45 w-full object-cover" />
       ) : (
-        <div className="flex min-h-45 w-full items-center justify-center bg-[#09131b] text-[#93adbd]">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#14303f]">
+        <div className="flex min-h-45 w-full items-center justify-center bg-[#110d08] text-[#cfb07a]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#f5a623]/16 bg-[#2a1c0e]">
             <User className="h-7 w-7" />
           </div>
         </div>
@@ -64,16 +64,17 @@ export function TrackTile({
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent px-3 py-2">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-white">{title}</p>
-            {subtitle ? <p className="text-xs text-white/80">{subtitle}</p> : null}
+            <p className="text-sm font-semibold text-[#fff3dc]">{title}</p>
+            {subtitle ? <p className="text-xs text-[#e4c995]/80">{subtitle}</p> : null}
           </div>
-          <div className="flex items-center gap-1.5 text-white/85">
-            {isScreenSharing ? <MonitorUp className="h-3.5 w-3.5 text-blue-300" /> : null}
+          <div className="flex items-center gap-1.5 text-[#f6dfb4]/85">
+            {isScreenSharing ? <MonitorUp className="h-3.5 w-3.5 text-[#f5c050]" /> : null}
             {isMuted ? <MicOff className="h-3.5 w-3.5 text-red-300" /> : <Mic className="h-3.5 w-3.5" />}
             {isVideoOff ? <VideoOff className="h-3.5 w-3.5 text-red-300" /> : <Video className="h-3.5 w-3.5" />}
           </div>
         </div>
       </div>
+      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-[radial-gradient(circle_at_70%_10%,rgba(245,166,35,0.18),transparent_38%)]" />
     </button>
   );
 }

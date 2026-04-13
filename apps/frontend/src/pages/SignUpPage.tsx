@@ -22,7 +22,7 @@ export function SignUpPage() {
     },
     onSuccess: (data) => {
       persistAuth(data.token, name);
-      navigate("/meetings");
+      navigate("/dashboard");
     },
     onError: (error) => {
       setErrorMessage(getHttpErrorMessage(error, "Could not create your account. Try a different email."));

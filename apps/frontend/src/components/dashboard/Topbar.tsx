@@ -34,9 +34,20 @@ export function Topbar({
                     </button>
                     <button
                         onClick={() => navigate("/meetingSetup")}
-                        className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-[#ffcf6b] via-[#f5a623] to-[#d98a10] px-5 py-2.5 text-[13px] font-extrabold text-[#1b1100] transition hover:opacity-90 cursor-pointer"
+                        className="flex items-center group relative overflow-hidden rounded-full px-6 py-3 text-sm font-bold tracking-wide transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                        style={{
+                            background: "#F5A623",
+                            color: "#0c0c0e",
+                        }}
                     >
-                        <Plus className="size-3.5" /> New meeting
+                        {/* Shimmer sweep */}
+                        <span
+                            className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+                            style={{
+                                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
+                            }}
+                        />
+                        <Plus className="size-3.5 mr-1" /> New meeting
                     </button>
                 </div>
             </div>

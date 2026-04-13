@@ -25,7 +25,7 @@ export function SignInPage() {
     },
     onSuccess: (data) => {
       persistAuth(data.token, data.name);
-      navigate("/meetings");
+      navigate("/dashboard");
     },
     onError: (error) => {
       setErrorMessage(
