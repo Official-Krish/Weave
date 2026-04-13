@@ -152,13 +152,6 @@ meetingRouter.get("/get/:id", authMiddleware, async (req, res) => {
         return;
     }
     try {
-        const user = await prisma.user.findFirst({
-            where: { id: userId as string },
-            select: { email: true },
-        });
-
-        const userEmail = user?.email?.toLowerCase() || null;
-
         const meeting = await prisma.meeting.findFirst({
             where: {
                 id: meetingId,
@@ -174,16 +167,10 @@ meetingRouter.get("/get/:id", authMiddleware, async (req, res) => {
         }
 
         res.status(200).json({
-            ...meeting,
-            finalRecording: normalizeFinalRecordingLinks(
-                meeting.finalRecording.filter((recording) =>
-                    canViewFinalRecording({
-                        isHost: meeting.isHost,
-                        userEmail,
-                        visibleToEmails: recording.visibleToEmails ?? [],
-                    })
-                )
-            ),
+            meetingId: meeting.meetingId,
+            roomName: meeting.roomName,
+            visibleToEmails: meeting.finalRecording[0]?.visibleToEmails ?? [],
+            participants: meeting.participants,
         });
     } catch (error) {
         console.error("Error fetching meeting:", error);

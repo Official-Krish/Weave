@@ -8,6 +8,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss(),],
   server: {
   proxy: {
+    '/api': {
+      target: process.env.VITE_BACKEND_URL || 'http://localhost:3000',
+      changeOrigin: true,
+      secure: false,
+    },
     '/jitsi/http-bind': {
       target: process.env.VITE_PUBLIC_JITSI_URL || 'https://localhost:8443',
       changeOrigin: true,

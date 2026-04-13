@@ -1,12 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, LoaderCircle, Play } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import type { MeetingDetail } from "@repo/types/api";
 import { VideoPlayer } from "../components/videoPlayer";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import { resolveMediaUrl } from "../lib/mediaUrl";
+
+type responseMeetingDetail = {
+  meetingId: string;
+  roomName: string;
+  visibleToEmails: string[];
+  participants: string[];
+};
 
 export function FinalRecordingPage() {
   const { recordingId = "" } = useParams();
@@ -15,22 +20,21 @@ export function FinalRecordingPage() {
   const meetingQuery = useQuery({
     queryKey: ["final-recording", recordingId],
     queryFn: async () => {
-      const response = await http.get<MeetingDetail>(`/meeting/get/${recordingId}`);
+      const response = await http.get<responseMeetingDetail>(`/meeting/get/${recordingId}`);
       return response.data;
     },
     enabled: isAuthenticated && Boolean(recordingId),
   });
 
   const meeting = meetingQuery.data;
-  const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
   const hlsManifestUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/master.m3u8`)
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/master.m3u8`
     : "";
   const thumbnailVttUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/thumbnails.vtt`)
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/thumbnails.vtt`
     : "";
   const posterUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/poster.jpg`)
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/poster.jpg`
     : "";
 
   const hlsAvailabilityQuery = useQuery({
@@ -42,9 +46,6 @@ export function FinalRecordingPage() {
       return response.ok;
     },
   });
-  console.log("HLS availability:", hlsAvailabilityQuery.data);
-
-  const playbackUrl = hlsManifestUrl;
 
   return (
     <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
@@ -91,10 +92,10 @@ export function FinalRecordingPage() {
             {getHttpErrorMessage(meetingQuery.error, "Could not load final recording.")}
           </p>
         </div>
-      ) : latestAsset ? (
+      ) : meeting ? (
         <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
           <VideoPlayer
-            src={playbackUrl}
+            src={hlsManifestUrl}
             poster={posterUrl || undefined}
             thumbnailSrc={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
             className="w-full rounded-xl border border-[#f5a623]/12 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
