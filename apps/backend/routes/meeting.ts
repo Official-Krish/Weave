@@ -646,10 +646,8 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
             userEmail,
             canViewRecording,
             visibleToEmails,
-            participants: userSession.joinedParticipants.map((email, index) => ({
-                id: `${userSession.id}-${index}`,
+            participants: userSession.joinedParticipants.map((email) => ({
                 email,
-                name: null,
             })),
         });
     } catch (error) {
