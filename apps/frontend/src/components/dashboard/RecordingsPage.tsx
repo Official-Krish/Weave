@@ -8,11 +8,11 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { MeetingListItem } from "@repo/types/api";
+import type { MeetingDetails } from "@repo/types/api";
 import { getHttpErrorMessage } from "@/lib/httpError";
 
 type RecordingsPageProps = {
-  meetings: MeetingListItem[];
+  meetings: MeetingDetails[];
   isLoading?: boolean;
   isError?: boolean;
   error?: unknown;
@@ -118,12 +118,12 @@ export function RecordingsPage({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-[15px] font-bold text-[#fff5de]">
-                            {meeting.roomName?.trim() || `Meeting ${meeting.meetingId.slice(0, 8)}`}
+                            {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
                             <span className="inline-flex items-center gap-1">
                               <Users className="size-3" />
-                              {meeting.participants.length} tracks
+                              {meeting.joinedParticipants.length} participants
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <CalendarDays className="size-3" />

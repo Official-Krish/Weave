@@ -1,4 +1,4 @@
-import type { MeetingListItem } from "@repo/types/api";
+import type { MeetingDetails } from "@repo/types/api";
 import { Clock3, Download, LogIn, Plus, Sparkles, Video } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,7 +9,7 @@ export function Topbar({
 }: {
     name: string | null;
     liveMeetings: unknown[];
-    meetings: MeetingListItem[]
+    meetings: MeetingDetails[]
 }) {
     const navigate = useNavigate();
     const readyMeetings = meetings.filter((meeting) => meeting.recordingState === "READY");

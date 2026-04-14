@@ -1,121 +1,270 @@
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, LoaderCircle, Play } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  ArrowLeft,
+  LoaderCircle,
+  Lock,
+  Mail,
+  Play,
+  Shield,
+  Video,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { MeetingDetail } from "@repo/types/api";
-import { VideoPlayer } from "../components/videoPlayer";
+import { toast } from "sonner";
+import type { RecordingPageResponse } from "@repo/types/api";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import { resolveMediaUrl } from "../lib/mediaUrl";
+import HLSPlayer from "@/components/VideoPlayer/videoPlayer";
+import { DesignCSS } from "@/components/FinalRecording/design";
+import { RecordingDetail } from "@/components/FinalRecording/RecordingDetail";
+import { Sharing } from "@/components/FinalRecording/Sharing";
 
 export function FinalRecordingPage() {
   const { recordingId = "" } = useParams();
   const { isAuthenticated } = useAuth();
+  const [persistedVisibleEmails, setPersistedVisibleEmails] = useState<string[]>([]);
+  const [draftNewEmails, setDraftNewEmails] = useState<string[]>([]);
+  const [permissionAlertShown, setPermissionAlertShown] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
 
   const meetingQuery = useQuery({
-    queryKey: ["final-recording", recordingId],
+    queryKey: ["final-recording-page", recordingId],
     queryFn: async () => {
-      const response = await http.get<MeetingDetail>(`/meeting/get/${recordingId}`);
+      const response = await http.get<RecordingPageResponse>(
+        `/meeting/recording/page/${recordingId}`
+      );
       return response.data;
     },
     enabled: isAuthenticated && Boolean(recordingId),
   });
 
   const meeting = meetingQuery.data;
-  const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
+
+  const eligibleParticipants = useMemo(() => {
+    const hostEmail = meeting?.hostEmail?.toLowerCase() || "";
+    return (meeting?.participants || []).filter((p) => {
+      const email = p.email?.toLowerCase() || "";
+      return Boolean(email) && email !== hostEmail;
+    });
+  }, [meeting?.hostEmail, meeting?.participants]);
+
+  useEffect(() => {
+    if (!meeting?.visibleToEmails) {
+      return;
+    }
+
+    setPersistedVisibleEmails(meeting.visibleToEmails);
+    setDraftNewEmails([]);
+  }, [meeting?.visibleToEmails]);
+
+  const inputEmail = emailInput.trim().toLowerCase();
+  const isEmailInputValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputEmail);
+
+  const suggestedParticipants = useMemo(() => {
+    const selected = new Set([
+      ...persistedVisibleEmails.map((email) => email.toLowerCase()),
+      ...draftNewEmails.map((email) => email.toLowerCase()),
+    ]);
+    return eligibleParticipants.filter((participant) => {
+      const email = participant.email?.toLowerCase() || "";
+      return Boolean(email) && !selected.has(email);
+    });
+  }, [eligibleParticipants, persistedVisibleEmails, draftNewEmails]);
+
+  const addEmailToShare = () => {
+    if (!isEmailInputValid) { toast.error("Enter a valid email address"); return; }
+    const alreadyPersisted = persistedVisibleEmails.some((email) => email.toLowerCase() === inputEmail);
+    if (alreadyPersisted) {
+      toast.error("Email is already in visible list");
+      return;
+    }
+
+    setDraftNewEmails((cur) => cur.includes(inputEmail) ? cur : [...cur, inputEmail]);
+    setEmailInput("");
+  };
+
   const hlsManifestUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/master.m3u8`)
-    : "";
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/master.m3u8` : "";
   const thumbnailVttUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/thumbnails.vtt`)
-    : "";
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/thumbnails.vtt` : "";
   const posterUrl = meeting?.meetingId
-    ? resolveMediaUrl(`/api/v1/recordings/${meeting.meetingId}/hls/poster.jpg`)
-    : "";
+    ? `/api/v1/recordings/${meeting.meetingId}/hls/poster.jpg` : "";
+
+  const canRenderPlayer = Boolean(
+    meeting?.canViewRecording && meeting?.recordingState === "READY"
+  );
 
   const hlsAvailabilityQuery = useQuery({
     queryKey: ["hls-availability", meeting?.meetingId],
-    enabled: Boolean(hlsManifestUrl),
+    enabled: Boolean(canRenderPlayer && hlsManifestUrl),
     retry: false,
     queryFn: async () => {
-      const response = await fetch(hlsManifestUrl, { method: "HEAD" });
-      return response.ok;
+      const res = await fetch(hlsManifestUrl, { method: "HEAD" });
+      return res.ok;
     },
   });
-  console.log("HLS availability:", hlsAvailabilityQuery.data);
 
-  const playbackUrl = hlsManifestUrl;
+  const saveVisibilityMutation = useMutation({
+    mutationFn: async () => {
+      const payloadEmails = [...new Set([...persistedVisibleEmails, ...draftNewEmails])];
+      const response = await http.put<{ visibleToEmails?: string[] }>(`/meeting/recording/visibility/${meeting?.meetingId}`, {
+        visibleToEmails: payloadEmails,
+      });
+
+      return {
+        responseData: response.data,
+        payloadEmails,
+      };
+    },
+    onSuccess: ({ responseData, payloadEmails }) => {
+      const updatedEmails = responseData?.visibleToEmails ?? payloadEmails;
+      setPersistedVisibleEmails(updatedEmails);
+      setDraftNewEmails([]);
+      setEmailInput("");
+      toast.success("Recording visibility updated");
+      meetingQuery.refetch();
+    },
+    onError: (err) =>
+      toast.error(getHttpErrorMessage(err, "Could not save visibility settings")),
+  });
+
+  const handleAskPermission = () => {
+    const hostEmail = meeting?.hostEmail;
+    if (!hostEmail) {
+      window.alert("You do not have access to this recording yet. Please ask the host for permission.");
+      return;
+    }
+    window.alert(`You do not have access yet. Please ask ${hostEmail} to add your email in sharing settings.`);
+  };
+
+  useEffect(() => {
+    if (!meeting || permissionAlertShown) return;
+    if (meeting.recordingState !== "READY" || meeting.canViewRecording || meeting.isHost) return;
+    handleAskPermission();
+    setPermissionAlertShown(true);
+  }, [meeting, permissionAlertShown]);
 
   return (
-    <section className="motion-rise rounded-[2rem] border border-border/80 bg-card/82 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl transition-colors duration-300 sm:p-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-            Final Recording
-          </p>
-          <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            {meeting?.roomName?.trim() || "Meeting Playback"}
-          </h1>
-        </div>
-        <Link
-          to={`/recordings/${recordingId}`}
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground transition hover:bg-secondary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to detail
-        </Link>
-      </div>
+    <>
+      <style>{DesignCSS}</style>
+      <section className="weave-recording-root wrp-section">
 
-      {!isAuthenticated ? (
-        <div className="mt-8 rounded-[1.5rem] border border-border bg-secondary/70 p-6">
-          <h2 className="text-xl font-semibold text-foreground">Sign in required</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            You need an authenticated session to open final recordings.
-          </p>
-          <Link
-            to="/signin"
-            className="mt-5 inline-flex rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
-          >
-            Go to sign in
+        {/* ── Header ── */}
+        <div className="wrp-header">
+          <div>
+            <p className="wrp-eyebrow">Final Recording</p>
+          </div>
+          <Link to="/dashboard?section=recordings" className="wrp-back-btn">
+            <ArrowLeft size={14} />
+            Back to recordings
           </Link>
         </div>
-      ) : meetingQuery.isLoading ? (
-        <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
-          <LoaderCircle className="h-4 w-4 animate-spin" />
-          Loading final recording...
-        </div>
-      ) : meetingQuery.isError || !meeting ? (
-        <div className="mt-8 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          <p className="inline-flex items-center gap-2 font-medium">
-            <AlertCircle className="h-4 w-4" />
-            {getHttpErrorMessage(meetingQuery.error, "Could not load final recording.")}
-          </p>
-        </div>
-      ) : latestAsset ? (
-        <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
-          <VideoPlayer
-            src={playbackUrl}
-            poster={posterUrl || undefined}
-            thumbnailSrc={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
-            className="w-full rounded-xl border border-[#f5a623]/12 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
-          />
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/12 bg-[#f5a623]/6 px-3 py-1 text-[#c8a870]">
-              <Play className="h-3.5 w-3.5" />
-              {hlsAvailabilityQuery.data ? "HLS streaming" : "Local asset playback"}
-            </span>
-            <span>
-              {hlsAvailabilityQuery.data
-                ? "Adaptive stream served from the local recordings folder (no CDN)."
-                : "Video served from the local recordings folder. No CDN is used on this page."}
-            </span>
+
+        {/* ── Auth gate ── */}
+        {!isAuthenticated ? (
+          <div className="wrp-signin-card">
+            <Lock size={20} style={{ color: "var(--gold)", marginBottom: "0.6rem" }} />
+            <h2 className="wrp-state-title">Sign in required</h2>
+            <p className="wrp-state-desc">
+              You need an authenticated session to open final recordings.
+            </p>
+            <Link to="/signin" className="wrp-signin-btn">Go to sign in</Link>
           </div>
-        </div>
-      ) : (
-        <div className="mt-8 rounded-2xl border border-border bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
-          Final recording is not ready yet, or you do not have permission to view it.
-        </div>
-      )}
-    </section>
+
+        ) : meetingQuery.isLoading ? (
+          <div className="wrp-loading-pill">
+            <LoaderCircle size={15} style={{ animation: "spin 1s linear infinite" }} />
+            Loading final recording…
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+
+        ) : meetingQuery.isError || !meeting ? (
+          <div className="wrp-state-card error" style={{ marginTop: "1.5rem" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, color: "#ff8080", margin: 0 }}>
+              <AlertCircle size={16} />
+              {getHttpErrorMessage(meetingQuery.error, "Could not load final recording.")}
+            </p>
+          </div>
+
+        ) : (
+          <div className="wrp-content-card">
+
+            {/* ── Player / state ── */}
+            {meeting.recordingState !== "READY" ? (
+              <div className="wrp-state-card info">
+                <Video size={20} style={{ color: "var(--gold)", marginBottom: "0.6rem" }} />
+                <h2 className="wrp-state-title">Video is preparing</h2>
+                <p className="wrp-state-desc">
+                  Current status: {meeting.recordingState || "PROCESSING"}. You can stay on this page and retry shortly.
+                </p>
+              </div>
+
+            ) : !meeting.canViewRecording ? (
+              <div className="wrp-state-card warning">
+                <Shield size={20} style={{ color: "var(--gold)", marginBottom: "0.6rem" }} />
+                <h2 className="wrp-state-title">Access requires host permission</h2>
+                <p className="wrp-state-desc">
+                  Your email is not in the sharing list yet. Ask the host to add your email in recording sharing settings.
+                </p>
+                <button type="button" onClick={handleAskPermission} className="wrp-permission-btn">
+                  <Mail size={13} />
+                  Ask permission from host
+                </button>
+              </div>
+
+            ) : (
+              <div className="wrp-player-wrap">
+                <HLSPlayer
+                  src={hlsManifestUrl}
+                  poster={posterUrl || undefined}
+                  thumbnailVtt={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
+                  className="w-full"
+                />
+              </div>
+            )}
+
+            {/* ── Stream badge ── */}
+            <div className="wrp-stream-row">
+              <span className="wrp-badge">
+                <Play size={10} />
+                {meeting.recordingState === "READY"
+                  ? hlsAvailabilityQuery.data ? "HLS streaming" : "Local asset playback"
+                  : "Preparing"}
+              </span>
+              <span className="wrp-stream-note">
+                {meeting.recordingState !== "READY"
+                  ? "Recording is being processed and will appear when ready."
+                  : hlsAvailabilityQuery.data
+                  ? "Video is streamed via HLS from our CDN for optimal performance."
+                  : "HLS stream is not available yet."}
+              </span>
+            </div>
+
+            <div className="wrp-divider" />
+
+            {/* ── Recording details ── */}
+            <RecordingDetail meeting={meeting} />
+
+            {/* ── Sharing ── */}
+            <Sharing 
+              meeting={meeting} 
+              suggestedParticipants={suggestedParticipants} 
+              persistedVisibleEmails={persistedVisibleEmails}
+              draftNewEmails={draftNewEmails}
+              emailInput={emailInput}
+              setEmailInput={setEmailInput}
+              addEmailToShare={addEmailToShare}
+              setDraftNewEmails={setDraftNewEmails}
+              onSaveSharing={() => saveVisibilityMutation.mutate()}
+              isSaving={saveVisibilityMutation.isPending}
+              isEmailInputValid={isEmailInputValid}
+            />
+
+          </div>
+        )}
+      </section>
+    </>
   );
 }

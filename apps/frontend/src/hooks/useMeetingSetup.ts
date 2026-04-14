@@ -60,8 +60,10 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     }
   };
 
+  const getNormalizedInviteEmail = () => inviteEmail.trim().toLowerCase();
+
   const addInvite = () => {
-    const email = inviteEmail.trim().toLowerCase();
+    const email = getNormalizedInviteEmail();
     if (!email || !email.includes("@") || invites.includes(email)) {
       return;
     }
@@ -193,18 +195,18 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
   }, [micMonitorEnabled]);
 
   const createMeetingMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (invitedParticipants: string[]) => {
       const response = await http.post<CreateMeetingResponse>("/meeting/create", {
         roomName: createRoomName,
         passcode: createPasscode || undefined,
-        participants: invites,
+        invitedParticipants,
       });
 
       return response.data;
     },
     onSuccess: (data) => {
       navigate(
-        `/meeting/live/${data.meetingId}?name=${encodeURIComponent(
+        `/meeting/live/${data.roomId}?name=${encodeURIComponent(
           data.name || displayNameFallback || "Host"
         )}&role=host`
       );
@@ -257,8 +259,20 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
   }, [createMeetingMutation.isPending, joinMeetingMutation.isPending]);
 
   const submitCreate = () => {
+    const pendingInvite = getNormalizedInviteEmail();
+    const nextInvites =
+      pendingInvite && pendingInvite.includes("@") && !invites.includes(pendingInvite)
+        ? [...invites, pendingInvite]
+        : invites;
+
+    if (nextInvites.length !== invites.length) {
+      setInvites(nextInvites);
+      setInviteEmail("");
+    }
+
+    console.log("Creating meeting with", { createRoomName, createPasscode, invites: nextInvites });
     setErrorMessage(null);
-    createMeetingMutation.mutate();
+    createMeetingMutation.mutate(nextInvites);
   };
 
   const submitJoin = () => {

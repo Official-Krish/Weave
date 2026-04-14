@@ -23,7 +23,7 @@ export type SignupResponse = {
 };
 
 export type CreateMeetingResponse = {
-  meetingId: string;
+  roomId: string;
   passcode: string;
   name?: string | null;
   id: string;
@@ -38,12 +38,10 @@ export type JoinMeetingResponse = {
 export type FinalRecording = {
   id: string;
   meetingId: string;
-  VideoLink: string;
-  AudioLink?: string | null;
+  videoLink: string;
+  audioLink?: string | null;
   visibleToEmails: string[];
   generatedAt: string;
-  format: string;
-  quality: string;
 };
 
 export type RecordingVisibilityParticipant = {
@@ -59,23 +57,6 @@ export type RecordingVisibilityResponse = {
   participants: RecordingVisibilityParticipant[];
 };
 
-export type MeetingListItem = {
-  id: string;
-  meetingId: string;
-  roomName?: string | null;
-  date: string;
-  startTime?: string | null;
-  endTime?: string | null;
-  isEnded: boolean;
-  participants: string[];
-  isHost: boolean;
-  recordingState?: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
-};
-
-export type MeetingDetail = MeetingListItem & {
-  finalRecording: FinalRecording[];
-};
-
 export type RecordingStatusResponse = {
   meetingId: string;
   isHost: boolean;
@@ -87,3 +68,51 @@ export type RecordingStatusResponse = {
   processingEndedAt?: string | null;
   isEnded: boolean;
 };
+
+export type RecordingPageParticipant = {
+  email?: string | null;
+};
+
+export type RecordingPageResponse = {
+  id: string;
+  meetingId: string;
+  roomName?: string | null;
+  date: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  isHost: boolean;
+  recordingState?: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+  hostEmail?: string | null;
+  userEmail?: string | null;
+  canViewRecording: boolean;
+  visibleToEmails: string[];
+  participants: RecordingPageParticipant[];
+};
+
+export type MeetingDetails = {
+  finalRecording: {
+    id: string;
+    meetingId: string;
+    videoLink?: string;
+    audioLink?: string | null;
+    visibleToEmails: string[];
+    generatedAt: Date;
+  },
+  id: string;
+  roomId: string;
+  passcode: string | null;
+  userId: string;
+  roomName: string | null;
+  date: Date;
+  startTime: Date | null;
+  endTime: Date | null;
+  isEnded: boolean;
+  isHost: boolean;
+  joinedParticipants: string[];
+  invitedParticipants: string[];
+  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+  recordingStartedAt: Date | null;
+  recordingStoppedAt: Date | null;
+  processingStartedAt: Date | null;
+  processingEndedAt: Date | null;
+}

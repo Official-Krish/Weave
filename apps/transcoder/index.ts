@@ -13,6 +13,8 @@ import {
   buildThumbnailVtt,
   getTranscodeOutputDir,
 } from "./utils";
+import axios from "axios";
+import jwt from "jsonwebtoken";
 
 type TranscodePayload = {
   meetingId: string;
@@ -150,31 +152,51 @@ function parsePayload(raw: string): TranscodePayload | null {
   }
 }
 
+function getWorkerServiceJwtSecret(): string {
+  const secret = process.env.WORKER_SERVICE_JWT_SECRET || process.env.WORKER_SERVICE_TOKEN;
+  if (!secret || secret === "WORKER_SERVICE_TOKEN" || secret === "WORKER_SERVICE_JWT_SECRET") {
+    throw new Error("Worker service JWT secret must be configured and must not use the default placeholder value.");
+  }
+  return secret;
+}
+
+function getBackendServiceToken(): string {
+  return jwt.sign(
+    {
+      scope: "worker-service",
+    },
+    getWorkerServiceJwtSecret(),
+    {
+      algorithm: "HS256",
+      expiresIn: "60s",
+      audience: "weave-backend",
+      issuer: "weave-worker",
+    },
+  );
+}
+
 async function reportWorkerStatus(
   meetingId: string,
   status: "PROCESSING" | "READY" | "FAILED",
   finalPath?: string
 ) {
   const backendUrl = process.env.BACKEND_URL || "http://localhost:3000/api/v1";
-  const workerToken = process.env.WORKER_CALLBACK_TOKEN;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (workerToken) {
-    headers["x-worker-token"] = workerToken;
-  }
-
-  const response = await fetch(`${backendUrl}/worker/recording-status/${meetingId}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ status, finalPath }),
+  const response = await axios.request({
+        url: `${backendUrl}/worker/recording-status/${meetingId}`,
+        method: "POST",
+        headers: {
+          "x-worker-token": getBackendServiceToken(),
+          "Content-Type": "application/json",
+        },
+        data: {
+            status,
+            finalPath,
+        },
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Worker status callback failed (${response.status}): ${body}`);
+  if (!response) {
+    throw new Error(`Worker status callback failed`);
   }
 }
 

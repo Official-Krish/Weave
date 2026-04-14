@@ -278,7 +278,7 @@ export function LiveMeetingPage() {
 
     leaveRoom();
 
-    navigate("/meetings");
+    navigate("/dashboard");
   };
 
   const handleRemoteMeetingEnded = async () => {
@@ -289,7 +289,7 @@ export function LiveMeetingPage() {
     }
 
     leaveRoom();
-    navigate("/meetings");
+    navigate("/dashboard");
   };
 
   const handleEndForAll = async () => {
@@ -323,10 +323,10 @@ export function LiveMeetingPage() {
           We could not find a meeting ID for this live room.
         </p>
         <Link
-          to="/meetings"
+          to="/dashboard"
           className="mt-6 inline-flex rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
         >
-          Back to meetings
+          Back to dashboard
         </Link>
       </section>
     );

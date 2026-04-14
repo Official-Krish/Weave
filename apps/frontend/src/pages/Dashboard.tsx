@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { MeetingListItem } from "@repo/types/api";
+import type { MeetingDetails } from "@repo/types/api";
 import { Meetings } from "../components/dashboard/Meetings";
 import { RecordingsPage } from "../components/dashboard/RecordingsPage";
 import { useAuth } from "../hooks/useAuth";
@@ -47,7 +47,7 @@ export function Dashboard() {
   const meetingsQuery = useQuery({
     queryKey: ["meetings"],
     queryFn: async () => {
-      const response = await http.get<MeetingListItem[]>("/meeting/getAll");
+      const response = await http.get<MeetingDetails[]>("/meeting/getAll");
       return response.data;
     },
     enabled: isAuthenticated,
