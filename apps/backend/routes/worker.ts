@@ -97,7 +97,7 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(outputPath, req.file.buffer);
 
-    const meeting = await prisma.meeting.findFirst({
+    let meeting = await prisma.meeting.findFirst({
       where: {
         roomId,
         userId,
@@ -105,9 +105,52 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
     });
 
     if (!meeting) {
-      console.warn(`Meeting session not found for uploaded chunk: roomId=${roomId}, userId=${userId}`);
-      res.status(404).json({ message: "Meeting session not found for uploader" });
-      return;
+      const [hostSession, uploader] = await Promise.all([
+        prisma.meeting.findFirst({
+          where: {
+            roomId,
+            isHost: true,
+          },
+        }),
+        prisma.user.findFirst({
+          where: { id: userId },
+          select: { email: true },
+        }),
+      ]);
+
+      if (!hostSession || !uploader?.email) {
+        console.warn(`Meeting session not found for uploaded chunk: roomId=${roomId}, userId=${userId}`);
+        res.status(404).json({ message: "Meeting session not found for uploader" });
+        return;
+      }
+
+      const normalizedEmail = uploader.email.toLowerCase();
+
+      const [createdSession] = await prisma.$transaction([
+        prisma.meeting.create({
+          data: {
+            roomId: hostSession.roomId,
+            userId,
+            roomName: hostSession.roomName,
+            date: hostSession.date,
+            startTime: hostSession.startTime,
+            endTime: hostSession.endTime,
+            isHost: false,
+            recordingState: hostSession.recordingState,
+            joinedParticipants: [...new Set([...hostSession.joinedParticipants, normalizedEmail])],
+            invitedParticipants: [...new Set([...hostSession.invitedParticipants, normalizedEmail])],
+          },
+        }),
+        prisma.meeting.updateMany({
+          where: { roomId: hostSession.roomId },
+          data: {
+            joinedParticipants: [...new Set([...hostSession.joinedParticipants, normalizedEmail])],
+            invitedParticipants: [...new Set([...hostSession.invitedParticipants, normalizedEmail])],
+          },
+        }),
+      ]);
+
+      meeting = createdSession;
     }
 
     await prisma.mediaChunks.create({

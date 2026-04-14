@@ -7,10 +7,10 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { MeetingListItem } from "@repo/types/api";
+import type { MeetingDetails } from "@repo/types/api";
 
 type MeetingsProps = {
-  meetings: MeetingListItem[];
+  meetings: MeetingDetails[];
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: string;
@@ -18,13 +18,13 @@ type MeetingsProps = {
   onOpenRecording: (recordingId: string) => void;
 };
 
-function getStatusTone(meeting: MeetingListItem) {
+function getStatusTone(meeting: MeetingDetails) {
   if (!meeting.isEnded) {
     return "live";
   }
 
   if (meeting.recordingState === "READY") {
-    return "ready";
+    return "ended with ready recording";
   }
 
   if (meeting.recordingState === "FAILED") {
@@ -34,13 +34,13 @@ function getStatusTone(meeting: MeetingListItem) {
   return "processing";
 }
 
-function getStatusLabel(meeting: MeetingListItem) {
+function getStatusLabel(meeting: MeetingDetails) {
   if (!meeting.isEnded) {
     return "Live";
   }
 
   if (meeting.recordingState === "READY") {
-    return "Ready";
+    return "ended with ready recording";
   }
 
   if (meeting.recordingState === "FAILED") {
@@ -144,14 +144,14 @@ export function Meetings({
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-[15px] font-bold text-[#fff5de]">
-                                {meeting.roomName?.trim() || `Meeting ${meeting.meetingId.slice(0, 8)}`}
+                                {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
                               </p>
                               <span
                                 className={[
                                   "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
                                   tone === "live"
                                     ? "border border-red-500/20 bg-red-500/12 text-red-300"
-                                    : tone === "ready"
+                                    : tone === "ended with ready recording"
                                       ? "border border-green-500/20 bg-green-500/12 text-green-300"
                                       : tone === "failed"
                                         ? "border border-red-500/15 bg-red-500/8 text-red-300"
@@ -165,11 +165,11 @@ export function Meetings({
                             <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
                               <span className="inline-flex items-center gap-1">
                                 <Video className="size-3" />
-                                {meeting.meetingId}
+                                {meeting.roomId}
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <Users className="size-3" />
-                                {meeting.participants.length} participants
+                                {meeting.joinedParticipants.length} participants
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <CalendarDays className="size-3" />
@@ -191,7 +191,7 @@ export function Meetings({
                             {!meeting.isEnded ? (
                               <button
                                 type="button"
-                                onClick={() => onOpenMeeting(meeting.meetingId)}
+                                onClick={() => onOpenMeeting(meeting.roomId)}
                                 className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/10 px-4 py-2 text-[12px] font-bold text-[#f5a623] transition hover:border-[#f5a623]/30 hover:bg-[#f5a623]/14"
                               >
                                 Open room

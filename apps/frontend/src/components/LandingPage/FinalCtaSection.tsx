@@ -104,7 +104,7 @@ export function FinalCtaSection() {
 
             {/* Secondary CTA */}
             <a
-              href="/meetings"
+              href="/product"
               className="rounded-full px-8 py-3.5 text-sm font-bold tracking-wide transition-all duration-200 hover:bg-white/8"
               style={{
                 color: "rgba(255,255,255,0.45)",

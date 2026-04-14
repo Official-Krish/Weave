@@ -2,7 +2,7 @@ import { CalendarDays, ChevronRight, Clock3, Sparkles, Users, Video } from "luci
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type { MeetingListItem } from "@repo/types/api";
+import type { MeetingDetails } from "@repo/types/api";
 
 const UPCOMING_MOCK = [
   { day: "14", mon: "Apr", dow: "Mon", name: "Investor Q&A session", time: "10:00 AM", invitees: 6 },
@@ -14,7 +14,7 @@ export function Overview({
     meetings,
     setSection,
 }: {
-    meetings: MeetingListItem[];
+    meetings: MeetingDetails[];
     setSection: (section: "overview" | "meetings" | "recordings") => void;
 }) {
     const navigate = useNavigate();
@@ -54,10 +54,10 @@ export function Overview({
                     </div>
                     <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-bold text-[#fff5de]">
-                        {m.roomName?.trim() || `Meeting ${m.meetingId.slice(0, 8)}`}
+                        {m.roomName?.trim() || `Meeting ${m.roomId.slice(0, 8)}`}
                     </p>
                     <p className="mt-0.5 text-[11px] text-[#b49650]/60">
-                        {new Date(m.date).toLocaleDateString()} · {m.participants.length} tracks
+                        {new Date(m.date).toLocaleDateString()} · {m.joinedParticipants.length} tracks
                     </p>
                     </div>
                     <span className="shrink-0 text-[11px] text-[#b49650]/50">
@@ -125,7 +125,7 @@ function SectionCard({ title, linkLabel, onLink, extra, children }: { title: str
 const INITIAL_COLORS = ["from-[#ffcf6b] to-[#f5a623]", "from-[#85b7eb] to-[#378add]", "from-[#97c459] to-[#639922]", "from-[#f0997b] to-[#d85a30]", "from-[#afa9ec] to-[#7f77dd]"];
 const TEXT_COLORS = ["text-[#1b1100]", "text-[#042c53]", "text-[#173404]", "text-[#4a1b0c]", "text-[#26215c]"];
 
-function MeetingRow({ meeting, index, onClick }: { meeting: MeetingListItem; index: number; onClick: () => void }) {
+function MeetingRow({ meeting, index, onClick }: { meeting: MeetingDetails; index: number; onClick: () => void }) {
   const initial = (meeting.roomName?.trim() || "M").charAt(0).toUpperCase();
   const gradient = INITIAL_COLORS[index % INITIAL_COLORS.length];
   const textCol = TEXT_COLORS[index % TEXT_COLORS.length];
@@ -145,11 +145,11 @@ function MeetingRow({ meeting, index, onClick }: { meeting: MeetingListItem; ind
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-bold text-[#fff5de]">
-          {meeting.roomName?.trim() || `Meeting ${meeting.meetingId.slice(0, 8)}`}
+          {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-2.5 text-[11px] text-[#b49650]/60">
           <span className="flex items-center gap-1"><CalendarDays className="size-2.5" />{new Date(meeting.date).toLocaleDateString()}</span>
-          <span className="flex items-center gap-1"><Users className="size-2.5" />{meeting.participants.length}</span>
+          <span className="flex items-center gap-1"><Users className="size-2.5" />{meeting.joinedParticipants.length}</span>
           <span className="flex items-center gap-1"><Clock3 className="size-2.5" />{meeting.recordingState || "Processing"}</span>
         </div>
       </div>

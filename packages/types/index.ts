@@ -15,7 +15,7 @@ export const LoginSchema = z.object({
 
 export const CreateMeetingSchema = z.object({
     roomName: z.string().min(2),
-    participants: z.array(z.string().email().includes("@")).optional(),
+    invitedParticipants: z.array(z.string().email().includes("@")).optional(),
     passcode: z.string().min(4).optional(),
 });
 

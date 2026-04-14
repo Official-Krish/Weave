@@ -145,8 +145,8 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
             return;
         }
 
-        const { roomName, participants, passcode } = parsedData.data;
-        const normalizedParticipants = normalizeEmails(participants);
+        const { roomName, invitedParticipants, passcode } = parsedData.data;
+        const normalizedParticipants = normalizeEmails(invitedParticipants);
 
         const randomPascode = Math.random().toString(36).slice(2, 10);
         const newMeeting = await prisma.meeting.create({
