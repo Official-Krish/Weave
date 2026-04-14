@@ -27,10 +27,10 @@ export function generateString() {
     return result;
 }
 
-export async function getMeetingSessions(meetingId: string) {
+export async function getMeetingSessions(roomId: string) {
     return prisma.meeting.findMany({
         where: {
-            meetingId,
+            roomId: roomId,
         },
         include: {
             finalRecording: true,
@@ -38,10 +38,10 @@ export async function getMeetingSessions(meetingId: string) {
     });
 }
 
-export async function getUserMeetingSession(meetingId: string, userId: string) {
+export async function getUserMeetingSession(roomId: string, userId: string) {
     return prisma.meeting.findFirst({
         where: {
-            meetingId,
+            roomId: roomId,
             userId,
         },
         include: {
@@ -78,9 +78,9 @@ export function normalizeEmails(values: unknown): string[] {
     return [...new Set(normalized)];
 }
 
-export function normalizeFinalRecordingLinks<T extends { VideoLink: string }>(recordings: T[]): T[] {
+export function normalizeFinalRecordingLinks<T extends { videoLink: string }>(recordings: T[]): T[] {
     return recordings.map((recording) => {
-        const videoLink = recording.VideoLink || "";
+        const videoLink = recording.videoLink || "";
 
         if (videoLink.startsWith("/api/v1/recordings/")) {
             return recording;
@@ -93,7 +93,29 @@ export function normalizeFinalRecordingLinks<T extends { VideoLink: string }>(re
 
         return {
             ...recording,
-            VideoLink: `/api/v1/recordings/${normalizedRelative}`,
+            videoLink: `/api/v1/recordings/${normalizedRelative}`,
         };
     });
+}
+
+export function normalizeFinalRecordingLink<T extends { videoLink: string }>(recording: T | null | undefined): T | null {
+    if (!recording) {
+        return null;
+    }
+
+    const videoLink = recording.videoLink || "";
+
+    if (videoLink.startsWith("/api/v1/recordings/")) {
+        return recording;
+    }
+
+    const normalizedRelative = path.relative(recordingsRoot, videoLink).split(path.sep).join("/");
+    if (!normalizedRelative || normalizedRelative.startsWith("..")) {
+        return recording;
+    }
+
+    return {
+        ...recording,
+        videoLink: `/api/v1/recordings/${normalizedRelative}`,
+    };
 }

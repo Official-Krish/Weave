@@ -204,7 +204,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     },
     onSuccess: (data) => {
       navigate(
-        `/meeting/live/${data.meetingId}?name=${encodeURIComponent(
+        `/meeting/live/${data.roomId}?name=${encodeURIComponent(
           data.name || displayNameFallback || "Host"
         )}&role=host`
       );

@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 import { Redis } from "ioredis";
 import ffmpegStatic from "ffmpeg-static";
 import ffprobeStatic from "ffprobe-static";
+import jwt from "jsonwebtoken";
+import axios from "axios";
 
 const redisClient = new Redis({
     host: process.env.REDIS_HOST,
@@ -25,6 +27,29 @@ interface ProcessedUser {
 interface FailedUser {
     userId: string;
     estimatedDuration: number;
+}
+
+function getWorkerServiceJwtSecret(): string {
+  const secret = process.env.WORKER_SERVICE_JWT_SECRET || process.env.WORKER_SERVICE_TOKEN;
+  if (!secret || secret === "WORKER_SERVICE_TOKEN" || secret === "WORKER_SERVICE_JWT_SECRET") {
+    throw new Error("Worker service JWT secret must be configured and must not use the default placeholder value.");
+  }
+  return secret;
+}
+
+function getBackendServiceToken(): string {
+  return jwt.sign(
+    {
+      scope: "worker-service",
+    },
+    getWorkerServiceJwtSecret(),
+    {
+      algorithm: "HS256",
+      expiresIn: "60s",
+      audience: "weave-backend",
+      issuer: "weave-worker",
+    },
+  );
 }
 
 class LocalVideoMerger {
@@ -511,23 +536,17 @@ class LocalVideoMerger {
 
 async function reportWorkerStatus(meetingId: string, status: "PROCESSING" | "READY" | "FAILED", finalPath?: string) {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:3000/api/v1";
-    const workerToken = process.env.WORKER_CALLBACK_TOKEN;
-
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
-
-    if (workerToken) {
-        headers["x-worker-token"] = workerToken;
-    }
-
-    await fetch(`${backendUrl}/worker/recording-status/${meetingId}`, {
+    await axios.request({
+        url: `${backendUrl}/worker/recording-status/${meetingId}`,
         method: "POST",
-        headers,
-            body: JSON.stringify({
+        headers: {
+            "x-worker-token": getBackendServiceToken(),
+            "Content-Type": "application/json",
+        },
+        data: {
             status,
             finalPath,
-        }),
+        },
     });
 }
 

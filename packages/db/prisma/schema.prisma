@@ -14,37 +14,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String?
-  email     String?  @unique
+  email     String?   @unique
   password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
   meetings  meeting[]
 }
 
 model meeting {
-  id                  String         @id @default(uuid())
-  meetingId           String
+  id                  String           @id @default(uuid())
+  roomId              String           
   passcode            String?
   userId              String
   roomName            String?
-  date                DateTime       @default(now())
+  date                DateTime         @default(now())
   startTime           DateTime?
   endTime             DateTime?
-  isEnded             Boolean        @default(false)
-  participants        String[]
+  isEnded             Boolean          @default(false)
   isHost              Boolean
-  recordingState      RecordingState @default(IDLE)
+  joinedParticipants  String[]
+  invitedParticipants String[]
+  recordingState      RecordingState   @default(IDLE)
   recordingStartedAt  DateTime?
   recordingStoppedAt  DateTime?
   processingStartedAt DateTime?
   processingEndedAt   DateTime?
-  user                User           @relation(fields: [userId], references: [id])
+  user                User              @relation(fields: [userId], references: [id])
   rawChunks           mediaChunks[]
-  finalRecording      FinalRecording[]
-}
+  finalRecording      FinalRecording? 
 
+  @@index([roomId])
+}
 
 model mediaChunks {
   id             String            @id @default(uuid())
@@ -64,27 +67,12 @@ model mediaChunks {
 
 model FinalRecording {
   id               String   @id @default(uuid())
+  meetingId        String   @unique 
   meeting          meeting  @relation(fields: [meetingId], references: [id])
-  meetingId        String
-  VideoLink        String
-  AudioLink        String?
+  videoLink        String
+  audioLink        String?
   visibleToEmails  String[] @default([])
   generatedAt      DateTime @default(now())
-  format           format
-  quality          quality
-}
-
-enum quality {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum format {
-  webm
-  MP4
-  WAV
-  OGG
 }
 
 enum RecordingState {

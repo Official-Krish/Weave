@@ -23,7 +23,7 @@ export type SignupResponse = {
 };
 
 export type CreateMeetingResponse = {
-  meetingId: string;
+  roomId: string;
   passcode: string;
   name?: string | null;
   id: string;
@@ -38,12 +38,10 @@ export type JoinMeetingResponse = {
 export type FinalRecording = {
   id: string;
   meetingId: string;
-  VideoLink: string;
-  AudioLink?: string | null;
+  videoLink: string;
+  audioLink?: string | null;
   visibleToEmails: string[];
   generatedAt: string;
-  format: string;
-  quality: string;
 };
 
 export type RecordingVisibilityParticipant = {
@@ -73,7 +71,7 @@ export type MeetingListItem = {
 };
 
 export type MeetingDetail = MeetingListItem & {
-  finalRecording: FinalRecording[];
+  finalRecording?: FinalRecording | null;
 };
 
 export type RecordingStatusResponse = {
