@@ -1,8 +1,7 @@
-import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement, useRef } from 'react';
+import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement } from 'react';
 import { createPlayer, Poster, Container, usePlayer, BufferingIndicator, CaptionsButton, Controls, ErrorDialog, FullscreenButton, MediaGesture, MediaHotkey, MuteButton, PiPButton, PlayButton, PlaybackRateButton, Popover, SeekButton, Slider, Time, TimeSlider, Tooltip, VolumeSlider, type RenderProp } from '@videojs/react';
 import { Video, videoFeatures } from '@videojs/react/video';
 import './player.css';
-import { QualitySelector } from './videoPlayer/QualitySelector';
 
 // ================================================================
 // Player
@@ -31,12 +30,11 @@ export interface VideoPlayerProps {
  */
 export function VideoPlayer({ src, className, poster, ...rest }: VideoPlayerProps): ReactNode {
   const { thumbnailSrc, ...containerProps } = rest;
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   return (
     <Player.Provider>
       <Container className={`media-default-skin media-default-skin--video ${className ?? ''}`} {...containerProps}>
-        <Video src={src} playsInline ref={videoRef}>
+        <Video src={src} playsInline>
           <track
             kind="metadata"
             label="thumbnails"
@@ -169,8 +167,6 @@ export function VideoPlayer({ src, className, poster, ...rest }: VideoPlayerProp
                 />
                 <Tooltip.Popup className="media-surface media-tooltip" />
               </Tooltip.Root>
-
-              <QualitySelector/>
 
               <Tooltip.Root side="top">
                 <Tooltip.Trigger

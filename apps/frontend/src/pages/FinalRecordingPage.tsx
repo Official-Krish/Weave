@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, LoaderCircle, Play } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import { VideoPlayer } from "../components/videoPlayer";
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
+import HLSPlayer from "@/components/VideoPlayer/videoPlayer";
 
 type responseMeetingDetail = {
   meetingId: string;
@@ -94,10 +94,10 @@ export function FinalRecordingPage() {
         </div>
       ) : meeting ? (
         <div className="mt-8 rounded-[1.5rem] border border-border bg-card/94 p-6">
-          <VideoPlayer
+          <HLSPlayer
             src={hlsManifestUrl}
             poster={posterUrl || undefined}
-            thumbnailSrc={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
+            thumbnailVtt={hlsAvailabilityQuery.data ? thumbnailVttUrl : undefined}
             className="w-full rounded-xl border border-[#f5a623]/12 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
           />
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

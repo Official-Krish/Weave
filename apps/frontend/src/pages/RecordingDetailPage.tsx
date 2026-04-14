@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   CalendarDays,
   Clock3,
-  Download,
   LoaderCircle,
   Save,
   Users,
@@ -17,7 +16,6 @@ import type { MeetingDetail, RecordingVisibilityResponse } from "@repo/types/api
 import { useAuth } from "../hooks/useAuth";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
-import { resolveMediaUrl } from "../lib/mediaUrl";
 
 export function RecordingDetailPage() {
   const { recordingId = "" } = useParams();
@@ -34,8 +32,7 @@ export function RecordingDetailPage() {
 
   const meeting = meetingQuery.data;
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
-  const latestAsset = meeting?.finalRecording?.[meeting.finalRecording.length - 1];
-  const resolvedVideoLink = resolveMediaUrl(latestAsset?.VideoLink);
+  const latestAsset = meeting?.meetingId;
   const startedAt = meeting?.startTime ? new Date(meeting.startTime) : null;
   const endedAt = meeting?.endTime ? new Date(meeting.endTime) : null;
   const durationLabel =
@@ -158,18 +155,6 @@ export function RecordingDetailPage() {
                 <p className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                   Ready
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Format: {latestAsset.format} | Quality: {latestAsset.quality}
-                </p>
-                <a
-                  href={resolvedVideoLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
-                >
-                  <Download className="h-4 w-4" />
-                  Open video asset
-                </a>
                 <Link
                   to={`/recordings/${recordingId}/final`}
                   className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-3 text-sm font-medium text-foreground transition hover:bg-secondary"
