@@ -87,3 +87,25 @@ export type RecordingStatusResponse = {
   processingEndedAt?: string | null;
   isEnded: boolean;
 };
+
+export type RecordingPageParticipant = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+};
+
+export type RecordingPageResponse = {
+  id: string;
+  meetingId: string;
+  roomName?: string | null;
+  date: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  isHost: boolean;
+  recordingState?: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+  hostEmail?: string | null;
+  userEmail?: string | null;
+  canViewRecording: boolean;
+  visibleToEmails: string[];
+  participants: RecordingPageParticipant[];
+};

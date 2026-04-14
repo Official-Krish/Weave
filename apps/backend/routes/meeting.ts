@@ -1,105 +1,10 @@
 import { Router } from "express";
-import path from "node:path";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
+import { toSingleString, normalizeEmails, canViewFinalRecording, getUserMeetingSession, getMeetingSessions, generateString, normalizeFinalRecordingLinks } from "../utils/helpers";
 
 const meetingRouter = Router();
-const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
-
-function toSingleString(value: string | string[] | undefined): string | null {
-    if (typeof value === "string") {
-        return value;
-    }
-
-    if (Array.isArray(value) && value.length > 0) {
-        return value[0] ?? null;
-    }
-
-    return null;
-}
-
-const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-function generateString() {
-    let result = '';
-    const charactersLength = characters.length;
-    for ( let i = 0; i < 20; i++ ) {
-        result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-
-    return result;
-}
-
-async function getMeetingSessions(meetingId: string) {
-    return prisma.meeting.findMany({
-        where: {
-            meetingId,
-        },
-        include: {
-            finalRecording: true,
-        }
-    });
-}
-
-async function getUserMeetingSession(meetingId: string, userId: string) {
-    return prisma.meeting.findFirst({
-        where: {
-            meetingId,
-            userId,
-        },
-        include: {
-            finalRecording: true,
-        }
-    });
-}
-
-function canViewFinalRecording(args: {
-    isHost: boolean;
-    userEmail: string | null;
-    visibleToEmails: string[];
-}) {
-    if (args.isHost) {
-        return true;
-    }
-
-    if (!args.userEmail) {
-        return false;
-    }
-
-    return args.visibleToEmails.includes(args.userEmail);
-}
-
-function normalizeEmails(values: unknown): string[] {
-    if (!Array.isArray(values)) {
-        return [];
-    }
-
-    const normalized = values
-        .map((value) => (typeof value === "string" ? value.trim().toLowerCase() : ""))
-        .filter((email) => Boolean(email) && email.includes("@"));
-
-    return [...new Set(normalized)];
-}
-
-function normalizeFinalRecordingLinks<T extends { VideoLink: string }>(recordings: T[]): T[] {
-    return recordings.map((recording) => {
-        const videoLink = recording.VideoLink || "";
-
-        if (videoLink.startsWith("/api/v1/recordings/")) {
-            return recording;
-        }
-
-        const normalizedRelative = path.relative(recordingsRoot, videoLink).split(path.sep).join("/");
-        if (!normalizedRelative || normalizedRelative.startsWith("..")) {
-            return recording;
-        }
-
-        return {
-            ...recording,
-            VideoLink: `/api/v1/recordings/${normalizedRelative}`,
-        };
-    });
-}
 
 meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
     const userId = req.userId;
@@ -326,16 +231,26 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         }
         else {
             if (meeting.passcode === passcode) {
-                await prisma.meeting.create({
-                    data: {
-                        meetingId: meeting.meetingId,
-                        roomName: meeting.roomName,
-                        userId: userId as string,
-                        passcode: meeting.passcode,
-                        startTime: new Date(),
-                        isHost: false,
-                        participants: [...new Set([...meeting.participants.map((email) => email.toLowerCase()), normalizedEmail])]
-                    }
+                await prisma.$transaction(async (tx) => {
+                    await tx.meeting.create({
+                        data: {
+                            meetingId: meeting.meetingId,
+                            roomName: meeting.roomName,
+                            userId: userId as string,
+                            passcode: meeting.passcode,
+                            startTime: new Date(),
+                            isHost: false,
+                            participants: [...new Set([...meeting.participants.map((email) => email.toLowerCase()), normalizedEmail])]
+                        }
+                    });
+                    await tx.meeting.updateMany({
+                        where: {
+                            meetingId: meetingId,
+                        },
+                        data: {
+                            participants: [...new Set([...meeting.participants.map((email) => email.toLowerCase()), normalizedEmail])],
+                        }
+                    });
                 });
                 res.status(200).json({ id: meeting.meetingId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
             } else {
@@ -661,6 +576,117 @@ meetingRouter.put("/recording/visibility/:id", authMiddleware, async (req, res) 
         });
     } catch (error) {
         console.error("Error updating recording visibility:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const sessionId = toSingleString(req.params.id);
+
+    if (!sessionId) {
+        res.status(400).json({ message: "Meeting ID is required" });
+        return;
+    }
+
+    try {
+        const userSession = await prisma.meeting.findFirst({
+            where: {
+                id: sessionId,
+                userId: userId as string,
+            },
+            select: {
+                id: true,
+                meetingId: true,
+                roomName: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+                isHost: true,
+                recordingState: true,
+            },
+        });
+
+        if (!userSession) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+
+        const [user, hostSession] = await Promise.all([
+            prisma.user.findFirst({
+                where: { id: userId as string },
+                select: { email: true },
+            }),
+            prisma.meeting.findFirst({
+                where: {
+                    meetingId: userSession.meetingId,
+                    isHost: true,
+                },
+                include: {
+                    finalRecording: {
+                        orderBy: {
+                            generatedAt: "desc",
+                        },
+                        take: 1,
+                    },
+                },
+            }),
+        ]);
+
+        if (!hostSession) {
+            res.status(404).json({ message: "Host session not found" });
+            return;
+        }
+
+        const hostUser = await prisma.user.findFirst({
+            where: { id: hostSession.userId },
+            select: { email: true },
+        });
+
+        const participants = await prisma.user.findMany({
+            where: {
+                email: {
+                    in: hostSession.participants,
+                },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+            },
+            orderBy: {
+                email: "asc",
+            },
+        });
+
+        const userEmail = user?.email?.toLowerCase() || null;
+        const visibleToEmails = hostSession.finalRecording[0]?.visibleToEmails ?? [];
+
+        const canViewRecording =
+            userSession.recordingState === "READY" &&
+            canViewFinalRecording({
+                isHost: userSession.isHost,
+                userEmail,
+                visibleToEmails,
+            });
+
+        res.status(200).json({
+            id: userSession.id,
+            meetingId: userSession.meetingId,
+            roomName: userSession.roomName,
+            date: userSession.date,
+            startTime: userSession.startTime,
+            endTime: userSession.endTime,
+            isHost: userSession.isHost,
+            recordingState: userSession.recordingState,
+            hostEmail: hostUser?.email?.toLowerCase() || null,
+            userEmail,
+            canViewRecording,
+            visibleToEmails,
+            participants,
+        });
+    } catch (error) {
+        console.error("Error fetching recording page details:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });
