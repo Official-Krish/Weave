@@ -14,6 +14,7 @@ import { SignInPage } from "../pages/SignInPage";
 import { SignUpPage } from "../pages/SignUpPage";
 import { PublicAuth } from "./PublicAuth";
 import { Pricing } from "@/pages/Pricing";
+import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, SupportPage, TermsPage } from "@/pages/StaticPages";
 
 const router = createBrowserRouter([
   {
@@ -60,6 +61,34 @@ const router = createBrowserRouter([
       {
         path: "pricing",
         element: <Pricing />,
+      },
+      {
+        path: "features",
+        element: <FeaturesPage />,
+      },
+      {
+        path: "/security",
+        element: <SecurityPage/>,
+      },
+      {
+        path: "/changelog",
+        element: <ChangelogPage/>,
+      },
+      {
+        path: "/privacy",
+        element: <PrivacyPage/>,
+      },
+      {
+        path: "/terms",
+        element: <TermsPage/>,
+      },
+      {
+        path: "/blog",
+        element: <BlogPage />,
+      },
+      {
+        path: "/support",
+        element: <SupportPage/>,
       }
     ],
   },
