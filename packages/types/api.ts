@@ -116,3 +116,8 @@ export type MeetingDetails = {
   processingStartedAt: Date | null;
   processingEndedAt: Date | null;
 }
+
+export type RemoveVisibleEmailRequest = {
+  meetingId: string;
+  visibleToEmails: string[];
+}

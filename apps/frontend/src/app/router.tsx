@@ -12,6 +12,8 @@ import { MeetingSetupPage } from "../pages/MeetingSetupPage";
 import { FinalRecordingPage } from "../pages/FinalRecordingPage";
 import { SignInPage } from "../pages/SignInPage";
 import { SignUpPage } from "../pages/SignUpPage";
+import { PublicAuth } from "./PublicAuth";
+import { Pricing } from "@/pages/Pricing";
 
 const router = createBrowserRouter([
   {
@@ -49,12 +51,16 @@ const router = createBrowserRouter([
       },
       {
         path: "signin",
-        element: <SignInPage />,
+        element: <PublicAuth><SignInPage /></PublicAuth>,
       },
       {
         path: "signup",
-        element: <SignUpPage />,
+        element: <PublicAuth><SignUpPage /></PublicAuth>,
       },
+      {
+        path: "pricing",
+        element: <Pricing />,
+      }
     ],
   },
 ]);

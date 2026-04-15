@@ -57,18 +57,18 @@ userRouter.post("/login", async ( req,res ) => {
 
     const { email, password } = parsedData.data;
     try {
-        const user = await prisma.user.findUnique({ where: {
+        const user = await prisma.user.findFirst({ where: {
                 email : email
             } 
         });
         if (!user || !user.password) {
-            res.status(401).json({ message: "Invalid email or password" });
+            res.status(403).json({ message: "Invalid email or password" });
             return;
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            res.status(401).json({ message: "Invalid email or password" });
+            res.status(403).json({ message: "Invalid email or password" });
             return;
         }
 
@@ -148,13 +148,6 @@ userRouter.get("/profile", authMiddleware, async (req, res) => {
         console.error("Fetch profile failed:", error);
         res.status(500).json({ message: "Internal server error" });
     }
-});
-
-userRouter.get("/verify-token", authMiddleware, async (req, res) => {
-    res.status(200).json({
-        message: "Token is valid",
-        user: req.userId,
-    });
 });
 
 export default userRouter;

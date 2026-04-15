@@ -15,9 +15,9 @@ const authenticatedNavItems: NavItem[] = [
 ];
 
 const guestNavItems: NavItem[] = [
-  { to: "/features", label: "Features" },
+  { to: "#features", label: "Features" },
   { to: "/pricing", label: "Pricing" },
-  { to: "/blog", label: "Blog" },
+  { to: "#blog", label: "Blog" },
 ];
 
 type AppbarProps = {

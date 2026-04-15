@@ -28,3 +28,7 @@ export const workerRecordingStatusSchema = z.object({
     status: z.enum(["PROCESSING", "READY", "FAILED"]),
     finalPath: z.string().optional(),
 });
+
+export const removeRecordingVisibilitySchema = z.object({
+    email: z.string().email().includes("@"),
+});
