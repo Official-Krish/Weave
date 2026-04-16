@@ -23,6 +23,18 @@ model User {
   updatedAt DateTime  @updatedAt
 
   meetings  meeting[]
+  notifications Notification[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  message   String
+  type      NotificationType
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model meeting {
@@ -90,4 +102,13 @@ enum ChunkUploadStatus {
   PROCESSING
   MERGED
   FAILED
+}
+
+enum NotificationType {
+  MEETING_INVITE
+  MEETING_REMINDER
+  RECORDING_REQUEST
+  RECORDING_READY
+  RECORDING_FAILED
+  OTHER
 }

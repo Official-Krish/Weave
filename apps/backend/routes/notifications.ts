@@ -1,0 +1,286 @@
+import express from 'express';
+import { authMiddleware } from '../utils/authMiddleware';
+import { prisma } from '@repo/db/client';
+import { baseSchema, notificationReadSchema, schemas } from '@repo/types';
+import { z } from 'zod';
+
+const NotificationRouter = express.Router();
+
+NotificationRouter.get('/', authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    try {
+        const notifications = await prisma.notification.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+        return res.json({
+            message: 'Notifications fetched successfully',
+            notifications,
+        })
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+NotificationRouter.post("/mark-as-read", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const parsedData = notificationReadSchema.safeParse(req.body);
+    if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (!parsedData.success) {
+        return res.status(400).json({ message: 'Invalid notification IDs' });
+    }
+    const { notificationIds } = parsedData.data;
+
+    try {
+        await prisma.notification.updateMany({
+            where: {
+                id: { in: notificationIds },
+                userId,
+            },
+            data: { read: true },
+        });
+        return res.json({ message: 'Notifications marked as read successfully' });
+    } catch (error) {
+        console.error('Error marking notifications as read:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+NotificationRouter.delete("/clear", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    try {
+        await prisma.notification.deleteMany({
+            where: { userId },
+        });
+        return res.json({ message: 'Notifications cleared successfully' });
+    } catch (error) {
+        console.error('Error clearing notifications:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+NotificationRouter.delete("/delete", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const parsedData = notificationReadSchema.safeParse(req.body);
+    if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (!parsedData.success) {
+        return res.status(400).json({ message: 'Invalid notification IDs' });
+    }
+    const { notificationIds } = parsedData.data;
+
+    try {
+        await prisma.notification.deleteMany({
+            where: {
+                id: { in: notificationIds },
+                userId,
+            },
+        });
+        return res.json({ message: 'Notifications deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting notifications:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+NotificationRouter.post("/create", authMiddleware, async (req, res) => {
+    try {
+        const userId = req.userId;
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const baseParsed = baseSchema.safeParse(req.body);
+        if (!baseParsed.success) {
+            return res.status(400).json({ message: "Invalid type" });
+        }
+
+        const { type } = baseParsed.data;
+
+        const schema = schemas[type];
+        const parsed = schema.safeParse(req.body);
+
+        if (!parsed.success) {
+            return res.status(400).json({
+                message: "Invalid payload",
+                errors: parsed.error.flatten(),
+            });
+        }
+
+        let notificationData: any = {};
+        switch (type) {
+        case "RECORDING_REQUEST": {
+            const { roomId } = parsed.data as z.infer<typeof schemas.RECORDING_REQUEST>;
+
+            const user = await prisma.user.findFirst({
+                where: { id: userId },
+                select: { name: true, email: true },
+            });
+
+            if (!user || !user.email) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            const hostMeeting = await prisma.meeting.findFirst({
+                where: { roomId, isHost: true },
+                select: {
+                    userId: true,
+                    roomName: true,
+                    finalRecording: {
+                        select: { visibleToEmails: true },
+                    },
+                },
+            });
+
+            if (!hostMeeting || !hostMeeting.finalRecording) {
+                return res.status(404).json({
+                    message: "Recording not available",
+                });
+            }
+
+            if (hostMeeting.userId === userId) {
+                return res.status(400).json({
+                    message: "Host already has access",
+                });
+            }
+
+            if (hostMeeting.finalRecording.visibleToEmails?.includes(user.email)) {
+                return res.status(400).json({
+                    message: "Already has access",
+                });
+            }
+
+            const existing = await prisma.notification.findFirst({
+                where: {
+                    userId: hostMeeting.userId,
+                    type: "RECORDING_REQUEST",
+                    isRead: false,
+                    AND: [
+                        {
+                            metadata: {
+                            path: ["roomId"],
+                            equals: roomId,
+                            },
+                        },
+                        {
+                            metadata: {
+                            path: ["requestedBy"],
+                            equals: userId,
+                            },
+                        },
+                    ],
+                },
+            });
+
+            if (existing) {
+                return res.status(400).json({
+                    message: "Already requested",
+                });
+            }
+
+            notificationData = {
+                userId: hostMeeting.userId,
+                message: `${user.name} (${user.email}) requested access to recording for room ${roomId}: ${hostMeeting.roomName}`,
+                metadata: {
+                    roomId,
+                    requestedBy: userId,
+                },
+            };
+
+            break;
+        }
+
+        case "MEETING_INVITE": {
+            const { roomId, invitedUserId } = parsed.data as z.infer<typeof schemas.MEETING_INVITE>;
+
+            notificationData = {
+                userId: invitedUserId,
+                message: `You are invited to meeting ${roomId}`,
+                metadata: { roomId, invitedBy: userId },
+            };
+
+            break;
+        }
+
+        case "MEETING_REMINDER": {
+            const { roomId, scheduledAt } = parsed.data as z.infer<typeof schemas.MEETING_REMINDER>;
+
+            notificationData = {
+                userId,
+                message: `Reminder for meeting ${roomId}`,
+                metadata: { roomId, scheduledAt },
+            };
+
+            break;
+        }
+
+        case "RECORDING_READY": {
+            const { roomId } = parsed.data as z.infer<typeof schemas.RECORDING_READY>;
+
+            notificationData = {
+                userId,
+                message: `Recording ready for room ${roomId}`,
+                metadata: { roomId },
+            };
+
+            break;
+        }
+
+        case "RECORDING_FAILED": {
+            const { roomId, reason } = parsed.data as z.infer<typeof schemas.RECORDING_FAILED>;
+
+            notificationData = {
+                userId,
+                message: `Recording failed for room ${roomId}`,
+                metadata: { roomId, reason },
+            };
+
+            break;
+        }
+
+        case "OTHER": {
+            const { message } = parsed.data as z.infer<typeof schemas.OTHER>;
+            
+            notificationData = {
+                userId,
+                message,
+            };
+
+            break;
+        }
+
+        default:
+            return res.status(400).json({ message: "Unsupported type" });
+        }
+
+        const notification = await prisma.notification.create({
+            data: {
+                type,
+                ...notificationData,
+            },
+        });
+
+        return res.json({
+            message: "Notification created",
+            notification,
+        });
+    } catch (error) {
+        console.error("Notification error:", error);
+        return res.status(500).json({
+            message: "Internal server error",
+        });
+    }
+});
+
+export default NotificationRouter;
