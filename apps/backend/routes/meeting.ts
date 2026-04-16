@@ -161,6 +161,16 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
                 invitedParticipants: [...new Set([user.email.toLowerCase(), ...normalizedParticipants])],
             }
         });
+        if(normalizedParticipants.length > 0){
+            normalizedParticipants.forEach((email) => {
+                redisClient.lpush("MeetingInvitations", JSON.stringify({
+                    email,
+                    meetingId: newMeeting.roomId,
+                    meetingName: newMeeting.roomName,
+                    inviterName: user.name,
+                }));
+            });
+        }
         res.status(200).json({ roomId: newMeeting.roomId, passcode: newMeeting.passcode, name: user.name, id: newMeeting.id });
     } catch (error) {
         console.error("Error creating meeting:", error);

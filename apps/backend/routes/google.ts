@@ -38,7 +38,7 @@ GoogleRouter.post("/auth", async (req, res) => {
         const { sub, email, name } = payload;
 
         let user = await prisma.user.findFirst({
-            where: { email },
+            where: { email: email.toLowerCase() },
         });
 
         let isNewUser = false;
@@ -48,7 +48,7 @@ GoogleRouter.post("/auth", async (req, res) => {
 
             user = await prisma.user.create({
                 data: {
-                    email,
+                    email: email.toLowerCase(),
                     name,
                     googleId: sub,
                 },

@@ -1,7 +1,7 @@
 import { prisma } from "@repo/db/client";
 import path from "node:path";
 
-const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
+export const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
 export function toSingleString(value: string | string[] | undefined): string | null {
     if (typeof value === "string") {
@@ -118,4 +118,42 @@ export function normalizeFinalRecordingLink<T extends { videoLink: string }>(rec
         ...recording,
         videoLink: `/api/v1/recordings/${normalizedRelative}`,
     };
+}
+
+export function toPublicRecordingLink(localPath: string) {
+  const normalizedRelative = path.relative(recordingsRoot, localPath).split(path.sep).join("/");
+  if (!normalizedRelative || normalizedRelative.startsWith("..")) {
+    return localPath;
+  }
+
+  return `/api/v1/recordings/${normalizedRelative}`;
+}
+
+export function sanitizePathSegment(value: unknown) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  return /^[a-zA-Z0-9._-]+$/.test(text) ? text : null;
+}
+
+export function getFileExtension(mimeType?: string) {
+  if (!mimeType) {
+    return "webm";
+  }
+
+  if (mimeType.includes("webm")) {
+    return "webm";
+  }
+
+  if (mimeType.includes("mp4")) {
+    return "mp4";
+  }
+
+  if (mimeType.includes("ogg")) {
+    return "ogg";
+  }
+
+  return "webm";
 }

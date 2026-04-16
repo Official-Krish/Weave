@@ -6,49 +6,10 @@ import multer from "multer";
 import { authMiddleware, serviceAuthMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { workerRecordingStatusSchema } from "@repo/types";
+import { getFileExtension, recordingsRoot, sanitizePathSegment, toPublicRecordingLink } from "../utils/helpers";
 
 const workerRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
-
-function toPublicRecordingLink(localPath: string) {
-  const normalizedRelative = path.relative(recordingsRoot, localPath).split(path.sep).join("/");
-  if (!normalizedRelative || normalizedRelative.startsWith("..")) {
-    return localPath;
-  }
-
-  return `/api/v1/recordings/${normalizedRelative}`;
-}
-
-function sanitizePathSegment(value: unknown) {
-  const text = String(value || "").trim();
-  if (!text) {
-    return null;
-  }
-
-  return /^[a-zA-Z0-9._-]+$/.test(text) ? text : null;
-}
-
-function getFileExtension(mimeType?: string) {
-  if (!mimeType) {
-    return "webm";
-  }
-
-  if (mimeType.includes("webm")) {
-    return "webm";
-  }
-
-  if (mimeType.includes("mp4")) {
-    return "mp4";
-  }
-
-  if (mimeType.includes("ogg")) {
-    return "ogg";
-  }
-
-  return "webm";
-}
 
 workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async (req, res) => {
   if (!req.file || !req.body.meetingId) {
@@ -204,7 +165,7 @@ workerRouter.post("/worker/recording-status/:meetingId", serviceAuthMiddleware, 
 
   try {
     const meeting = await prisma.meeting.findFirst({
-      where: { roomId: meetingId },
+      where: { roomId: meetingId, isHost: true },
       orderBy: { date: "asc" },
     });
 
@@ -228,14 +189,24 @@ workerRouter.post("/worker/recording-status/:meetingId", serviceAuthMiddleware, 
     }
 
     if (status === "FAILED") {
-      await prisma.meeting.updateMany({
-        where: { roomId: meetingId },
-        data: {
-          recordingState: "FAILED",
-          processingEndedAt: new Date(),
-        },
-      });
-
+      await prisma.$transaction([
+        prisma.meeting.updateMany({
+          where: { roomId: meetingId },
+          data: {
+            recordingState: "FAILED",
+            processingEndedAt: new Date(),
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            userId: meeting.userId,
+            type: "RECORDING_FAILED",
+            message: `Recording for meeting "${meeting.roomName}" has failed to process.`,
+            metadata: { roomId: meeting.roomId },
+            createdAt: new Date(),
+          },
+        })
+      ]);
       res.status(200).json({ message: "Failure status updated" });
       return;
     }
@@ -247,27 +218,38 @@ workerRouter.post("/worker/recording-status/:meetingId", serviceAuthMiddleware, 
 
     const publicFinalPath = toPublicRecordingLink(finalPath);
 
-    await prisma.finalRecording.upsert({
-      where: {
-        meetingId: meeting.id,
-      },
-      create: {
-        meetingId: meeting.id,
-        videoLink: publicFinalPath,
-        visibleToEmails: [],
-      },
-      update: {
-        videoLink: publicFinalPath,
-      },
-    });
+    await prisma.$transaction([
 
-    await prisma.meeting.updateMany({
-      where: { roomId: meetingId },
-      data: {
-        recordingState: "READY",
-        processingEndedAt: new Date(),
-      },
-    });
+      prisma.finalRecording.upsert({
+        where: {
+          meetingId: meeting.id,
+        },
+        create: {
+          meetingId: meeting.id,
+          videoLink: publicFinalPath,
+          visibleToEmails: [],
+        },
+        update: {
+          videoLink: publicFinalPath,
+        },
+      }),
+      prisma.meeting.updateMany({
+        where: { roomId: meetingId },
+        data: {
+          recordingState: "READY",
+          processingEndedAt: new Date(),
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          userId: meeting.userId,
+          type: "RECORDING_READY",
+          message: `Recording for meeting "${meeting.roomName}" is ready.`,
+          metadata: { roomId: meeting.roomId, recordingLink: publicFinalPath },
+          createdAt: new Date(),
+        },
+      })
+    ]);
 
     res.status(200).json({ message: "Ready status updated" });
   } catch (error) {

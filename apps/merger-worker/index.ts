@@ -474,60 +474,60 @@ class LocalVideoMerger {
         this.log(`Recordings root: ${this.recordingsRoot}`);
 
         try {
-        await this.createDirectories();
+            await this.createDirectories();
 
-        const userChunks = await this.collectUserChunks();
-        const processedUsers: ProcessedUser[] = [];
-        const failedUsers: FailedUser[] = [];
+            const userChunks = await this.collectUserChunks();
+            const processedUsers: ProcessedUser[] = [];
+            const failedUsers: FailedUser[] = [];
 
-        for (const [userId, chunks] of userChunks.entries()) {
-            const userVideo = await this.createUserVideo(userId, chunks);
-            if (!userVideo) {
-            failedUsers.push({
-                userId,
-                estimatedDuration: Math.max(1, chunks.length * 5),
-            });
-            continue;
+            for (const [userId, chunks] of userChunks.entries()) {
+                const userVideo = await this.createUserVideo(userId, chunks);
+                if (!userVideo) {
+                failedUsers.push({
+                    userId,
+                    estimatedDuration: Math.max(1, chunks.length * 5),
+                });
+                continue;
+                }
+
+                const duration = await this.getVideoDuration(userVideo);
+                const hasAudio = await this.hasAudioStream(userVideo);
+                processedUsers.push({ userId, videoPath: userVideo, duration, hasAudio });
             }
 
-            const duration = await this.getVideoDuration(userVideo);
-            const hasAudio = await this.hasAudioStream(userVideo);
-            processedUsers.push({ userId, videoPath: userVideo, duration, hasAudio });
-        }
+            if (failedUsers.length > 0) {
+                const baseDuration =
+                processedUsers.length > 0
+                    ? Math.max(...processedUsers.map((user) => user.duration))
+                    : Math.max(...failedUsers.map((user) => user.estimatedDuration));
 
-        if (failedUsers.length > 0) {
-            const baseDuration =
-            processedUsers.length > 0
-                ? Math.max(...processedUsers.map((user) => user.duration))
-                : Math.max(...failedUsers.map((user) => user.estimatedDuration));
+                for (const failedUser of failedUsers) {
+                const placeholderDuration = Math.max(baseDuration, failedUser.estimatedDuration);
+                const placeholderPath = await this.createBlackPlaceholderVideo(
+                    failedUser.userId,
+                    placeholderDuration
+                );
 
-            for (const failedUser of failedUsers) {
-            const placeholderDuration = Math.max(baseDuration, failedUser.estimatedDuration);
-            const placeholderPath = await this.createBlackPlaceholderVideo(
-                failedUser.userId,
-                placeholderDuration
-            );
-
-            processedUsers.push({
-                userId: failedUser.userId,
-                videoPath: placeholderPath,
-                duration: placeholderDuration,
-                hasAudio: false,
-            });
+                processedUsers.push({
+                    userId: failedUser.userId,
+                    videoPath: placeholderPath,
+                    duration: placeholderDuration,
+                    hasAudio: false,
+                });
+                }
             }
-        }
 
-        if (processedUsers.length === 0) {
-            throw new Error("No videos were created for merging");
-        }
+            if (processedUsers.length === 0) {
+                throw new Error("No videos were created for merging");
+            }
 
-        const normalized = await this.normalizeVideoDurations(processedUsers);
-        const gridVideo = await this.createGridVideo(normalized);
-        const finalPath = await this.persistFinal(gridVideo);
-        await this.cleanupLegacyRecordingsTmp();
-        this.log(`Final local recording stored at ${finalPath}`);
+            const normalized = await this.normalizeVideoDurations(processedUsers);
+            const gridVideo = await this.createGridVideo(normalized);
+            const finalPath = await this.persistFinal(gridVideo);
+            await this.cleanupLegacyRecordingsTmp();
+            this.log(`Final local recording stored at ${finalPath}`);
 
-        return finalPath;
+            return finalPath;
         } finally {
             await this.cleanup();
         }
