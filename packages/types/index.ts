@@ -28,3 +28,71 @@ export const workerRecordingStatusSchema = z.object({
     status: z.enum(["PROCESSING", "READY", "FAILED"]),
     finalPath: z.string().optional(),
 });
+
+export const removeRecordingVisibilitySchema = z.object({
+    email: z.string().email().includes("@"),
+});
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().regex(
+    /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/,
+    "Invalid JWT format"
+  ),
+});
+
+export const notificationReadSchema = z.object({
+    notificationIds: z.array(z.string()).min(1),
+});
+
+export const baseSchema = z.object({
+    type: z.enum([
+        "MEETING_INVITE",
+        "MEETING_REMINDER",
+        "RECORDING_REQUEST",
+        "RECORDING_READY",
+        "RECORDING_FAILED",
+        "RECORDING_REQUEST_APPROVED",
+        "RECORDING_REQUEST_DENIED",
+        "OTHER",
+    ]),
+});
+
+
+export const schemas = {
+    MEETING_INVITE: z.object({
+        roomId: z.string(),
+        invitedUserId: z.string(),
+    }),
+
+    MEETING_REMINDER: z.object({
+        roomId: z.string(),
+        scheduledAt: z.string(),
+    }),
+
+    RECORDING_REQUEST: z.object({
+        roomId: z.string(),
+    }),
+
+    RECORDING_READY: z.object({
+        roomId: z.string(),
+    }),
+
+    RECORDING_FAILED: z.object({
+        roomId: z.string(),
+        reason: z.string().optional(),
+    }),
+
+    RECORDING_REQUEST_APPROVED: z.object({
+        roomId: z.string(),
+        notificationId: z.string(),
+    }),
+
+    RECORDING_REQUEST_DENIED: z.object({
+        roomId: z.string(),
+        notificationId: z.string(),
+    }),
+
+    OTHER: z.object({
+        message: z.string(),
+    }),
+};

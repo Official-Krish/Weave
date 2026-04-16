@@ -116,3 +116,14 @@ export type MeetingDetails = {
   processingStartedAt: Date | null;
   processingEndedAt: Date | null;
 }
+
+export type RemoveVisibleEmailRequest = {
+  meetingId: string;
+  visibleToEmails: string[];
+}
+
+export type GoogleAuthResponse = {
+  name: string;
+  token: string;
+  message: string;
+}

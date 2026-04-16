@@ -3,7 +3,7 @@ import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
 import { toSingleString, normalizeEmails, canViewFinalRecording, getUserMeetingSession, getMeetingSessions, generateString, normalizeFinalRecordingLink } from "../utils/helpers";
-import { CreateMeetingSchema, putRecordingVisibilitySchema } from "@repo/types";
+import { CreateMeetingSchema, putRecordingVisibilitySchema, removeRecordingVisibilitySchema } from "@repo/types";
 
 const meetingRouter = Router();
 
@@ -608,6 +608,11 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
                 },
                 include: {
                     finalRecording: true,
+                    user: {
+                        select: {
+                            email: true,
+                        }
+                    }
                 },
             }),
         ]);
@@ -616,11 +621,6 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "Host session not found" });
             return;
         }
-
-        const hostUser = await prisma.user.findFirst({
-            where: { id: hostSession.userId },
-            select: { email: true },
-        });
 
         const userEmail = user?.email?.toLowerCase() || null;
         const visibleToEmails = hostSession.finalRecording?.visibleToEmails ?? [];
@@ -642,7 +642,7 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
             endTime: userSession.endTime,
             isHost: userSession.isHost,
             recordingState: userSession.recordingState,
-            hostEmail: hostUser?.email?.toLowerCase() || null,
+            hostEmail: hostSession.user?.email?.toLowerCase() || null,
             userEmail,
             canViewRecording,
             visibleToEmails,
@@ -681,6 +681,59 @@ meetingRouter.get("/getParticipantDetails", authMiddleware, async (req, res) => 
         })
     } catch (error) {
         console.error("Error fetching meeting:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+meetingRouter.post("/removeVisibleEmail/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const roomId = toSingleString(req.params.id);
+
+    if (!roomId) {
+        res.status(400).json({ message: "Room ID is required" });
+        return;
+    }
+    const parsedData = removeRecordingVisibilitySchema.safeParse(req.body);
+    if (!parsedData.success) {
+        res.status(400).json({ message: "Invalid email format" });
+        return;
+    }
+    const { email: emailToRemove } = parsedData.data;
+
+    try {
+        const hostSession = await prisma.meeting.findFirst({
+            where: {
+                roomId,
+                userId: userId as string,
+                isHost: true,
+            },
+            include: {
+                finalRecording: true,
+            }
+        });
+
+        if (!hostSession) {
+            res.status(403).json({ message: "Only host can manage recording visibility" });
+            return;
+        }
+
+        const updatedVisibleEmails = (hostSession.finalRecording?.visibleToEmails ?? []).filter((email) => email.toLowerCase() !== emailToRemove.toLowerCase());
+
+        await prisma.finalRecording.update({
+            where: {
+                meetingId: hostSession.id,
+            },
+            data: {
+                visibleToEmails: updatedVisibleEmails,
+            }
+        });
+
+        res.status(200).json({
+            meetingId: hostSession.roomId,
+            visibleToEmails: updatedVisibleEmails,
+        });
+    } catch (error) {
+        console.error("Error updating recording visibility:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });

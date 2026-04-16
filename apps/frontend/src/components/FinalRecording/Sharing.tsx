@@ -1,6 +1,10 @@
-import type { RecordingPageResponse } from "@repo/types/api";
+import { http } from "@/https";
+import { getHttpErrorMessage } from "@/lib/httpError";
+import type { RecordingPageResponse, RemoveVisibleEmailRequest } from "@repo/types/api";
+import { useMutation } from "@tanstack/react-query";
 import { Crown, Mail, Shield, Users, X } from "lucide-react";
 import { useMemo } from "react";
+import { toast } from "sonner";
 
 export const Sharing = ({
     meeting,
@@ -46,6 +50,20 @@ export const Sharing = ({
         return base;
     }, [meeting?.hostEmail, meeting?.participants]);
 
+    const signupMutation = useMutation({
+        mutationFn: async (email: string) => {
+            const response = await http.post<RemoveVisibleEmailRequest>(`/meeting/removeVisibleEmail/${meeting.id}`, { email });
+            return response.data;
+        },
+        onSuccess: (data) => {
+            toast.success("Email visibility removed successfully");
+            persistedVisibleEmails = data.visibleToEmails || [];
+        },
+        onError: (error) => {
+            toast.error(getHttpErrorMessage(error) || "Failed to remove email visibility");
+        },
+    });
+
     return (
         <div className="wrp-panel">
             <h2 className="wrp-panel-title">
@@ -57,47 +75,50 @@ export const Sharing = ({
             </p>
 
             <div className="wrp-share-grid">
-            <div className="wrp-share-box">
-                <p className="wrp-share-box-title">
-                <Shield size={12} />
-                Recording visible to emails
-                </p>
-                {persistedVisibleEmails.length > 0 ? (
-                <div className="wrp-email-tags" style={{ marginTop: 0 }}>
-                    {persistedVisibleEmails.map((email) => (
-                    <span key={email} className="wrp-tag" style={{ cursor: "default" }}>
-                        {email}
-                    </span>
-                    ))}
+                <div className="wrp-share-box">
+                    <p className="wrp-share-box-title">
+                        <Shield size={12} />
+                        Recording visible to emails
+                    </p>
+                    {persistedVisibleEmails.length > 0 ? (
+                        <div className="wrp-email-tags" style={{ marginTop: 0 }}>
+                            {persistedVisibleEmails.map((email) => (
+                                <div className="flex justify-between">
+                                    <span key={email} className="wrp-tag" style={{ cursor: "default" }}>
+                                        {email}
+                                    </span>
+                                    <X size={8} className="cursor-pointer" onClick={() => signupMutation.mutate(email)} />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                    <p className="wrp-share-empty">No additional emails added yet.</p>
+                    )}
                 </div>
-                ) : (
-                <p className="wrp-share-empty">No additional emails added yet.</p>
-                )}
-            </div>
 
-            <div className="wrp-share-box">
-                <p className="wrp-share-box-title">
-                <Users size={12} />
-                Participants
-                </p>
-                {participantEntries.length > 0 ? (
-                <div className="wrp-participant-list">
-                    {participantEntries.map((participant) => (
-                    <div key={participant.id} className="wrp-participant-row">
-                        <span>{participant.email}</span>
-                        {participant.isHost ? (
-                        <span className="wrp-host-pill">
-                            <Crown size={10} />
-                            Host
-                        </span>
-                        ) : null}
-                    </div>
-                    ))}
+                <div className="wrp-share-box">
+                    <p className="wrp-share-box-title">
+                        <Users size={12} />
+                        Participants
+                    </p>
+                    {participantEntries.length > 0 ? (
+                        <div className="wrp-participant-list">
+                            {participantEntries.map((participant) => (
+                                <div key={participant.id} className="wrp-participant-row">
+                                    <span>{participant.email}</span>
+                                    {participant.isHost ? (
+                                        <span className="wrp-host-pill">
+                                            <Crown size={10} />
+                                            Host
+                                        </span>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                    <p className="wrp-share-empty">No participants available.</p>
+                    )}
                 </div>
-                ) : (
-                <p className="wrp-share-empty">No participants available.</p>
-                )}
-            </div>
             </div>
 
             {meeting.isHost ? (
@@ -182,7 +203,8 @@ export const Sharing = ({
                 <div className="wrp-access-note">
                     {meeting.canViewRecording
                         ? "You currently have access to this recording."
-                        : "You do not have access yet. Ask the host for permission."}
+                        : "You do not have access yet. Ask the host for permission."
+                    }
                 </div>
             )}
         </div>

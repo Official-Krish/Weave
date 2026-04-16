@@ -23,4 +23,5 @@ export function clearStoredAuth() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(NAME_KEY);
   window.dispatchEvent(new Event("weave-auth-changed"));
+  window.location.href = "/";
 }

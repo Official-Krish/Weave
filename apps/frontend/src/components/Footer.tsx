@@ -11,16 +11,16 @@ const footerLinks: {
   social: FooterLink[];
 } = {
   product: [
-    { label: "Features", href: "#features" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "Security", href: "#security" },
-    { label: "Changelog", href: "#changelog" },
+    { label: "Features", href: "/features" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Security", href: "/security" },
+    { label: "Changelog", href: "/changelog" },
   ],
   company: [
-    { label: "Privacy", href: "#privacy" },
-    { label: "Terms", href: "#terms" },
-    { label: "Support", href: "#support" },
-    { label: "Blog", href: "#blog" },
+    { label: "Privacy", href: "/privacy" },
+    { label: "Terms", href: "/terms" },
+    { label: "Support", href: "/support" },
+    { label: "Blog", href: "/blog" },
   ],
   social: [
     { label: "GitHub", href: "#github" },
