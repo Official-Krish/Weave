@@ -47,10 +47,10 @@ export const Integerations = ({ dark }: { dark: boolean}) => {
                     description="Get real-time events sent to your endpoints"
                 />
             </div>
-            <div className={`rounded-2xl border p-4 text-center transition-colors ${ dark ? "bg-zinc-900/40 border-zinc-800" : "bg-zinc-50 border-zinc-200" }`}>
-                <div className={`text-xs ${dark ? "text-zinc-600" : "text-zinc-400"}`}>
+            <div className={`rounded-[24px] border p-5 text-center transition-colors shadow-[0_12px_40px_rgba(0,0,0,0.18)] ${ dark ? "border-white/8 bg-white/[0.03]" : "bg-zinc-50 border-zinc-200" }`}>
+                <div className={`text-xs ${dark ? "text-zinc-500" : "text-zinc-400"}`}>
                     Want a specific integration?{" "}
-                    <span className={`font-semibold cursor-pointer ${dark ? "text-amber-500 hover:text-amber-400" : "text-amber-600"}`}>Request it →</span>
+                    <span className={`cursor-pointer font-semibold ${dark ? "text-amber-300 hover:text-amber-200" : "text-amber-600"}`}>Request it →</span>
                 </div>
             </div>
         </motion.div>

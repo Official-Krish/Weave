@@ -73,12 +73,14 @@ const api = {
 
 function SkeletonCard() {
   return (
-    <div className="flex gap-4 p-4 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-900 animate-pulse">
-      <div className="w-9 h-9 rounded-lg bg-zinc-200 dark:bg-zinc-800 flex-shrink-0" />
+    <div className="animate-pulse rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+      <div className="flex gap-4">
+      <div className="h-11 w-11 rounded-2xl bg-white/[0.06] flex-shrink-0" />
       <div className="flex-1 space-y-2.5">
-        <div className="h-2.5 w-20 bg-zinc-200 dark:bg-zinc-800 rounded" />
-        <div className="h-3.5 w-3/4 bg-zinc-200 dark:bg-zinc-800 rounded" />
-        <div className="h-3 w-1/3 bg-zinc-100 dark:bg-zinc-800/60 rounded" />
+        <div className="h-2.5 w-24 rounded bg-white/[0.06]" />
+        <div className="h-3.5 w-3/4 rounded bg-white/[0.06]" />
+        <div className="h-3 w-1/3 rounded bg-white/[0.04]" />
+      </div>
       </div>
     </div>
   );
@@ -204,36 +206,131 @@ export default function NotificationsPage() {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const grouped = groupByDate(filtered);
+  const actionableCount = notifications.filter(
+    (n) => !n.isRead && (n.type === "RECORDING_REQUEST" || n.type === "MEETING_INVITE")
+  ).length;
+  const recordingCount = notifications.filter((n) => n.type.startsWith("RECORDING")).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-[#0d0d0d] transition-colors duration-300">
-      {/* Subtle grid background */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245,158,11,0.06) 0%, transparent 60%)
-          `,
-        }}
-      />
+    <div className="relative min-h-screen overflow-hidden bg-[#090909] px-4 pb-16 pt-10 transition-colors duration-300">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_top,rgba(245,166,35,0.14),transparent_56%)]" />
+        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/[0.03] to-transparent" />
+      </div>
 
-      <div className="relative max-w-2xl mx-auto px-4 py-10">
+      <div className="relative mx-auto max-w-6xl">
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.36, ease: "easeOut" }}
+          className="mb-6 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(22,22,22,0.96),rgba(10,10,10,0.94))] p-7 shadow-[0_18px_80px_rgba(0,0,0,0.38)]"
+        >
+          <div className="gap-5">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.26em] text-amber-200/80">
+                Notification Center
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                Keep approvals, reminders, and recording activity neatly in view.
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                A quieter, production-ready inbox with clearer hierarchy, soft motion, and dashboard-aligned surfaces for faster triage.
+              </p>
+            </div>
+          </div>
+        </motion.section>
+
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <div className="rounded-[28px] border border-white/10 bg-[#111111]/94 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.34)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                Inbox Filters
+              </div>
+              <div className="mt-4 space-y-2">
+                {FILTERS.map((f) => {
+                  const count =
+                    f === "Unread"
+                      ? unreadCount
+                      : f === "Recording"
+                      ? notifications.filter((n) => n.type.startsWith("RECORDING")).length
+                      : f === "Meeting"
+                      ? notifications.filter((n) => n.type.startsWith("MEETING")).length
+                      : notifications.length;
+
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setActiveFilter(f)}
+                      className={`group flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
+                        activeFilter === f
+                          ? "border-amber-400/20 bg-amber-400/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                          : "border-white/8 bg-white/[0.02] text-zinc-400 hover:border-white/12 hover:bg-white/[0.04] hover:text-zinc-200"
+                      }`}
+                    >
+                      <div>
+                        <div className="text-sm font-medium">{f}</div>
+                        <div className="mt-1 text-[11px] text-zinc-500">
+                          {f === "All"
+                            ? "Everything in your inbox"
+                            : f === "Unread"
+                            ? "New items only"
+                            : f === "Recording"
+                            ? "Access and media updates"
+                            : "Invites and reminders"}
+                        </div>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.2em] uppercase ${
+                        activeFilter === f ? "bg-black/20 text-amber-100" : "bg-white/[0.05] text-zinc-500"
+                      }`}>
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-white/10 bg-[#111111]/94 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.34)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+                Queue Status
+              </div>
+              <div className="mt-4 space-y-4">
+                {[
+                  { label: "Unread items", value: unreadCount, width: unreadCount === 0 ? "8%" : "72%", bar: "bg-amber-400" },
+                  { label: "Action required", value: actionableCount, width: actionableCount === 0 ? "8%" : "48%", bar: "bg-sky-400" },
+                  { label: "Recently processed", value: notifications.length - unreadCount, width: notifications.length ? "64%" : "8%", bar: "bg-emerald-400" },
+                ].map((row) => (
+                  <div key={row.label}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-zinc-300">{row.label}</span>
+                      <span className="text-sm font-medium text-white">{row.value}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                      <div className={`h-full rounded-full ${row.bar}`} style={{ width: row.width }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,18,18,0.98),rgba(12,12,12,0.94))] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.38)]">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mb-8"
+          className="mb-6"
         >
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-2xl font-semibold tracking-tight text-zinc-50">
                 Notifications
-              </h1>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
                 {unreadCount > 0 ? (
                   <>
-                    <span className="text-amber-500 font-semibold">{unreadCount} unread</span>
+                    <span className="font-semibold text-amber-300">{unreadCount} unread</span>
                     {" · "}{notifications.length} total
                   </>
                 ) : (
@@ -255,10 +352,9 @@ export default function NotificationsPage() {
                   }
                   disabled={markAllRead.isPending}
                   className="
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                    bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700
-                    text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700
-                    transition-all duration-150 active:scale-95 disabled:opacity-50
+                    flex items-center gap-1.5 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3.5 py-2 text-xs font-medium
+                    text-amber-100 shadow-[0_12px_24px_rgba(245,166,35,0.08)]
+                    transition-all duration-150 hover:bg-amber-400/14 active:scale-[0.98] disabled:opacity-50
                   "
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
@@ -268,58 +364,6 @@ export default function NotificationsPage() {
                 </motion.button>
               )}
             </AnimatePresence>
-          </div>
-
-          {/* Filter tabs */}
-          <div className="flex items-center gap-1 mt-5 p-1 rounded-xl bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 w-fit">
-            {FILTERS.map((f) => {
-              const count =
-                f === "Unread"
-                  ? unreadCount
-                  : f === "Recording"
-                  ? notifications.filter((n) => n.type.startsWith("RECORDING")).length
-                  : f === "Meeting"
-                  ? notifications.filter((n) => n.type.startsWith("MEETING")).length
-                  : notifications.length;
-
-              return (
-                <button
-                  key={f}
-                  onClick={() => setActiveFilter(f)}
-                  className={`
-                    relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200
-                    ${activeFilter === f
-                      ? "text-zinc-900 dark:text-zinc-50"
-                      : "text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                    }
-                  `}
-                >
-                  {activeFilter === f && (
-                    <motion.div
-                      layoutId="filter-bg"
-                      className="absolute inset-0 rounded-lg bg-white dark:bg-zinc-800 shadow-sm border border-zinc-200/80 dark:border-zinc-700"
-                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                  <span className="relative flex items-center gap-1.5">
-                    {f}
-                    {count > 0 && (
-                      <span
-                        className={`
-                          inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold
-                          ${f === "Unread" && count > 0
-                            ? "bg-amber-500 text-black"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
-                          }
-                        `}
-                      >
-                        {count > 9 ? "9+" : count}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </motion.div>
 
@@ -331,7 +375,7 @@ export default function NotificationsPage() {
             ))}
           </div>
         ) : notificationsQuery.isError ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {getHttpErrorMessage(notificationsQuery.error, "Could not load notifications.")}
           </div>
         ) : filtered.length === 0 ? (
@@ -348,10 +392,10 @@ export default function NotificationsPage() {
                 >
                   {/* Date label */}
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
                       {date}
                     </span>
-                    <div className="flex-1 h-px bg-zinc-200/80 dark:bg-zinc-800" />
+                    <div className="h-px flex-1 bg-white/[0.06]" />
                   </div>
 
                   <div className="space-y-2">
@@ -389,6 +433,8 @@ export default function NotificationsPage() {
             </AnimatePresence>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

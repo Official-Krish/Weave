@@ -40,64 +40,114 @@ export default function ProfilePage() {
         { id: "integrations", label: "Integrations" },
     ] as const;
 
+    const metrics = [
+        {
+            label: "Workspaces",
+            value: "01",
+            caption: "Personal studio",
+        },
+        {
+            label: "Meetings",
+            value: `${user.meetings.length}`.padStart(2, "0"),
+            caption: "Tracked sessions",
+        },
+        {
+            label: "Plan",
+            value: "Free",
+            caption: "Ready to upgrade",
+        },
+    ];
+
     return (
-        <motion.div className={`min-h-screen flex justify-center p-4 mt-8 transition-colors duration-300 ${ dark ? "bg-zinc-950" : "bg-zinc-100"
+        <motion.div className={`relative min-h-screen overflow-hidden px-4 pb-16 pt-10 transition-colors duration-300 ${
+            dark ? "bg-[#090909]" : "bg-zinc-100"
         }`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.35 }}
         >
-            <div className="w-full max-w-2xl space-y-4">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(245,166,35,0.14),transparent_58%)]" />
+                <div className="absolute inset-x-0 top-24 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
+            <div className="relative mx-auto w-full max-w-6xl">
+                <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="space-y-4">
+                        <ProfileCard
+                            user={user}
+                            dark={dark}
+                        />
 
-                {/* Profile Card */}
-                <ProfileCard
-                    user={user}
-                    dark={dark}
-                />
+                        <div className="rounded-[24px] border border-white/10 bg-[#101010]/92 p-5 shadow-[0_14px_50px_rgba(0,0,0,0.28)]">
+                            <div className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                Quick Notes
+                            </div>
+                            <div className="mt-4 space-y-3 text-sm text-zinc-400">
+                                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                                    Recording access and invited participant settings stay aligned with your meeting history.
+                                </div>
+                                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                                    Billing and integrations are presented here for faster account maintenance without leaving the workspace shell.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                {/* Tabs */}
-                <div className={`rounded-2xl border p-1 flex gap-1 transition-colors ${ dark ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200"}`}>
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 text-xs font-semibold py-2 cursor-pointer rounded-xl transition-all ${
-                                activeTab === tab.id
-                                ? "bg-amber-500 text-black"
-                                : dark
-                                ? "text-zinc-500 hover:text-zinc-300"
-                                : "text-zinc-400 hover:text-zinc-700"
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(18,18,18,0.98),rgba(12,12,12,0.94))] p-4 shadow-[0_18px_80px_rgba(0,0,0,0.33)]">
+                        <div className="mb-4 rounded-[22px] border border-white/8 bg-black/25 p-1.5">
+                            <div className="grid gap-1 sm:grid-cols-4">
+                                {tabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`relative rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                                            activeTab === tab.id
+                                            ? "text-white"
+                                            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
+                                        }`}
+                                    >
+                                        {activeTab === tab.id ? (
+                                            <motion.span
+                                                layoutId="profile-tab-pill"
+                                                className="absolute inset-0 rounded-2xl border border-amber-400/20 bg-[linear-gradient(180deg,rgba(245,166,35,0.16),rgba(245,166,35,0.06))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_30px_rgba(245,166,35,0.08)]"
+                                                transition={{ type: "spring", stiffness: 320, damping: 28 }}
+                                            />
+                                        ) : null}
+                                        <span className="relative z-10 flex items-center justify-between gap-3">
+                                            <span className={`text-[10px] uppercase tracking-[0.22em] ${activeTab === tab.id ? "text-amber-200/85" : "text-zinc-600"}`}>
+                                                {tab.label}
+                                            </span>
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {activeTab === "overview" && (
+                            <Overview 
+                                user={user}
+                                setActiveTab={setActiveTab}
+                                dark={dark}
+                            />
+                        )}
+
+                        {activeTab === "meetings" && (
+                            <Meetings
+                                meetings={user.meetings}
+                                dark={dark}
+                            />
+                        )}
+
+                        {activeTab === "billing" && (
+                            <Billing dark={dark} />
+                        )}
+
+                        {activeTab === "integrations" && (
+                            <Integerations dark={dark} />
+                        )}
+                    </section>
                 </div>
-
-                {/* Tab Content */}
-                {activeTab === "overview" && (
-                    <Overview 
-                        user={user}
-                        setActiveTab={setActiveTab}
-                        dark={dark}
-                    />
-                )}
-
-                {activeTab === "meetings" && (
-                    <Meetings
-                        meetings={user.meetings}
-                        dark={dark}
-                    />
-                )}
-
-                {activeTab === "billing" && (
-                    <Billing dark={dark} />
-                )}
-
-                {activeTab === "integrations" && (
-                    <Integerations dark={dark} />
-                )}
             </div>
         </motion.div>
     );

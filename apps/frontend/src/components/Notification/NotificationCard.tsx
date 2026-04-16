@@ -30,12 +30,12 @@ export function NotificationCard({
       exit={{ opacity: 0, x: -20, height: 0, marginBottom: 0 }}
       transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
       className={`
-        relative group flex gap-4 p-4 rounded-xl border transition-all duration-200
+        relative group flex gap-4 rounded-[24px] border p-4 transition-all duration-200
         ${notification.isRead
-          ? "bg-white/40 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/60"
-          : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700/80 shadow-sm shadow-black/5 dark:shadow-black/20"
+          ? "border-white/8 bg-white/[0.025]"
+          : "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] shadow-[0_14px_40px_rgba(0,0,0,0.2)]"
         }
-        hover:border-zinc-300 dark:hover:border-zinc-600
+        hover:-translate-y-0.5 hover:border-white/14
       `}
       onClick={() => !notification.isRead && onMarkRead(notification.id)}
     >
@@ -43,14 +43,14 @@ export function NotificationCard({
       {!notification.isRead && (
         <motion.div
           layoutId={`dot-${notification.id}`}
-          className="absolute top-4 right-4 w-2 h-2 rounded-full bg-amber-500"
+          className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_6px_rgba(245,166,35,0.08)]"
         />
       )}
 
       {/* Icon */}
       <div
         className={`
-          flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center border
+          flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]
           ${config.bg} ${config.accent}
         `}
       >
@@ -63,7 +63,7 @@ export function NotificationCard({
           <div>
             <span
               className={`
-                text-[11px] font-semibold uppercase tracking-widest
+                text-[11px] font-semibold uppercase tracking-[0.24em]
                 ${config.accent}
               `}
             >
@@ -71,17 +71,17 @@ export function NotificationCard({
             </span>
             <p
               className={`
-                mt-0.5 text-sm leading-snug
+                mt-1 text-sm leading-6
                 ${notification.isRead
-                  ? "text-zinc-500 dark:text-zinc-500"
-                  : "text-zinc-800 dark:text-zinc-100 font-medium"
+                  ? "text-zinc-500"
+                  : "font-medium text-zinc-100"
                 }
               `}
             >
               {notification.message}
             </p>
           </div>
-          <span className="flex-shrink-0 text-[11px] text-zinc-400 dark:text-zinc-600 mt-0.5">
+          <span className="mt-0.5 flex-shrink-0 text-[11px] text-zinc-500">
             {timeAgo(notification.createdAt)}
           </span>
         </div>
@@ -89,7 +89,7 @@ export function NotificationCard({
         {/* Room metadata pill */}
         {notification.metadata?.roomId && (
           <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+            <span className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-zinc-400">
               <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="currentColor">
                 <circle cx="6" cy="6" r="2" />
                 <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -101,7 +101,7 @@ export function NotificationCard({
 
         {/* Scheduled time for reminders */}
         {notification.type === "MEETING_REMINDER" && notification.metadata?.scheduledAt && (
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          <p className="text-xs text-zinc-500">
             Scheduled:{" "}
             {new Date(notification.metadata.scheduledAt).toLocaleString("en-US", {
               month: "short",
@@ -114,7 +114,7 @@ export function NotificationCard({
 
         {/* Failed reason */}
         {notification.type === "RECORDING_FAILED" && notification.metadata?.reason && (
-          <p className="text-xs text-red-400 dark:text-red-400 font-mono">
+          <p className="font-mono text-xs text-red-300">
             ↳ {notification.metadata.reason}
           </p>
         )}
@@ -138,10 +138,8 @@ export function NotificationCard({
                     )
                   }
                   className="
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                    bg-amber-500 hover:bg-amber-400 text-black
-                    transition-all duration-150 active:scale-95
-                    shadow-sm shadow-amber-500/20
+                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black
+                    shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
                   "
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
@@ -153,9 +151,8 @@ export function NotificationCard({
                 <button
                   onClick={() => onDeclineRecording(notification.id)}
                   className="
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                    bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700
-                    text-zinc-600 dark:text-zinc-300
+                    inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
+                    text-zinc-200
                     transition-all duration-150 active:scale-95
                   "
                 >
@@ -171,10 +168,9 @@ export function NotificationCard({
                     onAcceptInvite(notification.metadata!.roomId!, notification.id)
                   }
                   className="
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                    bg-blue-500 hover:bg-blue-400 text-white
+                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white
                     transition-all duration-150 active:scale-95
-                    shadow-sm shadow-blue-500/20
+                    shadow-[0_12px_24px_rgba(43,127,255,0.18)]
                   "
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
@@ -185,9 +181,8 @@ export function NotificationCard({
                 <button
                   onClick={() => onDeclineRecording(notification.id)}
                   className="
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                    bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700
-                    text-zinc-600 dark:text-zinc-300
+                    inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
+                    text-zinc-200
                     transition-all duration-150 active:scale-95
                   "
                 >
@@ -204,9 +199,9 @@ export function NotificationCard({
         initial={{ opacity: 0 }}
         whileHover={{ opacity: 1 }}
         className="
-          absolute top-3 right-8 opacity-0 group-hover:opacity-100
-          w-6 h-6 flex items-center justify-center rounded-md
-          text-zinc-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10
+          absolute right-8 top-3 flex h-7 w-7 items-center justify-center rounded-lg
+          opacity-0 text-zinc-500 transition-all duration-150 group-hover:opacity-100
+          hover:bg-red-500/10 hover:text-red-300
           transition-all duration-150
         "
         onClick={(e) => {

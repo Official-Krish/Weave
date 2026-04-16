@@ -3,12 +3,12 @@ import type { Meeting } from "./types";
 
 export function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "host" | "guest" }) {
   const styles = {
-    default: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-    host: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
-    guest: "bg-zinc-700/40 text-zinc-400 border border-zinc-600/30",
+    default: "border border-amber-400/20 bg-amber-400/10 text-amber-200",
+    host: "border border-amber-400/24 bg-amber-400/12 text-amber-200",
+    guest: "border border-white/10 bg-white/[0.04] text-zinc-300",
   };
   return (
-    <span className={`text-[10px] font-semibold tracking-widest uppercase px-2 py-0.5 rounded-full ${styles[variant]}`}>
+    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.2em] uppercase ${styles[variant]}`}>
       {children}
     </span>
   );
@@ -16,14 +16,14 @@ export function Badge({ children, variant = "default" }: { children: React.React
 
 export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean }) {
   return (
-    <div className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all group cursor-default ${
+    <div className={`group flex items-center justify-between rounded-2xl border px-4 py-3.5 transition-all ${
       dark
-        ? "bg-zinc-900/60 border-zinc-800 hover:border-amber-500/25 hover:bg-zinc-900"
+        ? "border-white/8 bg-black/20 hover:-translate-y-0.5 hover:border-amber-400/20 hover:bg-white/[0.04]"
         : "bg-white border-zinc-200 hover:border-amber-400/40 hover:bg-zinc-50"
     }`}>
       <div className="flex items-center gap-3 min-w-0">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-          meeting.isHost ? "bg-amber-500/20 text-amber-400" : "bg-zinc-700/40 text-zinc-400"
+          meeting.isHost ? "bg-amber-400/15 text-amber-200" : "bg-white/[0.06] text-zinc-300"
         }`}>
           {meeting.isHost ? "H" : "G"}
         </div>
@@ -56,16 +56,16 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
 
 export function ComingSoonCard({ icon, title, description, dark }: { icon: React.ReactNode; title: string; description: string; dark: boolean }) {
   return (
-    <div className={`rounded-2xl p-5 border border-dashed flex flex-col gap-2 transition-colors ${
-      dark ? "border-zinc-800 bg-zinc-900/30 hover:border-zinc-700" : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
+    <div className={`flex flex-col gap-2 rounded-[22px] border p-5 transition-all ${
+      dark ? "border-white/8 bg-white/[0.03] hover:-translate-y-0.5 hover:border-white/12 hover:bg-white/[0.05]" : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
     }`}>
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dark ? "bg-zinc-800 text-zinc-400" : "bg-zinc-200 text-zinc-500"}`}>
+      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${dark ? "bg-white/[0.05] text-amber-200" : "bg-zinc-200 text-zinc-500"}`}>
         {icon}
       </div>
       <div>
         <div className={`text-sm font-semibold flex items-center gap-2 ${dark ? "text-zinc-300" : "text-zinc-700"}`}>
           {title}
-          <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full ${dark ? "bg-zinc-800 text-zinc-500" : "bg-zinc-200 text-zinc-400"}`}>Soon</span>
+          <span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] ${dark ? "bg-white/[0.05] text-zinc-500" : "bg-zinc-200 text-zinc-400"}`}>Soon</span>
         </div>
         <div className={`text-xs mt-0.5 ${dark ? "text-zinc-600" : "text-zinc-400"}`}>{description}</div>
       </div>
