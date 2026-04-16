@@ -18,9 +18,9 @@ export const Meetings = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
         >
-            <div className={`mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] ${dark ? "text-zinc-500" : "text-zinc-400"}`}>All Meetings</div>
+            <div className={`mb-4 text-[11px] h-full font-semibold uppercase tracking-[0.24em] ${dark ? "text-zinc-500" : "text-zinc-400"}`}>All Meetings</div>
             {meetings.length === 0 ? (
-                <div className={`rounded-2xl border py-10 text-center text-sm ${dark ? "border-white/8 bg-black/20 text-zinc-600" : "text-zinc-400"}`}>No meetings yet.</div>
+                <div className={`rounded-2xl border py-30 text-center text-sm h-full ${dark ? "border-white/8 bg-black/20 text-zinc-600" : "text-zinc-400"}`}>No meetings yet.</div>
                 ) : (
                 <div className="space-y-2">
                     {meetings.map((m) => (

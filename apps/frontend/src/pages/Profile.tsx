@@ -40,24 +40,6 @@ export default function ProfilePage() {
         { id: "integrations", label: "Integrations" },
     ] as const;
 
-    const metrics = [
-        {
-            label: "Workspaces",
-            value: "01",
-            caption: "Personal studio",
-        },
-        {
-            label: "Meetings",
-            value: `${user.meetings.length}`.padStart(2, "0"),
-            caption: "Tracked sessions",
-        },
-        {
-            label: "Plan",
-            value: "Free",
-            caption: "Ready to upgrade",
-        },
-    ];
-
     return (
         <motion.div className={`relative min-h-screen overflow-hidden px-4 pb-16 pt-10 transition-colors duration-300 ${
             dark ? "bg-[#090909]" : "bg-zinc-100"
@@ -101,7 +83,7 @@ export default function ProfilePage() {
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`relative rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                                        className={`relative rounded-2xl px-4 py-3 text-center text-sm font-medium cursor-pointer transition-all duration-200 ${
                                             activeTab === tab.id
                                             ? "text-white"
                                             : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300"
@@ -115,7 +97,7 @@ export default function ProfilePage() {
                                             />
                                         ) : null}
                                         <span className="relative z-10 flex items-center justify-between gap-3">
-                                            <span className={`text-[10px] uppercase tracking-[0.22em] ${activeTab === tab.id ? "text-amber-200/85" : "text-zinc-600"}`}>
+                                            <span className={`text-[10px] text-center uppercase tracking-[0.22em] w-full ${activeTab === tab.id ? "text-amber-200/85" : "text-zinc-600"}`}>
                                                 {tab.label}
                                             </span>
                                         </span>

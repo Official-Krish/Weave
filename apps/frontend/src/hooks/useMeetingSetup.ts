@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreateMeetingResponse, JoinMeetingResponse } from "@repo/types/api";
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
+import { toast } from "sonner";
 
 type UseMeetingSetupArgs = {
   displayNameFallback: string;
@@ -237,6 +238,9 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       );
     },
     onError: (error) => {
+      toast.error(
+        getHttpErrorMessage(error, "Could not join the meeting. Check the meeting ID and passcode.")
+      );
       setErrorMessage(
         getHttpErrorMessage(
           error,
