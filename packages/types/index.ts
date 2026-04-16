@@ -32,3 +32,10 @@ export const workerRecordingStatusSchema = z.object({
 export const removeRecordingVisibilitySchema = z.object({
     email: z.string().email().includes("@"),
 });
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().regex(
+    /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/,
+    "Invalid JWT format"
+  ),
+});

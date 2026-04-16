@@ -165,7 +165,7 @@ export function Pricing() {
                 if (!open) setSelectedPlan(null);
             }}
             title={selectedPlan ? `${selectedPlan} checkout is coming soon` : "Checkout is coming soon"}
-            description="We are finalizing billing, subscriptions, and invoice flows. You can continue building workflows while plan checkout is being completed."
+            description="We are finalizing billing, subscriptions, and payment processing. In the meantime, if you're interested in trying out a plan or want to learn more, please reach out to us at support@weave.com"
         />
       </div>
     </>

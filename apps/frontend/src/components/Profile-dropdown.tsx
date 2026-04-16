@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  Bell,
   ChevronDown,
   LogOut,
   Moon,
-  Settings,
   Sparkles,
   SunMedium,
   UserPen,
@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import type { UserProfileResponse } from "@repo/types/api";
 import { http } from "../https";
+import { useNavigate } from "react-router-dom";
 
 type ProfileDropdownProps = {
   name?: string | null;
@@ -32,6 +33,7 @@ export function ProfileDropdown({
 }: ProfileDropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const navigate = useNavigate();
 
   const profileQuery = useQuery({
     queryKey: ["user-profile"],
@@ -163,7 +165,7 @@ export function ProfileDropdown({
 
             <div className="space-y-0.5 p-2">
               <MenuButton theme={theme} label="Edit profile" icon={<UserPen className="size-3.5 cursor-pointer" />} shortcut="E" />
-              <MenuButton theme={theme} label="Widget settings" icon={<Settings className="size-3.5 cursor-pointer" />} shortcut="W" />
+              <MenuButton theme={theme} label="Notifications" icon={<Bell className="size-3.5 cursor-pointer" />} shortcut="W" />
               <MenuButton
                 theme={theme}
                 label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -178,6 +180,7 @@ export function ProfileDropdown({
                     ? "border border-[#f5a623]/14 bg-[#f5a623]/8 hover:bg-[#f5a623]/13"
                     : "border border-[#b47800]/2 bg-[#f5a623]/10 hover:bg-[#f5a623]/16",
                 ].join(" ")}
+                onClick={()=> navigate("/pricing")}
               >
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-[#ffcf6b] to-[#f5a623]">
                   <Sparkles className="size-3.5 text-[#1b1100]" />

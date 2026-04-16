@@ -121,3 +121,9 @@ export type RemoveVisibleEmailRequest = {
   meetingId: string;
   visibleToEmails: string[];
 }
+
+export type GoogleAuthResponse = {
+  name: string;
+  token: string;
+  message: string;
+}
