@@ -64,6 +64,7 @@ GoogleRouter.post("/auth", async (req, res) => {
         return res.json({
             message: isNewUser ? "Signup successful" : "Signin successful",
             token,
+            name: user.name,
         });
 
     } catch (err) {

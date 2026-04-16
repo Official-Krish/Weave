@@ -94,8 +94,6 @@ userRouter.get("/me", authMiddleware, async (req, res) => {
             select: {
                 name: true,
                 email: true,
-                createdAt: true,
-                updatedAt: true,
             },
         });
 
