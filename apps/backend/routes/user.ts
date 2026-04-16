@@ -92,7 +92,6 @@ userRouter.get("/me", authMiddleware, async (req, res) => {
         const user = await prisma.user.findFirst({
             where: { id: userId },
             select: {
-                id: true,
                 name: true,
                 email: true,
                 createdAt: true,
@@ -127,11 +126,20 @@ userRouter.get("/profile", authMiddleware, async (req, res) => {
         const user = await prisma.user.findFirst({
             where: { id: userId },
             select: {
-                id: true,
                 name: true,
                 email: true,
                 createdAt: true,
                 updatedAt: true,
+                meetings: {
+                    select: {
+                        roomName: true,
+                        roomId: true,
+                        startTime: true,
+                        endTime: true,
+                        isHost: true,
+                        joinedParticipants: true,
+                    },
+                }
             },
         });
 
@@ -141,11 +149,44 @@ userRouter.get("/profile", authMiddleware, async (req, res) => {
         }
 
         res.status(200).json({
-            message: "User profile fetched successfully",
-            user,
+            user
         });
     } catch (error) {
         console.error("Fetch profile failed:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+userRouter.post("/update-profile", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const { name } = req.body;
+
+    if (!userId || !name) {
+        res.status(403).json({ message: "Missing required fields" });
+        return;
+    }
+
+    try {
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { 
+                name,
+                updatedAt: new Date(), 
+            },
+            select: {
+                name: true,
+                email: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        res.status(200).json({
+            message: "User profile updated successfully",
+            user: updatedUser,
+        });
+    } catch (error) {
+        console.error("Update profile failed:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 });

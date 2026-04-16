@@ -15,6 +15,7 @@ import { SignUpPage } from "../pages/SignUpPage";
 import { PublicAuth } from "./PublicAuth";
 import { Pricing } from "@/pages/Pricing";
 import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, SupportPage, TermsPage } from "@/pages/StaticPages";
+import ProfilePage from "@/pages/Profile";
 
 const router = createBrowserRouter([
   {
@@ -67,28 +68,32 @@ const router = createBrowserRouter([
         element: <FeaturesPage />,
       },
       {
-        path: "/security",
+        path: "security",
         element: <SecurityPage/>,
       },
       {
-        path: "/changelog",
+        path: "changelog",
         element: <ChangelogPage/>,
       },
       {
-        path: "/privacy",
+        path: "privacy",
         element: <PrivacyPage/>,
       },
       {
-        path: "/terms",
+        path: "terms",
         element: <TermsPage/>,
       },
       {
-        path: "/blog",
+        path: "blog",
         element: <BlogPage />,
       },
       {
-        path: "/support",
+        path: "support",
         element: <SupportPage/>,
+      }, 
+      {
+        path: "profile",
+        element: <ProfilePage />,
       }
     ],
   },

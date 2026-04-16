@@ -164,7 +164,7 @@ export function ProfileDropdown({
             </div>
 
             <div className="space-y-0.5 p-2">
-              <MenuButton theme={theme} label="Edit profile" icon={<UserPen className="size-3.5 cursor-pointer" />} shortcut="E" />
+              <MenuButton theme={theme} label="Edit profile" onClick={() => navigate("/profile")} icon={<UserPen className="size-3.5 cursor-pointer" />} shortcut="E" />
               <MenuButton theme={theme} label="Notifications" icon={<Bell className="size-3.5 cursor-pointer" />} shortcut="W" />
               <MenuButton
                 theme={theme}
