@@ -51,6 +51,8 @@ export const baseSchema = z.object({
         "RECORDING_REQUEST",
         "RECORDING_READY",
         "RECORDING_FAILED",
+        "RECORDING_REQUEST_APPROVED",
+        "RECORDING_REQUEST_DENIED",
         "OTHER",
     ]),
 });
@@ -78,6 +80,16 @@ export const schemas = {
     RECORDING_FAILED: z.object({
         roomId: z.string(),
         reason: z.string().optional(),
+    }),
+
+    RECORDING_REQUEST_APPROVED: z.object({
+        roomId: z.string(),
+        notificationId: z.string(),
+    }),
+
+    RECORDING_REQUEST_DENIED: z.object({
+        roomId: z.string(),
+        notificationId: z.string(),
     }),
 
     OTHER: z.object({

@@ -201,6 +201,88 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
             break;
         }
 
+        case "RECORDING_REQUEST_APPROVED": {
+            const { roomId, notificationId } = parsed.data as z.infer<typeof schemas.RECORDING_REQUEST_APPROVED>;
+            const notification = await prisma.notification.findFirst({
+                where: {
+                    id: notificationId,
+                    userId,
+                    type: "RECORDING_REQUEST",
+                },
+            });
+
+            if (!notification || !notification.metadata) {
+                return res.status(404).json({ message: "Original request notification not found" });
+            }
+
+            const requestedBy = (notification.metadata as { requestedBy: string }).requestedBy;
+
+            const requestedUser = await prisma.user.findFirst({
+                where: { id: requestedBy },
+                select: { email: true },
+            });
+
+            if (!requestedUser || !requestedUser.email) {
+                return res.status(404).json({ message: "Requested user not found" });
+            }
+
+            const hostMeeting = await prisma.meeting.findFirst({
+                where: {
+                    roomId,
+                    userId,
+                },
+                include: {
+                    finalRecording: true,
+                },
+            });
+
+            if (!hostMeeting || !hostMeeting.finalRecording) {
+                return res.status(404).json({
+                    message: "Meeting or final recording not found",
+                });
+            }
+
+            await prisma.finalRecording.update({
+                where: {
+                    id: hostMeeting.finalRecording.id,
+                },
+                data: {
+                    visibleToEmails: Array.from(new Set([...hostMeeting.finalRecording.visibleToEmails, requestedUser.email])),
+                }
+            });
+
+            notificationData = {
+                userId: requestedBy,
+                message: `Your request for recording access to room ${roomId} has been approved`,
+                metadata: { roomId },
+            };
+            break;
+        }
+
+        case "RECORDING_REQUEST_DENIED": {
+            const { roomId, notificationId } = parsed.data as z.infer<typeof schemas.RECORDING_REQUEST_DENIED>;
+            const notification = await prisma.notification.findFirst({
+                where: {
+                    id: notificationId,
+                    userId,
+                    type: "RECORDING_REQUEST",
+                },
+            });
+
+            if (!notification || !notification.metadata) {
+                return res.status(404).json({ message: "Original request notification not found" });
+            }
+
+            const requestedBy = (notification.metadata as { requestedBy: string }).requestedBy;
+
+            notificationData = {
+                userId: requestedBy,
+                message: `Your request for recording access to room ${roomId} has been denied`,
+                metadata: { roomId },
+            };
+            break;
+        }
+
         case "MEETING_INVITE": {
             const { roomId, invitedUserId } = parsed.data as z.infer<typeof schemas.MEETING_INVITE>;
 

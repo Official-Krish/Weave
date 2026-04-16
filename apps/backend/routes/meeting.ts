@@ -608,6 +608,11 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
                 },
                 include: {
                     finalRecording: true,
+                    user: {
+                        select: {
+                            email: true,
+                        }
+                    }
                 },
             }),
         ]);
@@ -616,11 +621,6 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
             res.status(404).json({ message: "Host session not found" });
             return;
         }
-
-        const hostUser = await prisma.user.findFirst({
-            where: { id: hostSession.userId },
-            select: { email: true },
-        });
 
         const userEmail = user?.email?.toLowerCase() || null;
         const visibleToEmails = hostSession.finalRecording?.visibleToEmails ?? [];
@@ -642,7 +642,7 @@ meetingRouter.get("/recording/page/:id", authMiddleware, async (req, res) => {
             endTime: userSession.endTime,
             isHost: userSession.isHost,
             recordingState: userSession.recordingState,
-            hostEmail: hostUser?.email?.toLowerCase() || null,
+            hostEmail: hostSession.user?.email?.toLowerCase() || null,
             userEmail,
             canViewRecording,
             visibleToEmails,

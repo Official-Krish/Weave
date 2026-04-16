@@ -203,7 +203,8 @@ export const Sharing = ({
                 <div className="wrp-access-note">
                     {meeting.canViewRecording
                         ? "You currently have access to this recording."
-                        : "You do not have access yet. Ask the host for permission."}
+                        : "You do not have access yet. Ask the host for permission."
+                    }
                 </div>
             )}
         </div>

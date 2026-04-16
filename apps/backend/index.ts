@@ -6,6 +6,7 @@ import userRouter from './routes/user';
 import meetingRouter from './routes/meeting';
 import workerRouter from './routes/worker';
 import GoogleRouter from "./routes/google";
+import NotificationRouter from "./routes/notifications";
 
 const app = express();
 const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
@@ -18,6 +19,7 @@ app.use("/api/v1/user", userRouter);
 app.use("/api/v1/meeting", meetingRouter);
 app.use("/api/v1", workerRouter);
 app.use("/api/v1/google", GoogleRouter);
+app.use("/api/v1/notifications", NotificationRouter);
 
 app.listen(3000, () => {
     console.log('Backend server is running on port 3000');

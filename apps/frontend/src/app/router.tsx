@@ -16,6 +16,7 @@ import { PublicAuth } from "./PublicAuth";
 import { Pricing } from "@/pages/Pricing";
 import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, SupportPage, TermsPage } from "@/pages/StaticPages";
 import ProfilePage from "@/pages/Profile";
+import NotificationsPage from "@/pages/Notification";
 
 const router = createBrowserRouter([
   {
@@ -94,6 +95,10 @@ const router = createBrowserRouter([
       {
         path: "profile",
         element: <ProfilePage />,
+      },
+      {
+        path: "notifications",
+        element: <NotificationsPage />,
       }
     ],
   },

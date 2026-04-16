@@ -165,7 +165,7 @@ export function ProfileDropdown({
 
             <div className="space-y-0.5 p-2">
               <MenuButton theme={theme} label="Edit profile" onClick={() => navigate("/profile")} icon={<UserPen className="size-3.5 cursor-pointer" />} shortcut="E" />
-              <MenuButton theme={theme} label="Notifications" icon={<Bell className="size-3.5 cursor-pointer" />} shortcut="W" />
+              <MenuButton theme={theme} label="Notifications" onClick={() => navigate("/notifications")} icon={<Bell className="size-3.5 cursor-pointer" />} shortcut="W" />
               <MenuButton
                 theme={theme}
                 label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
