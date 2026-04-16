@@ -1,10 +1,17 @@
+import { motion } from "motion/react";
+
 export const Billing = ({
     dark
 }: {
     dark: boolean;
 }) => {
     return (
-        <div className="space-y-3">
+        <motion.div className="space-y-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+        >
             {/* Current plan */}
             <div className={`rounded-2xl border p-5 transition-colors ${ dark ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200"
             }`}>
@@ -58,6 +65,6 @@ export const Billing = ({
                         </div>
                     ))}
                 </div>
-        </div>
+        </motion.div>
     )
 }

@@ -1,8 +1,14 @@
 import { ComingSoonCard } from "./icons"
+import { motion } from "motion/react"
 
 export const Integerations = ({ dark }: { dark: boolean}) => {
     return (
-        <div className="space-y-3">
+        <motion.div className="space-y-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+        >
             <div className="grid grid-cols-2 gap-3">
                 <ComingSoonCard
                     dark={dark}
@@ -47,6 +53,6 @@ export const Integerations = ({ dark }: { dark: boolean}) => {
                     <span className={`font-semibold cursor-pointer ${dark ? "text-amber-500 hover:text-amber-400" : "text-amber-600"}`}>Request it →</span>
                 </div>
             </div>
-        </div>
+        </motion.div>
     )
 }

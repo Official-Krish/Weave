@@ -73,7 +73,7 @@ export const ProfileCard = ({
                         <>
                             <button
                                 onClick={() => { setEditing(false); setNameInput(user.name); }}
-                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
                                 dark ? "border-zinc-700 text-zinc-400 hover:border-zinc-600" : "border-zinc-200 text-zinc-500 hover:border-zinc-300"
                                 }`}
                             >Cancel</button>

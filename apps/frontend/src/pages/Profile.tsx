@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { http } from "@/https";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { motion } from "motion/react";
 
 export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState<"overview" | "meetings" | "billing" | "integrations">("overview");
@@ -40,8 +41,13 @@ export default function ProfilePage() {
     ] as const;
 
     return (
-        <div className={`min-h-screen flex justify-center p-4 mt-8 transition-colors duration-300 ${ dark ? "bg-zinc-950" : "bg-zinc-100"
-        }`}>
+        <motion.div className={`min-h-screen flex justify-center p-4 mt-8 transition-colors duration-300 ${ dark ? "bg-zinc-950" : "bg-zinc-100"
+        }`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.3 }}
+        >
             <div className="w-full max-w-2xl space-y-4">
 
                 {/* Profile Card */}
@@ -93,6 +99,6 @@ export default function ProfilePage() {
                     <Integerations dark={dark} />
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 }

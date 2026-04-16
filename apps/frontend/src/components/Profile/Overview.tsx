@@ -1,6 +1,7 @@
 import { formatDate } from "./helpers";
 import { MeetingRow } from "./icons";
 import type { User } from "./types";
+import { motion } from "motion/react";
 
 export const Overview = ({
     user,
@@ -12,7 +13,12 @@ export const Overview = ({
     dark: boolean;
 }) => {
     return (
-        <div className="space-y-4">
+        <motion.div className="space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+        >
             <div className={`rounded-2xl border p-4 transition-colors ${ dark ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-200"}`}>
                 <div className={`text-xs uppercase tracking-widest font-semibold mb-3 ${dark ? "text-zinc-500" : "text-zinc-400"}`}>Recent Meetings</div>
                 <div className="space-y-2">
@@ -45,6 +51,6 @@ export const Overview = ({
                     ))}
                 </div>
             </div>
-        </div>
+        </motion.div>
     )
 }
