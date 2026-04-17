@@ -2,107 +2,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Hls, { Level } from "hls.js";
 import { FullscreenExitIcon, FullscreenEnterIcon, PauseIcon, PipIcon, PlayIcon, SeekBackIcon, SeekForwardIcon, SettingsIcon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon, ControlBtn } from "./icons";
 import { fmt, resolveThumbnailUrl, toSec } from "./helpers";
-
-interface Thumbnail {
-  start: number;
-  end: number;
-  url: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-interface HLSPlayerProps {
-  src: string;
-  poster?: string;
-  thumbnailVtt?: string;
-  className?: string;
-}
-
-const SLIDER_STYLE = `
-.hls-range {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-}
-.hls-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: #fff;
-  margin-top: -5px;
-  transition: transform 0.15s;
-  box-shadow: 0 0 4px rgba(0,0,0,0.5);
-}
-.hls-range::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
-}
-.hls-range::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
-  border: none;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 4px rgba(0,0,0,0.5);
-}
-.hls-range::-webkit-slider-runnable-track {
-  height: 3px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.25);
-}
-.hls-range::-moz-range-track {
-  height: 3px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.25);
-}
-
-/* Volume range — vertical */
-.hls-vol-range {
-  -webkit-appearance: none;
-  appearance: none;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-  width: 3px;
-  height: 80px;
-}
-.hls-vol-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #fff;
-  margin-left: -4.5px;
-  transition: transform 0.15s;
-}
-.hls-vol-range::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
-}
-.hls-vol-range::-webkit-slider-runnable-track {
-  width: 3px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.25);
-}
-.hls-vol-range::-moz-range-track {
-  width: 3px;
-  border-radius: 9999px;
-  background: rgba(255,255,255,0.25);
-}
-`;
+import { SLIDER_STYLE } from "./SliderStyle";
+import type { HLSPlayerProps, Thumbnail } from "./types";
 
 export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   // HLS state
   const [levels, setLevels] = useState<Level[]>([]);
@@ -228,6 +136,67 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
       }
     }, 3000);
   }, []);
+
+  // HotKeys
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const v = videoRef.current;
+      if (!v) return;
+      const active = document.activeElement as HTMLElement;
+      if ( active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+
+      // Only if player is focused
+      if (!containerRef.current?.contains(active)) return;
+
+
+      switch (e.key.toLowerCase()) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          togglePlay();
+          break;
+
+        case "arrowright":
+          seekRelative(10);
+          break;
+
+        case "arrowleft":
+          seekRelative(-10);
+          break;
+
+        case "arrowup":
+          e.preventDefault();
+          changeVolume(Math.min(1, volume + 0.1));
+          break;
+
+        case "arrowdown":
+          e.preventDefault();
+          changeVolume(Math.max(0, volume - 0.1));
+          break;
+
+        case "m":
+          toggleMute();
+          break;
+
+        case "f":
+          toggleFullscreen();
+          break;
+
+        case "l": 
+          seekRelative(10);
+          break;
+
+        case "j":
+          seekRelative(-10);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [volume]);
 
   //  Video event handlers ─
   const onTimeUpdate = () => {
@@ -356,7 +325,9 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
   return (
     <div
       ref={containerRef}
-      className={`relative select-none ${className}`}
+      tabIndex={0}
+      onClick={() => containerRef.current?.focus()}
+      className={`relative select-none outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-black ${className}`}
       style={{ background: "#000", borderRadius: isFullscreen ? 0 : 12, overflow: "hidden" }}
       onMouseMove={resetHideTimer}
       onMouseEnter={resetHideTimer}
@@ -376,7 +347,17 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
         onEnded={onEnded}
         onLoadedMetadata={onLoadedMetadata}
         onClick={togglePlay}
+        onDoubleClick={toggleFullscreen}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+        onLoadStart={() => setIsBuffering(true)}
       />
+
+      {isBuffering && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white shadow-[0_0_20px_rgba(255,255,255,0.3)]" />
+        </div>
+      )}
 
       {/*  Controls overlay  */}
       <div
