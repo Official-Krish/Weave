@@ -10,6 +10,40 @@ import {
 import { broadcastToRoom, normalizeText, sendJson } from "./socket-utils";
 import type { RelayerSocket, SocketMetadata, WsPayload } from "./types";
 
+async function finalizeMeetingAfterHostDisconnect(roomId: string) {
+  const backendBaseUrl =
+    process.env.BACKEND_INTERNAL_URL ||
+    process.env.BACKEND_URL ||
+    "http://localhost:3000/api/v1";
+  const serviceToken =
+    process.env.WORKER_SERVICE_JWT_SECRET ||
+    process.env.WORKER_SERVICE_TOKEN;
+
+  if (!serviceToken) {
+    console.error("Host disconnect finalization skipped: missing worker service token");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${backendBaseUrl.replace(/\/$/, "")}/meeting/system/end-on-host-disconnect/${roomId}`,
+      {
+        method: "POST",
+        headers: {
+          "x-worker-token": serviceToken,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error("Host disconnect finalization failed:", response.status, body);
+    }
+  } catch (error) {
+    console.error("Host disconnect finalization request failed:", error);
+  }
+}
+
 function broadcastParticipantList(roomId: string) {
   broadcastToRoom(roomId, {
     type: "participant-list",
@@ -30,6 +64,26 @@ function handleSocketLeave(ws: RelayerSocket) {
     participantId: metadata.participantId,
     displayName: metadata.displayName,
   });
+
+  if (metadata.isHost) {
+    roomRecordingStates.set(metadata.roomId, false);
+    broadcastToRoom(metadata.roomId, {
+      type: "recording-state",
+      roomId: metadata.roomId,
+      isRecording: false,
+      participantId: metadata.participantId,
+    });
+    broadcastToRoom(metadata.roomId, {
+      type: "meeting-ended",
+      roomId: metadata.roomId,
+      endedBy: {
+        participantId: metadata.participantId,
+        displayName: metadata.displayName,
+      },
+      timestamp: Date.now(),
+    });
+    void finalizeMeetingAfterHostDisconnect(metadata.roomId);
+  }
 
   broadcastParticipantList(metadata.roomId);
 }

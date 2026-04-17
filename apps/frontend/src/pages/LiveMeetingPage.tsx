@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AudioTrackSink } from "../components/Meeting/AudioTrackSink";
@@ -216,6 +216,7 @@ export function LiveMeetingPage() {
     recordingButtonLabel,
     stopLocalChunkRecorder,
     hasActiveRecorder,
+    isMeetingEnded,
   } = useMeetingRecording({
     meetingId,
     roomName,
@@ -293,7 +294,11 @@ export function LiveMeetingPage() {
     navigate("/dashboard");
   };
 
-  const handleRemoteMeetingEnded = async () => {
+  const handleRemoteMeetingEnded = useCallback(async () => {
+    if (endingRef.current) {
+      return;
+    }
+
     setEnding(true);
 
     if (hasActiveRecorder()) {
@@ -302,7 +307,23 @@ export function LiveMeetingPage() {
 
     leaveRoom();
     navigate("/dashboard");
-  };
+  }, [hasActiveRecorder, leaveRoom, navigate, stopLocalChunkRecorder]);
+
+  useEffect(() => {
+    if (!isMeetingEnded || ending) {
+      return;
+    }
+
+    if (!isHost) {
+      toast.error("Meeting ended by the host");
+      void handleRemoteMeetingEnded();
+      return;
+    }
+
+    setEnding(true);
+    leaveRoom();
+    navigate("/dashboard");
+  }, [ending, handleRemoteMeetingEnded, isHost, isMeetingEnded, leaveRoom, navigate]);
 
   const handleEndForAll = async () => {
     if (!isHost || !meetingId || ending) {
