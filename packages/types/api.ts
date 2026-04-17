@@ -33,6 +33,8 @@ export type JoinMeetingResponse = {
   id: string;
   passcode: string;
   name?: string | null;
+  isHost: boolean;
+  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
 };
 
 export type FinalRecording = {
