@@ -50,7 +50,7 @@ export const Sharing = ({
         return base;
     }, [meeting?.hostEmail, meeting?.participants]);
 
-    const signupMutation = useMutation({
+    const removeSharingMutation = useMutation({
         mutationFn: async (email: string) => {
             const response = await http.post<RemoveVisibleEmailRequest>(`/meeting/removeVisibleEmail/${meeting.id}`, { email });
             return response.data;
@@ -87,7 +87,7 @@ export const Sharing = ({
                                     <span key={email} className="wrp-tag" style={{ cursor: "default" }}>
                                         {email}
                                     </span>
-                                    <X size={8} className="cursor-pointer" onClick={() => signupMutation.mutate(email)} />
+                                    <X size={8} className="cursor-pointer" onClick={() => removeSharingMutation.mutate(email)} />
                                 </div>
                             ))}
                         </div>
