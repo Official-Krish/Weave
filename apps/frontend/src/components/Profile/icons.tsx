@@ -56,10 +56,10 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
 
 export function ComingSoonCard({ icon, title, description, dark }: { icon: React.ReactNode; title: string; description: string; dark: boolean }) {
   return (
-    <div className={`flex flex-col gap-2 rounded-[22px] border p-5 transition-all ${
+    <div className={`flex gap-2 rounded-[22px] border p-5 transition-all ${
       dark ? "border-white/8 bg-white/[0.03] hover:-translate-y-0.5 hover:border-white/12 hover:bg-white/[0.05]" : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
     }`}>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${dark ? "bg-white/[0.05] text-amber-200" : "bg-zinc-200 text-zinc-500"}`}>
+      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${dark ? "bg-white/[0.05] text-amber-200" : "bg-zinc-200 text-zinc-500"}`}>
         {icon}
       </div>
       <div>

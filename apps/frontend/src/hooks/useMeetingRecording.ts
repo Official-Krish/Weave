@@ -257,5 +257,6 @@ export function useMeetingRecording({
     recordingButtonLabel,
     stopLocalChunkRecorder,
     hasActiveRecorder: () => Boolean(mediaRecorderRef.current),
+    isMeetingEnded: Boolean(recordingStatusQuery.data?.isEnded),
   };
 }

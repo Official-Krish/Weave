@@ -1,10 +1,12 @@
 import { motion } from "motion/react";
+import { useNavigate } from "react-router-dom";
 
 export const Billing = ({
     dark
 }: {
     dark: boolean;
 }) => {
+    const navigate = useNavigate();
     return (
         <motion.div className="space-y-3"
             initial={{ opacity: 0 }}
@@ -21,7 +23,9 @@ export const Billing = ({
                         <div className={`text-xl font-bold ${dark ? "text-white" : "text-zinc-900"}`}>Free</div>
                         <div className={`mt-1 text-xs ${dark ? "text-zinc-500" : "text-zinc-400"}`}>Basic recording · 720p · 5 participants</div>
                         </div>
-                        <button className="cursor-pointer rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-4 py-2 text-xs font-bold text-black shadow-[0_12px_24px_rgba(245,166,35,0.16)] transition-all hover:brightness-105">
+                        <button className="cursor-pointer rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-4 py-2 text-xs font-bold text-black shadow-[0_12px_24px_rgba(245,166,35,0.16)] transition-all hover:brightness-105"
+                            onClick={() => navigate("/pricing")}
+                        >
                             Upgrade
                         </button>
                     </div>

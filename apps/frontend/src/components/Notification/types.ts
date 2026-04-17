@@ -27,5 +27,18 @@ export interface Notification {
   metadata?: NotificationMetadata;
 }
 
+export type NotificationsResponse = {
+  notifications: Array<
+    Omit<Notification, "metadata"> & {
+      metadata?: Notification["metadata"] | null;
+    }
+  >;
+};
+
+export type NotificationActionInput = {
+  roomId: string;
+  notificationId: string;
+};
+
 export const FILTERS = ["All", "Unread", "Recording", "Meeting"] as const;
 export type Filter = (typeof FILTERS)[number];

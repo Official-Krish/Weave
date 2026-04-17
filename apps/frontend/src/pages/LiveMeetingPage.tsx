@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { AudioTrackSink } from "../components/Meeting/AudioTrackSink";
@@ -28,9 +28,21 @@ export function LiveMeetingPage() {
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
   const roomName = useMemo(() => meetingId.trim(), [meetingId]);
+  const initialRecordingState = searchParams.get("recordingState") === "true";
 
   useEffect(() => {
     endingRef.current = ending;
+    if(initialRecordingState) {
+      toast("This meeting is currently being recorded", {
+        description: "Please be aware that your audio and video may be recorded during this meeting.",
+        duration: 4000,
+      });
+      startRecordingMutation.mutate(undefined, {
+        onSuccess: () => {
+          sendRecordingState(true);
+        },
+      });
+    }
   }, [ending]);
 
   const {
@@ -204,6 +216,7 @@ export function LiveMeetingPage() {
     recordingButtonLabel,
     stopLocalChunkRecorder,
     hasActiveRecorder,
+    isMeetingEnded,
   } = useMeetingRecording({
     meetingId,
     roomName,
@@ -281,7 +294,11 @@ export function LiveMeetingPage() {
     navigate("/dashboard");
   };
 
-  const handleRemoteMeetingEnded = async () => {
+  const handleRemoteMeetingEnded = useCallback(async () => {
+    if (endingRef.current) {
+      return;
+    }
+
     setEnding(true);
 
     if (hasActiveRecorder()) {
@@ -290,7 +307,23 @@ export function LiveMeetingPage() {
 
     leaveRoom();
     navigate("/dashboard");
-  };
+  }, [hasActiveRecorder, leaveRoom, navigate, stopLocalChunkRecorder]);
+
+  useEffect(() => {
+    if (!isMeetingEnded || ending) {
+      return;
+    }
+
+    if (!isHost) {
+      toast.error("Meeting ended by the host");
+      void handleRemoteMeetingEnded();
+      return;
+    }
+
+    setEnding(true);
+    leaveRoom();
+    navigate("/dashboard");
+  }, [ending, handleRemoteMeetingEnded, isHost, isMeetingEnded, leaveRoom, navigate]);
 
   const handleEndForAll = async () => {
     if (!isHost || !meetingId || ending) {

@@ -1,11 +1,74 @@
 import { Router } from "express";
-import { authMiddleware } from "../utils/authMiddleware";
+import { authMiddleware, serviceAuthMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisClient } from "../utils/redis";
 import { toSingleString, normalizeEmails, canViewFinalRecording, getUserMeetingSession, getMeetingSessions, generateString, normalizeFinalRecordingLink } from "../utils/helpers";
 import { CreateMeetingSchema, putRecordingVisibilitySchema, removeRecordingVisibilitySchema } from "@repo/types";
 
 const meetingRouter = Router();
+
+async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
+    const meetings = await getMeetingSessions(roomId);
+
+    if (meetings.length === 0) {
+        const error = new Error("Meeting not found");
+        (error as Error & { statusCode?: number }).statusCode = 404;
+        throw error;
+    }
+
+    const hostMeeting = meetings.find((meeting) => meeting.isHost);
+
+    if (!hostMeeting) {
+        const error = new Error("Host meeting not found");
+        (error as Error & { statusCode?: number }).statusCode = 404;
+        throw error;
+    }
+
+    if (hostUserId && hostMeeting.userId !== hostUserId) {
+        const error = new Error("Only host can end this meeting");
+        (error as Error & { statusCode?: number }).statusCode = 403;
+        throw error;
+    }
+
+    const alreadyEnded = meetings.every((meeting) => meeting.isEnded);
+    const endTime = new Date();
+    const shouldProcessRecording = meetings.some((session) =>
+        session.recordingState === "RECORDING" ||
+        session.recordingState === "UPLOADING" ||
+        session.recordingState === "PROCESSING"
+    );
+
+    if (!alreadyEnded) {
+        await prisma.meeting.updateMany({
+            where: {
+                roomId: hostMeeting.roomId,
+            },
+            data: {
+                isEnded: true,
+                endTime,
+                recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
+                recordingStoppedAt: shouldProcessRecording ? endTime : undefined,
+                processingStartedAt: shouldProcessRecording ? endTime : null,
+            },
+        });
+
+        if (shouldProcessRecording) {
+            await redisClient.rpush("ProcessVideo", JSON.stringify({
+                meetingId: roomId,
+            }));
+        }
+    }
+
+    return {
+        meeting: hostMeeting,
+        participants: hostMeeting.joinedParticipants.length,
+        duration: hostMeeting.startTime
+            ? Math.max(0, Math.floor((endTime.getTime() - hostMeeting.startTime.getTime()) / 60000))
+            : 0,
+        alreadyEnded,
+        shouldProcessRecording,
+    };
+}
 
 meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
     const userId = req.userId;
@@ -161,6 +224,16 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
                 invitedParticipants: [...new Set([user.email.toLowerCase(), ...normalizedParticipants])],
             }
         });
+        if(normalizedParticipants.length > 0){
+            normalizedParticipants.forEach((email) => {
+                redisClient.lpush("MeetingInvitations", JSON.stringify({
+                    email,
+                    meetingId: newMeeting.roomId,
+                    meetingName: newMeeting.roomName,
+                    inviterName: user.name,
+                }));
+            });
+        }
         res.status(200).json({ roomId: newMeeting.roomId, passcode: newMeeting.passcode, name: user.name, id: newMeeting.id });
     } catch (error) {
         console.error("Error creating meeting:", error);
@@ -180,6 +253,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         const meeting = await prisma.meeting.findFirst({
             where: {
                 roomId: roomId,
+                isHost: true
             },
         });
         if (!meeting || meeting.isEnded) {
@@ -208,7 +282,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
 
         if (ifUserAlreadyJoined){
             if (meeting?.isEnded === false) {
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
                 return;
             } if (meeting?.isEnded === true) {
                 res.status(409).json({ message: "Meeting ended" });
@@ -219,7 +293,6 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         if (!passcode){
             const checkIfParticipant = meeting.invitedParticipants.find((participant) => participant.toLowerCase() === normalizedEmail);
             if (checkIfParticipant) {
-                // craete a transaction to create a meeting session for the user and update the joinedParticipants array in the meeting
                 await prisma.$transaction([
                     prisma.meeting.create({
                         data: {
@@ -244,7 +317,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         }
                     })
                 ]);
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
             } else {
                 res.status(403).json({ message: "You are not a participant of this meeting" });
             }
@@ -275,7 +348,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         }
                     })
                 ]);
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
             } else {
                 res.status(403).json({ message: "Invalid passcode" });
             }
@@ -425,51 +498,43 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         return;
     }
     try {
-        const meetings = await getMeetingSessions(roomId);
-
-        const meeting = meetings.find((meeting) => meeting.userId === userId);
-
-        if (!meeting?.isHost) {
-            res.status(403).json({ message: "Only host can end this meeting" });
-            return;
-        }
-
-        if (meetings.length === 0) {
-            res.status(404).json({ message: "Meeting not found" });
-            return;
-        }
-
-        const endTime = new Date();
-        const shouldProcessRecording = meetings.some((session) => session.recordingState !== "IDLE");
-
-        await prisma.meeting.updateMany({
-            where: {
-                roomId: meeting.roomId,
-            },
-            data: {
-                isEnded: true,
-                endTime,
-                recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
-                processingStartedAt: shouldProcessRecording ? endTime : null,
-            },
-        });
-
-        if (shouldProcessRecording) {
-            await redisClient.rpush("ProcessVideo", JSON.stringify({
-                meetingId: roomId,
-            }));
-        }
+        const result = await finalizeMeetingRoom(roomId, userId as string);
 
         res.status(200).json({ 
             message: "Meeting ended successfully", 
-            participants: meeting?.joinedParticipants.length, 
-            duration: meeting?.startTime 
-                ? Math.max(0, Math.floor((endTime.getTime() - meeting.startTime.getTime()) / 60000))
-                : 0 
+            participants: result.participants,
+            duration: result.duration,
         });
     } catch (error) {
         console.error("Error fetching meeting:", error);
-        res.status(500).json({ message: "Internal server error" });
+        const statusCode = (error as Error & { statusCode?: number }).statusCode ?? 500;
+        res.status(statusCode).json({ message: statusCode === 500 ? "Internal server error" : (error as Error).message });
+    }
+});
+
+meetingRouter.post("/system/end-on-host-disconnect/:id", serviceAuthMiddleware, async (req, res) => {
+    const roomId = toSingleString(req.params.id);
+
+    if (!roomId) {
+        res.status(400).json({ message: "Room ID is required" });
+        return;
+    }
+
+    try {
+        const result = await finalizeMeetingRoom(roomId);
+
+        res.status(200).json({
+            message: result.alreadyEnded
+                ? "Meeting was already ended"
+                : "Meeting finalized after host disconnect",
+            participants: result.participants,
+            duration: result.duration,
+            recordingProcessing: result.shouldProcessRecording,
+        });
+    } catch (error) {
+        console.error("Error finalizing meeting after host disconnect:", error);
+        const statusCode = (error as Error & { statusCode?: number }).statusCode ?? 500;
+        res.status(statusCode).json({ message: statusCode === 500 ? "Internal server error" : (error as Error).message });
     }
 });
 
