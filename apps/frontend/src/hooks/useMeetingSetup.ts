@@ -231,10 +231,12 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       return response.data;
     },
     onSuccess: (data) => {
+      const host = data.isHost ? "host" : "guest";
+      const recordingState = data.recordingState == "RECORDING";
       navigate(
         `/meeting/live/${data.id}?name=${encodeURIComponent(
           data.name || displayNameFallback || "Guest"
-        )}&role=guest`
+        )}&role=${host}&recordingState=${recordingState}`
       );
     },
     onError: (error) => {

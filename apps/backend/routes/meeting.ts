@@ -190,6 +190,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         const meeting = await prisma.meeting.findFirst({
             where: {
                 roomId: roomId,
+                isHost: true
             },
         });
         if (!meeting || meeting.isEnded) {
@@ -218,7 +219,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
 
         if (ifUserAlreadyJoined){
             if (meeting?.isEnded === false) {
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
                 return;
             } if (meeting?.isEnded === true) {
                 res.status(409).json({ message: "Meeting ended" });
@@ -229,7 +230,6 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         if (!passcode){
             const checkIfParticipant = meeting.invitedParticipants.find((participant) => participant.toLowerCase() === normalizedEmail);
             if (checkIfParticipant) {
-                // craete a transaction to create a meeting session for the user and update the joinedParticipants array in the meeting
                 await prisma.$transaction([
                     prisma.meeting.create({
                         data: {
@@ -254,7 +254,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         }
                     })
                 ]);
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
             } else {
                 res.status(403).json({ message: "You are not a participant of this meeting" });
             }
@@ -285,7 +285,7 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
                         }
                     })
                 ]);
-                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState });
+                res.status(200).json({ id: meeting.roomId, passcode: meeting.passcode, name: user.name, recordingState: meeting.recordingState, isHost: meeting.userId === userId });
             } else {
                 res.status(403).json({ message: "Invalid passcode" });
             }

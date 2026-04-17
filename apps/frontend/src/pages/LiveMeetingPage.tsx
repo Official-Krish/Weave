@@ -28,9 +28,21 @@ export function LiveMeetingPage() {
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
   const roomName = useMemo(() => meetingId.trim(), [meetingId]);
+  const initialRecordingState = searchParams.get("recordingState") === "true";
 
   useEffect(() => {
     endingRef.current = ending;
+    if(initialRecordingState) {
+      toast("This meeting is currently being recorded", {
+        description: "Please be aware that your audio and video may be recorded during this meeting.",
+        duration: 4000,
+      });
+      startRecordingMutation.mutate(undefined, {
+        onSuccess: () => {
+          sendRecordingState(true);
+        },
+      });
+    }
   }, [ending]);
 
   const {
