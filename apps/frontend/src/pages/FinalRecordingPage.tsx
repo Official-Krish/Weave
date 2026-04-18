@@ -6,7 +6,6 @@ import {
   Lock,
   Mail,
   Play,
-  Shield,
   Video,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -129,14 +128,19 @@ export function FinalRecordingPage() {
       toast.error(getHttpErrorMessage(err, "Could not save visibility settings")),
   });
 
-  const handleAskPermission = () => {
-    const hostEmail = meeting?.hostEmail;
-    if (!hostEmail) {
-      toast("You do not have access to this recording yet. Please ask the host for permission.");
-      return;
-    }
-    toast(`You do not have access yet. Please ask ${hostEmail} to add your email in sharing settings.`);
-  };
+  const AskPermissionMutation = useMutation({
+    mutationFn: async () => {
+      await http.post(`/notifications/create`, {
+        type: "RECORDING_REQUEST",
+        roomId: meeting?.meetingId,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Permission request sent to host");
+    },
+    onError: (err) =>
+      toast.error(getHttpErrorMessage(err, "Could not send permission request")),
+  })
 
   return (
     <>
@@ -195,12 +199,11 @@ export function FinalRecordingPage() {
 
             ) : !meeting.canViewRecording ? (
               <div className="wrp-state-card warning">
-                <Shield size={20} style={{ color: "var(--gold)", marginBottom: "0.6rem" }} />
                 <h2 className="wrp-state-title">Access requires host permission</h2>
                 <p className="wrp-state-desc">
                   Your email is not in the sharing list yet. Ask the host to add your email in recording sharing settings.
                 </p>
-                <button type="button" onClick={handleAskPermission} className="wrp-permission-btn">
+                <button type="button" onClick={() => AskPermissionMutation.mutate()} className="wrp-permission-btn">
                   <Mail size={13} />
                   Ask permission from host
                 </button>

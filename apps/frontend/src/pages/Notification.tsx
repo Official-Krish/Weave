@@ -180,13 +180,13 @@ export default function NotificationsPage() {
                           }
                           onDeclineRecording={(notifId) => {
                             const notification = notifications.find((item) => item.id === notifId);
-                            if (!notification?.metadata?.meetingId) {
+                            if (!notification?.metadata?.roomId) {
                               toast.error("Missing room information for this request");
                               return;
                             }
 
                             declineRecording.mutate({
-                              roomId: notification.metadata.meetingId,
+                              roomId: notification.metadata.roomId,
                               notificationId: notifId,
                             });
                           }}

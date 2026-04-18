@@ -72,14 +72,14 @@ export function NotificationCard({
               {notification.message}
             </p>
             {/* Room metadata pill */}
-            {notification.metadata?.meetingId && (
+            {notification.metadata?.roomId && (
               <div className="flex items-center gap-1.5 mt-2">
                 <span className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-zinc-400">
                   <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="currentColor">
                     <circle cx="6" cy="6" r="2" />
                     <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
                   </svg>
-                  {notification.metadata.meetingId}
+                  {notification.metadata.roomId}
                 </span>
               </div>
             )}
@@ -113,7 +113,7 @@ export function NotificationCard({
                     <button
                       onClick={() =>
                         onAcceptRecording(
-                          notification.metadata!.meetingId!,
+                          notification.metadata!.roomId!,
                           notification.metadata!.requestedBy!,
                           notification.id
                         )
@@ -121,6 +121,7 @@ export function NotificationCard({
                       className="
                         inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
                         shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
+                        hover:bg-[linear-gradient(135deg,#ffd166,#f5a623)] hover:brightness-110
                       "
                     >
                       <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
@@ -135,6 +136,7 @@ export function NotificationCard({
                         inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
                         text-zinc-200 cursor-pointer
                         transition-all duration-150 active:scale-95
+                        hover:border-white/20 hover:bg-white/[0.06] hover:text-zinc-100
                       "
                     >
                       Decline
@@ -187,45 +189,11 @@ export function NotificationCard({
             className="flex items-center gap-2 pt-1"
             onClick={(e) => e.stopPropagation()}
           >
-            {notification.type === "RECORDING_REQUEST" && (
-              <>
-                <button
-                  onClick={() =>
-                    onAcceptRecording(
-                      notification.metadata!.meetingId!,
-                      notification.metadata!.requestedBy!,
-                      notification.id
-                    )
-                  }
-                  className="
-                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
-                    shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
-                  "
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                    <path d="M2 4a2 2 0 012-2h5l4 4v6a2 2 0 01-2 2H4a2 2 0 01-2-2V4zm9.5 3.5l-4-4H4a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h6a.5.5 0 00.5-.5V7.5z" />
-                    <path d="M5.5 9.5l1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Grant Access
-                </button>
-                <button
-                  onClick={() => onDeclineRecording(notification.id)}
-                  className="
-                    inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
-                    text-zinc-200 cursor-pointer
-                    transition-all duration-150 active:scale-95
-                  "
-                >
-                  Decline
-                </button>
-              </>
-            )}
-
             {notification.type === "MEETING_INVITE" && (
               <>
                 <button
                   onClick={() =>
-                    onAcceptInvite(notification.metadata!.meetingId!, notification.id)
+                    onAcceptInvite(notification.metadata!.roomId!, notification.id)
                   }
                   className="
                     inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white cursor-pointer

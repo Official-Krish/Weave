@@ -191,7 +191,7 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
 
             notificationData = {
                 userId: hostMeeting.userId,
-                message: `${user.name} (${user.email}) requested access to recording for room ${roomId}: ${hostMeeting.roomName}`,
+                message: `${user.name} (${user.email}) requested access to recording for room ${hostMeeting.roomName}: ${roomId} and is awaiting your approval.`,
                 metadata: {
                     roomId,
                     requestedBy: userId,

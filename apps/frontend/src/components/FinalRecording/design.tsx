@@ -451,6 +451,22 @@ export const DesignCSS = `
     transition: background 0.15s, border-color 0.15s;
     animation: wrp-tag-in 0.2s cubic-bezier(0.22,1,0.36,1) both;
   }
+  
+  .wrp2-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--gold-border);
+    background: var(--gold-dim);
+    font-size: 0.75rem;
+    color: var(--gold);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    animation: wrp-tag-in 0.2s cubic-bezier(0.22,1,0.36,1) both;
+  }
 
   @keyframes wrp-tag-in {
     from { opacity: 0; transform: scale(0.85); }
@@ -461,6 +477,7 @@ export const DesignCSS = `
     background: rgba(220,50,50,0.12);
     border-color: rgba(220,50,50,0.25);
     color: #ff8080;
+    cursor: default;
   }
 
   .wrp-tag-x {

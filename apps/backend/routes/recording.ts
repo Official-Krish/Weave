@@ -13,26 +13,35 @@ RecordingRouter.delete("/delete/:id", authMiddleware, async (req, res) => {
         return res.status(400).json({ message: "Meeting ID and User ID are required" });
     }
     try {
-        const finalRecording = await prisma.finalRecording.findFirst({
-            where: {
-                id: id as string,
-            },
-        });
         const meeting = await prisma.meeting.findFirst({
             where: {
-                id: finalRecording?.meetingId,
+                roomId: id as string,
                 userId: userId as string,
                 isHost: true,
             },
+            select: {
+                finalRecording: true,
+            }
         });
 
         if (!meeting) {
             return res.status(403).json({ message: "Only the host can delete the recording" });
         }
 
+        if(!meeting.finalRecording) {
+            return res.status(404).json({ message: "Recording not found" });
+        }
+
+        const finalRecording = await prisma.finalRecording.findFirst({
+            where: {
+                id: meeting.finalRecording.id,
+            },
+        });
+
         if (!finalRecording) {
             return res.status(404).json({ message: "Recording not found or you don't have permission to delete it" });
         }
+
         await prisma.finalRecording.delete({
             where: {
                 id: finalRecording.id,
@@ -385,6 +394,7 @@ RecordingRouter.post("/removeVisibleEmail/:id", authMiddleware, async (req, res)
                 finalRecording: true,
             }
         });
+        console.log("Host session for removing visible email:", hostSession);
 
         if (!hostSession) {
             res.status(403).json({ message: "Only host can manage recording visibility" });

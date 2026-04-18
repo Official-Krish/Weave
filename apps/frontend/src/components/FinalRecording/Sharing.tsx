@@ -52,12 +52,12 @@ export const Sharing = ({
 
     const removeSharingMutation = useMutation({
         mutationFn: async (email: string) => {
-            const response = await http.post<RemoveVisibleEmailRequest>(`/recording/removeVisibleEmail/${meeting.id}`, { email });
+            const response = await http.post<RemoveVisibleEmailRequest>(`/recording/removeVisibleEmail/${meeting.meetingId}`, { email });
             return response.data;
         },
-        onSuccess: (data) => {
+        onSuccess: () => {
             toast.success("Email visibility removed successfully");
-            persistedVisibleEmails = data.visibleToEmails || [];
+            window.location.reload();
         },
         onError: (error) => {
             toast.error(getHttpErrorMessage(error) || "Failed to remove email visibility");
@@ -84,10 +84,15 @@ export const Sharing = ({
                         <div className="wrp-email-tags" style={{ marginTop: 0 }}>
                             {persistedVisibleEmails.map((email) => (
                                 <div className="flex justify-between">
-                                    <span key={email} className="wrp-tag" style={{ cursor: "default" }}>
+                                    <span key={email} 
+                                        className={`${meeting.isHost ? "wrp-tag" : "wrp2-tag"}`}
+                                        style={{ cursor: "default" }}
+                                    >
                                         {email}
+                                        {meeting.isHost && (
+                                            <X size={10} className="cursor-pointer" onClick={() => removeSharingMutation.mutate(email)} />    
+                                        )}
                                     </span>
-                                    <X size={8} className="cursor-pointer" onClick={() => removeSharingMutation.mutate(email)} />
                                 </div>
                             ))}
                         </div>

@@ -134,6 +134,7 @@ export function Overview({
                             <PaginationLink
                               isActive={readyPage === i + 1}
                               onClick={() => setReadyPage(i + 1)}
+                              className="cursor-pointer"
                             >
                               {i + 1}
                             </PaginationLink>

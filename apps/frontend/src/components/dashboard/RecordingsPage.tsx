@@ -32,11 +32,18 @@ export function RecordingsPage({
   const queryClient = useQueryClient();
   const pageSize = 4;
   // Paginate meetings
-  const paginatedMeetings = meetings.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(meetings.length / pageSize);
+  const recordings = meetings.filter((meeting) => meeting.finalRecording);
+  const paginatedMeetings = recordings.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(recordings.length / pageSize);
 
   // Filter paginated meetings into groups
-  const readyRecordings = paginatedMeetings.filter((meeting) => meeting.recordingState === "READY");
+  const readyRecordings = paginatedMeetings.filter((meeting) => {
+    if(!meeting.finalRecording){
+      return false;
+    }
+    meeting.recordingState === "READY"
+  });
+
   const processingRecordings = paginatedMeetings.filter(
     (meeting) =>
       meeting.recordingState === "PROCESSING" ||
@@ -105,7 +112,6 @@ export function RecordingsPage({
             the dashboard instead of sending you to a separate route.
           </p>
         </div>
-
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Ready", value: readyRecordings.length },
@@ -259,6 +265,7 @@ export function RecordingsPage({
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   aria-disabled={page === 1}
                   tabIndex={page === 1 ? -1 : 0}
+                  className="cursor-pointer"
                 />
               </PaginationItem>
               {Array.from({ length: totalPages }).map((_, i) => (
@@ -276,6 +283,7 @@ export function RecordingsPage({
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   aria-disabled={page === totalPages}
                   tabIndex={page === totalPages ? -1 : 0}
+                  className="cursor-pointer"
                 />
               </PaginationItem>
             </PaginationContent>

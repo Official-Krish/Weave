@@ -385,7 +385,11 @@ meetingRouter.delete("/delete/:id", authMiddleware, async (req, res) => {
             where: {
                 id: meetingId,
                 userId: userId as string,
+                isHost: true,
             },
+            select: {
+                rawChunks: true,
+            }
         });
 
         if (!meeting) {
@@ -393,10 +397,17 @@ meetingRouter.delete("/delete/:id", authMiddleware, async (req, res) => {
             return;
         }
 
+        if(meeting.rawChunks.length > 0){
+            await prisma.mediaChunks.deleteMany({
+                where: {
+                    meetingId: meetingId,
+                },
+            });
+        }
+
         await prisma.meeting.delete({
             where: {
-                id: meeting.id,
-                userId: userId as string,
+                id: meetingId,
             },
         });
 
