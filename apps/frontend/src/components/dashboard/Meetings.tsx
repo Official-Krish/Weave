@@ -47,7 +47,11 @@ function getStatusLabel(meeting: MeetingDetails) {
     return "Failed";
   }
 
-  return "Processing";
+  if (meeting.recordingState === "PROCESSING") {
+    return "Processing";
+  }
+
+  return "Ended";
 }
 
 export function Meetings({

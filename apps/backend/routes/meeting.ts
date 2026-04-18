@@ -32,11 +32,7 @@ async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
 
     const alreadyEnded = meetings.every((meeting) => meeting.isEnded);
     const endTime = new Date();
-    const shouldProcessRecording = meetings.some((session) =>
-        session.recordingState === "RECORDING" ||
-        session.recordingState === "UPLOADING" ||
-        session.recordingState === "PROCESSING"
-    );
+    const shouldProcessRecording = hostMeeting.recordingState === "RECORDING" || hostMeeting.recordingState === "UPLOADING" ||hostMeeting. recordingState === "PROCESSING";
 
     if (!alreadyEnded) {
         await prisma.meeting.updateMany({
