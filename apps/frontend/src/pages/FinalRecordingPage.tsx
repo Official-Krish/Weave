@@ -32,7 +32,7 @@ export function FinalRecordingPage() {
     queryKey: ["final-recording-page", recordingId],
     queryFn: async () => {
       const response = await http.get<RecordingPageResponse>(
-        `/meeting/recording/page/${recordingId}`
+        `/recording/page/${recordingId}`
       );
       return response.data;
     },
@@ -108,7 +108,7 @@ export function FinalRecordingPage() {
   const saveVisibilityMutation = useMutation({
     mutationFn: async () => {
       const payloadEmails = [...new Set([...persistedVisibleEmails, ...draftNewEmails])];
-      const response = await http.put<{ visibleToEmails?: string[] }>(`/meeting/recording/visibility/${meeting?.meetingId}`, {
+      const response = await http.put<{ visibleToEmails?: string[] }>(`/recording/visibility/${meeting?.meetingId}`, {
         visibleToEmails: payloadEmails,
       });
 

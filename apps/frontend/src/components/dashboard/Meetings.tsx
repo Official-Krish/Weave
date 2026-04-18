@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Clock3,
   LoaderCircle,
+  Trash2,
   Users,
   Video,
 } from "lucide-react";
@@ -10,51 +11,11 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import type { MeetingDetails } from "@repo/types/api";
-
-type MeetingsProps = {
-  meetings: MeetingDetails[];
-  isLoading?: boolean;
-  isError?: boolean;
-  errorMessage?: string;
-  onOpenMeeting: (meetingId: string) => void;
-  onOpenRecording: (recordingId: string) => void;
-};
-
-function getStatusTone(meeting: MeetingDetails) {
-  if (!meeting.isEnded) {
-    return "live";
-  }
-
-  if (meeting.recordingState === "READY") {
-    return "ended with ready recording";
-  }
-
-  if (meeting.recordingState === "FAILED") {
-    return "failed";
-  }
-
-  return "processing";
-}
-
-function getStatusLabel(meeting: MeetingDetails) {
-  if (!meeting.isEnded) {
-    return "Live";
-  }
-
-  if (meeting.recordingState === "READY") {
-    return "ended with ready recording";
-  }
-
-  if (meeting.recordingState === "FAILED") {
-    return "Failed";
-  }
-
-  if (meeting.recordingState === "PROCESSING") {
-    return "Processing";
-  }
-
-  return "Ended";
-}
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { http } from "@/https";
+import { toast } from "sonner";
+import { getHttpErrorMessage } from "@/lib/httpError";
+import { getStatusLabel, getStatusTone, type MeetingsProps } from "./types";
 
 export function Meetings({
   meetings,
@@ -66,6 +27,8 @@ export function Meetings({
 }: MeetingsProps) {
   const liveMeetings = meetings.filter((meeting) => !meeting.isEnded);
   const endedMeetings = meetings.filter((meeting) => meeting.isEnded);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -78,6 +41,51 @@ export function Meetings({
   // Re-group paginated meetings
   const paginatedLive = paginatedMeetings.filter((meeting) => !meeting.isEnded);
   const paginatedEnded = paginatedMeetings.filter((meeting) => meeting.isEnded);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await http.delete(`/meeting/delete/${id}`);
+    },
+
+    onMutate: async (id: string) => {
+      setDeletingId(id);
+
+      await queryClient.cancelQueries({ queryKey: ["meeting"] });
+
+      const previousRecordings = queryClient.getQueryData<MeetingDetails[]>([
+        "meeting",
+      ]);
+
+      queryClient.setQueryData<MeetingDetails[]>(
+        ["meeting"],
+        (old = []) => old.filter((m) => m.id !== id)
+      );
+
+      return { previousRecordings };
+    },
+
+    onError: (error, _id, context) => {
+      if (context?.previousRecordings) {
+        queryClient.setQueryData(
+          ["meeting"],
+          context.previousRecordings
+        );
+      }
+
+      toast.error(getHttpErrorMessage(error, "Failed to delete meeting."));
+    },
+
+    onSuccess: () => {
+      toast.success("Meeting deleted successfully");
+    },
+
+    onSettled: () => {
+      setDeletingId(null);
+      queryClient.invalidateQueries({
+        queryKey: ["meeting"],
+      });
+    },
+  });
 
   return (
     <section className="rounded-2xl border border-[#f5a623]/10 bg-white/[0.022] p-5">
@@ -219,10 +227,26 @@ export function Meetings({
                             <button
                               type="button"
                               onClick={() => onOpenRecording(meeting.id)}
-                              className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
+                              className="inline-flex items-center gap-2 rounded-full cursor-pointer border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
                             >
                               Details
                               <ChevronRight className="size-3.5" />
+                            </button>
+
+                            <button
+                              className="cursor-pointer border border-neutral-800 rounded-lg px-2 py-1.5 hover:bg-red-500 hover:text-white transition-colors duration-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteMutation.mutate(meeting.id);
+                              }}
+                              disabled={deletingId === meeting.id}
+                              aria-label="Delete meeting"
+                            >
+                              {deletingId === meeting.id ? (
+                                <LoaderCircle className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>

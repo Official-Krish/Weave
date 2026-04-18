@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db/client";
 import path from "node:path";
+import { redisPublisher } from "./redis";
 
 export const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
@@ -156,4 +157,63 @@ export function getFileExtension(mimeType?: string) {
   }
 
   return "webm";
+}
+
+export async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
+    const meetings = await getMeetingSessions(roomId);
+
+    if (meetings.length === 0) {
+        const error = new Error("Meeting not found");
+        (error as Error & { statusCode?: number }).statusCode = 404;
+        throw error;
+    }
+
+    const hostMeeting = meetings.find((meeting) => meeting.isHost);
+
+    if (!hostMeeting) {
+        const error = new Error("Host meeting not found");
+        (error as Error & { statusCode?: number }).statusCode = 404;
+        throw error;
+    }
+
+    if (hostUserId && hostMeeting.userId !== hostUserId) {
+        const error = new Error("Only host can end this meeting");
+        (error as Error & { statusCode?: number }).statusCode = 403;
+        throw error;
+    }
+
+    const alreadyEnded = meetings.every((meeting) => meeting.isEnded);
+    const endTime = new Date();
+    const shouldProcessRecording = hostMeeting.recordingState === "RECORDING" || hostMeeting.recordingState === "UPLOADING" ||hostMeeting. recordingState === "PROCESSING";
+
+    if (!alreadyEnded) {
+        await prisma.meeting.updateMany({
+            where: {
+                roomId: hostMeeting.roomId,
+            },
+            data: {
+                isEnded: true,
+                endTime,
+                recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
+                recordingStoppedAt: shouldProcessRecording ? endTime : undefined,
+                processingStartedAt: shouldProcessRecording ? endTime : null,
+            },
+        });
+
+        if (shouldProcessRecording) {
+            await redisPublisher.rpush("ProcessVideo", JSON.stringify({
+                meetingId: roomId,
+            }));
+        }
+    }
+
+    return {
+        meeting: hostMeeting,
+        participants: hostMeeting.joinedParticipants.length,
+        duration: hostMeeting.startTime
+            ? Math.max(0, Math.floor((endTime.getTime() - hostMeeting.startTime.getTime()) / 60000))
+            : 0,
+        alreadyEnded,
+        shouldProcessRecording,
+    };
 }

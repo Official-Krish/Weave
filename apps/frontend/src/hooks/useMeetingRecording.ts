@@ -52,7 +52,7 @@ export function useMeetingRecording({
     queryKey: ["recording-status", meetingId],
     enabled: Boolean(meetingId),
     queryFn: async () => {
-      const { data } = await http.get(`/meeting/recording/status/${meetingId}`);
+      const { data } = await http.get(`/recording/status/${meetingId}`);
       return data;
     },
     refetchInterval: 5000,
@@ -255,7 +255,7 @@ export function useMeetingRecording({
 
   const startRecordingMutation = useMutation({
     mutationFn: async () => {
-      await http.post(`/meeting/recording/start/${meetingId}`);
+      await http.post(`/recording/start/${meetingId}`);
       sequenceRef.current = 0;
       uploadChainRef.current = Promise.resolve();
       await startLocalChunkRecorder();
@@ -275,7 +275,7 @@ export function useMeetingRecording({
   const stopRecordingMutation = useMutation({
     mutationFn: async () => {
       await stopLocalChunkRecorder();
-      await http.post(`/meeting/recording/stop/${meetingId}`);
+      await http.post(`/recording/stop/${meetingId}`);
     },
     onSuccess: () => {
       setIsRecording(false);

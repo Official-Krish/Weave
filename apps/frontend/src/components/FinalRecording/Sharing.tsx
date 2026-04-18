@@ -52,7 +52,7 @@ export const Sharing = ({
 
     const removeSharingMutation = useMutation({
         mutationFn: async (email: string) => {
-            const response = await http.post<RemoveVisibleEmailRequest>(`/meeting/removeVisibleEmail/${meeting.id}`, { email });
+            const response = await http.post<RemoveVisibleEmailRequest>(`/recording/removeVisibleEmail/${meeting.id}`, { email });
             return response.data;
         },
         onSuccess: (data) => {
