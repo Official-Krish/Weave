@@ -1,5 +1,7 @@
 
 import { motion, AnimatePresence } from "motion/react";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { NotificationCard } from "@/components/Notification/NotificationCard";
@@ -35,7 +37,12 @@ export default function NotificationsPage() {
     return true;
   });
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const grouped = groupByDate(filtered);
+  // Pagination logic
+  const [page, setPage] = useState(1);
+  const pageSize = 4;
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const grouped = groupByDate(paginated);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#090909] px-4 pb-16 pt-10 transition-colors duration-300">
@@ -193,6 +200,41 @@ export default function NotificationsPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="pt-6 flex justify-center">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        aria-disabled={page === 1}
+                        tabIndex={page === 1 ? -1 : 0}
+                        className="cursor-pointer"
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <PaginationItem key={i}>
+                        <PaginationLink
+                          isActive={page === i + 1}
+                          onClick={() => setPage(i + 1)}
+                        >
+                          {i + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        aria-disabled={page === totalPages}
+                        tabIndex={page === totalPages ? -1 : 0}
+                        className="cursor-pointer"
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </div>
         )}
         </div>

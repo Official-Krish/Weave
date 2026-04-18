@@ -7,6 +7,8 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import type { MeetingDetails } from "@repo/types/api";
 
 type MeetingsProps = {
@@ -65,6 +67,18 @@ export function Meetings({
   const liveMeetings = meetings.filter((meeting) => !meeting.isEnded);
   const endedMeetings = meetings.filter((meeting) => meeting.isEnded);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 4;
+  // Flatten all meetings for pagination
+  const allMeetings = [...liveMeetings, ...endedMeetings];
+  const totalPages = Math.ceil(allMeetings.length / pageSize);
+  // Paginate the flattened list
+  const paginatedMeetings = allMeetings.slice((page - 1) * pageSize, page * pageSize);
+  // Re-group paginated meetings
+  const paginatedLive = paginatedMeetings.filter((meeting) => !meeting.isEnded);
+  const paginatedEnded = paginatedMeetings.filter((meeting) => meeting.isEnded);
+
   return (
     <section className="rounded-2xl border border-[#f5a623]/10 bg-white/[0.022] p-5">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -117,8 +131,8 @@ export function Meetings({
       ) : (
         <div className="space-y-6">
           {[
-            { title: "Live now", items: liveMeetings },
-            { title: "Ended sessions", items: endedMeetings },
+            { title: "Live now", items: paginatedLive },
+            { title: "Ended sessions", items: paginatedEnded },
           ]
             .filter((group) => group.items.length > 0)
             .map((group) => (
@@ -218,6 +232,41 @@ export function Meetings({
                 </div>
               </div>
             ))}
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pt-6 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      aria-disabled={page === 1}
+                      tabIndex={page === 1 ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink
+                        isActive={page === i + 1}
+                        onClick={() => setPage(i + 1)}
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      aria-disabled={page === totalPages}
+                      tabIndex={page === totalPages ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       )}
     </section>

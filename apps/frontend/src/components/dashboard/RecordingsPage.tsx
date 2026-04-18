@@ -8,6 +8,8 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import type { MeetingDetails } from "@repo/types/api";
 import { getHttpErrorMessage } from "@/lib/httpError";
 
@@ -26,14 +28,23 @@ export function RecordingsPage({
   error,
   onOpenRecording,
 }: RecordingsPageProps) {
-  const readyRecordings = meetings.filter((meeting) => meeting.recordingState === "READY");
-  const processingRecordings = meetings.filter(
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 4;
+  // Paginate meetings
+  const paginatedMeetings = meetings.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(meetings.length / pageSize);
+
+  // Filter paginated meetings into groups
+  const readyRecordings = paginatedMeetings.filter((meeting) => meeting.recordingState === "READY");
+  const processingRecordings = paginatedMeetings.filter(
     (meeting) =>
       meeting.recordingState === "PROCESSING" ||
       meeting.recordingState === "UPLOADING" ||
       meeting.recordingState === "RECORDING"
   );
-  const failedRecordings = meetings.filter((meeting) => meeting.recordingState === "FAILED");
+  const failedRecordings = paginatedMeetings.filter((meeting) => meeting.recordingState === "FAILED");
 
   return (
     <section className="rounded-2xl border border-[#f5a623]/10 bg-white/[0.022] p-5">
@@ -166,6 +177,39 @@ export function RecordingsPage({
                 </div>
               </div>
             ))}
+        </div>
+      )}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="pt-6 flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-disabled={page === 1}
+                  tabIndex={page === 1 ? -1 : 0}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={page === i + 1}
+                    onClick={() => setPage(i + 1)}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-disabled={page === totalPages}
+                  tabIndex={page === totalPages ? -1 : 0}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       )}
     </section>
