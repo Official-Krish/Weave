@@ -12,7 +12,19 @@ type UseMeetingRecordingArgs = {
   connectionState: ConnectionState;
   isRecording: boolean;
   setIsRecording: (value: boolean) => void;
+  selectedMicId?: string;
 };
+
+function buildRecordingAudioConstraints(selectedMicId?: string): MediaTrackConstraints {
+  return {
+    deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000,
+  };
+}
 
 export function useMeetingRecording({
   meetingId,
@@ -21,6 +33,7 @@ export function useMeetingRecording({
   connectionState,
   isRecording,
   setIsRecording,
+  selectedMicId,
 }: UseMeetingRecordingArgs) {
   const CHUNK_DURATION_MS = 5000;
 
@@ -29,6 +42,8 @@ export function useMeetingRecording({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
+  const processedStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const recorderStartingRef = useRef(false);
   const sequenceRef = useRef(0);
   const uploadChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -116,6 +131,20 @@ export function useMeetingRecording({
       });
       recordingStreamRef.current = null;
     }
+
+    if (processedStreamRef.current) {
+      processedStreamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // best effort
+        }
+      });
+      processedStreamRef.current = null;
+    }
+
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
   }, []);
 
   const startLocalChunkRecorder = useCallback(async () => {
@@ -136,18 +165,62 @@ export function useMeetingRecording({
           height: { ideal: 720 },
           frameRate: { ideal: 30 },
         },
-        audio: true,
+        audio: buildRecordingAudioConstraints(selectedMicId),
       });
 
       recordingStreamRef.current = stream;
 
+      let recorderStream = stream;
+
+      if (typeof AudioContext !== "undefined") {
+        const audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
+        if (audioContext.state === "suspended") {
+          try {
+            await audioContext.resume();
+          } catch {
+            // best effort
+          }
+        }
+
+        if (audioContext.state === "running") {
+          const source = audioContext.createMediaStreamSource(stream);
+          const highPassFilter = audioContext.createBiquadFilter();
+          highPassFilter.type = "highpass";
+          highPassFilter.frequency.value = 90;
+
+          const compressor = audioContext.createDynamicsCompressor();
+          compressor.threshold.value = -24;
+          compressor.knee.value = 18;
+          compressor.ratio.value = 3;
+          compressor.attack.value = 0.003;
+          compressor.release.value = 0.2;
+
+          const gainNode = audioContext.createGain();
+          gainNode.gain.value = 1.8;
+
+          const destination = audioContext.createMediaStreamDestination();
+
+          source.connect(highPassFilter);
+          highPassFilter.connect(compressor);
+          compressor.connect(gainNode);
+          gainNode.connect(destination);
+
+          const mergedStream = new MediaStream();
+          stream.getVideoTracks().forEach((track) => mergedStream.addTrack(track));
+          destination.stream.getAudioTracks().forEach((track) => mergedStream.addTrack(track));
+          processedStreamRef.current = mergedStream;
+          recorderStream = mergedStream;
+        }
+      }
+
       let recorder: MediaRecorder;
       try {
-        recorder = new MediaRecorder(stream, {
+        recorder = new MediaRecorder(recorderStream, {
           mimeType: getSupportedMimeType(),
         });
       } catch {
-        recorder = new MediaRecorder(stream);
+        recorder = new MediaRecorder(recorderStream);
       }
 
       recorder.ondataavailable = (event) => {
@@ -172,7 +245,7 @@ export function useMeetingRecording({
     } finally {
       recorderStartingRef.current = false;
     }
-  }, [enqueueChunkUpload, getSupportedMimeType]);
+  }, [enqueueChunkUpload, getSupportedMimeType, selectedMicId]);
 
   const stopLocalChunkRecorder = useCallback(async () => {
     cleanupRecorder();

@@ -1,6 +1,7 @@
 import {
   addSocketToRoom,
   getParticipantList,
+  hostDisconnectTimers,
   removeSocketFromMaps,
   roomParticipants,
   roomRecordingStates,
@@ -9,6 +10,8 @@ import {
 } from "./state";
 import { broadcastToRoom, normalizeText, sendJson } from "./socket-utils";
 import type { RelayerSocket, SocketMetadata, WsPayload } from "./types";
+
+const HOST_DISCONNECT_GRACE_MS = 12000;
 
 async function finalizeMeetingAfterHostDisconnect(roomId: string) {
   const backendBaseUrl =
@@ -52,21 +55,23 @@ function broadcastParticipantList(roomId: string) {
   });
 }
 
-function handleSocketLeave(ws: RelayerSocket) {
-  const metadata = removeSocketFromMaps(ws);
-  if (!metadata) {
+function clearPendingHostDisconnect(roomId: string) {
+  const existingTimer = hostDisconnectTimers.get(roomId);
+  if (!existingTimer) {
     return;
   }
 
-  broadcastToRoom(metadata.roomId, {
-    type: "participant-left",
-    roomId: metadata.roomId,
-    participantId: metadata.participantId,
-    displayName: metadata.displayName,
-  });
+  clearTimeout(existingTimer);
+  hostDisconnectTimers.delete(roomId);
+}
 
-  if (metadata.isHost) {
+function scheduleHostDisconnectFinalization(metadata: SocketMetadata) {
+  clearPendingHostDisconnect(metadata.roomId);
+
+  const timer = setTimeout(() => {
+    hostDisconnectTimers.delete(metadata.roomId);
     roomRecordingStates.set(metadata.roomId, false);
+
     broadcastToRoom(metadata.roomId, {
       type: "recording-state",
       roomId: metadata.roomId,
@@ -83,6 +88,26 @@ function handleSocketLeave(ws: RelayerSocket) {
       timestamp: Date.now(),
     });
     void finalizeMeetingAfterHostDisconnect(metadata.roomId);
+  }, HOST_DISCONNECT_GRACE_MS);
+
+  hostDisconnectTimers.set(metadata.roomId, timer);
+}
+
+function handleSocketLeave(ws: RelayerSocket) {
+  const metadata = removeSocketFromMaps(ws);
+  if (!metadata) {
+    return;
+  }
+
+  broadcastToRoom(metadata.roomId, {
+    type: "participant-left",
+    roomId: metadata.roomId,
+    participantId: metadata.participantId,
+    displayName: metadata.displayName,
+  });
+
+  if (metadata.isHost) {
+    scheduleHostDisconnectFinalization(metadata);
   }
 
   broadcastParticipantList(metadata.roomId);
@@ -95,6 +120,10 @@ function handleJoinRoom(ws: RelayerSocket, data: WsPayload, roomId: string) {
   const participantId =
     (typeof data.participantId === "string" && data.participantId.trim()) || crypto.randomUUID();
   const isHost = Boolean(data.isHost);
+
+  if (isHost) {
+    clearPendingHostDisconnect(roomId);
+  }
 
   addSocketToRoom(roomId, ws);
   upsertParticipant(roomId, {

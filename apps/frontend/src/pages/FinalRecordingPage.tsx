@@ -26,7 +26,6 @@ export function FinalRecordingPage() {
   const { isAuthenticated } = useAuth();
   const [persistedVisibleEmails, setPersistedVisibleEmails] = useState<string[]>([]);
   const [draftNewEmails, setDraftNewEmails] = useState<string[]>([]);
-  const [permissionAlertShown, setPermissionAlertShown] = useState(false);
   const [emailInput, setEmailInput] = useState("");
 
   const meetingQuery = useQuery({
@@ -133,18 +132,11 @@ export function FinalRecordingPage() {
   const handleAskPermission = () => {
     const hostEmail = meeting?.hostEmail;
     if (!hostEmail) {
-      window.alert("You do not have access to this recording yet. Please ask the host for permission.");
+      toast("You do not have access to this recording yet. Please ask the host for permission.");
       return;
     }
-    window.alert(`You do not have access yet. Please ask ${hostEmail} to add your email in sharing settings.`);
+    toast(`You do not have access yet. Please ask ${hostEmail} to add your email in sharing settings.`);
   };
-
-  useEffect(() => {
-    if (!meeting || permissionAlertShown) return;
-    if (meeting.recordingState !== "READY" || meeting.canViewRecording || meeting.isHost) return;
-    handleAskPermission();
-    setPermissionAlertShown(true);
-  }, [meeting, permissionAlertShown]);
 
   return (
     <>

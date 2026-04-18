@@ -9,7 +9,7 @@ export type NotificationType =
   | "OTHER";
 
 export interface NotificationMetadata {
-  roomId?: string;
+  meetingId?: string;
   roomName?: string;
   invitedBy?: string;
   invitedUserId?: string;

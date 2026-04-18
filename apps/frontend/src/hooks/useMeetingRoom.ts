@@ -22,9 +22,13 @@ type ParticipantState = {
 export function useMeetingRoom({
   meetingId,
   displayName,
+  selectedCameraId,
+  selectedMicId,
 }: {
   meetingId: string;
   displayName: string;
+  selectedCameraId?: string;
+  selectedMicId?: string;
 }) {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -344,16 +348,21 @@ export function useMeetingRoom({
         if (!window.JitsiMeetJS) {
           await new Promise<void>((resolve, reject) => {
             const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
-            if (existing) {
-              existing.addEventListener("load", () => resolve(), { once: true });
-              existing.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
+            if (existing && window.JitsiMeetJS) {
+              resolve();
               return;
+            }
+
+            if (existing) {
+              existing.remove();
             }
 
             const script = document.createElement("script");
             script.id = scriptId;
             script.async = true;
-            script.src = `${JITSI_BASE_URL}/libs/lib-jitsi-meet.min.js`;
+            // Load Jitsi through the local dev proxy to avoid browser TLS issues
+            // with self-signed local Jitsi certificates.
+            script.src = "/jitsi/libs/lib-jitsi-meet.min.js";
             script.addEventListener("load", () => resolve(), { once: true });
             script.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
             document.body.appendChild(script);
@@ -455,7 +464,11 @@ export function useMeetingRoom({
               setConnectionState("idle");
             });
 
-            const localTracks = await JitsiMeetJS.createLocalTracks({ devices: ["audio", "video"] });
+            const localTracks = await JitsiMeetJS.createLocalTracks({
+              devices: ["audio", "video"],
+              cameraDeviceId: selectedCameraId || undefined,
+              micDeviceId: selectedMicId || undefined,
+            });
 
             localTracks.forEach((track: JitsiTrack) => {
               conference.addTrack(track);
@@ -513,6 +526,8 @@ export function useMeetingRoom({
     fetchJitsiConnectionConfig,
     syncLocalTrackFlags,
     removeRemoteTrackById,
+    selectedCameraId,
+    selectedMicId,
     updateParticipantName,
   ]);
 

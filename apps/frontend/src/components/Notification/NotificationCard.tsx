@@ -37,16 +37,7 @@ export function NotificationCard({
         }
         hover:-translate-y-0.5 hover:border-white/14
       `}
-      onClick={() => !notification.isRead && onMarkRead(notification.id)}
     >
-      {/* Unread dot */}
-      {!notification.isRead && (
-        <motion.div
-          layoutId={`dot-${notification.id}`}
-          className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_6px_rgba(245,166,35,0.08)]"
-        />
-      )}
-
       {/* Icon */}
       <div
         className={`
@@ -59,8 +50,8 @@ export function NotificationCard({
 
       {/* Content */}
       <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
+        <div className="flex items-start gap-2">
+          <div className="flex-1">
             <span
               className={`
                 text-[11px] font-semibold uppercase tracking-[0.24em]
@@ -80,24 +71,93 @@ export function NotificationCard({
             >
               {notification.message}
             </p>
-          </div>
-          <span className="mt-0.5 flex-shrink-0 text-[11px] text-zinc-500">
-            {timeAgo(notification.createdAt)}
-          </span>
-        </div>
-
-        {/* Room metadata pill */}
-        {notification.metadata?.roomId && (
-          <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-zinc-400">
-              <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="currentColor">
-                <circle cx="6" cy="6" r="2" />
-                <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-              {notification.metadata.roomId}
+            {/* Room metadata pill */}
+            {notification.metadata?.meetingId && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="inline-flex items-center gap-1 rounded-xl border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-mono text-zinc-400">
+                  <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="currentColor">
+                    <circle cx="6" cy="6" r="2" />
+                    <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  {notification.metadata.meetingId}
+                </span>
+              </div>
+            )}
+            {/* Scheduled time for reminders */}
+            {notification.type === "MEETING_REMINDER" && notification.metadata?.scheduledAt && (
+              <p className="text-xs text-zinc-500 mt-2">
+                Scheduled: {new Date(notification.metadata.scheduledAt).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
+            {/* Failed reason */}
+            {notification.type === "RECORDING_FAILED" && notification.metadata?.reason && (
+              <p className="font-mono text-xs text-red-300 mt-2">
+                ↳ {notification.metadata.reason}
+              </p>
+            )}
+            {/* Action buttons */}
+            {isActionable && !notification.isRead && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="flex items-center gap-2 pt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {notification.type === "RECORDING_REQUEST" && (
+                  <>
+                    <button
+                      onClick={() =>
+                        onAcceptRecording(
+                          notification.metadata!.meetingId!,
+                          notification.metadata!.requestedBy!,
+                          notification.id
+                        )
+                      }
+                      className="
+                        inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
+                        shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
+                      "
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                        <path d="M2 4a2 2 0 012-2h5l4 4v6a2 2 0 01-2 2H4a2 2 0 01-2-2V4zm9.5 3.5l-4-4H4a.5.5 0 00-.5.5v8a.5.5 0 00.5.5h6a.5.5 0 00.5-.5V7.5z" />
+                        <path d="M5.5 9.5l1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Grant Access
+                    </button>
+                    <button
+                      onClick={() => onDeclineRecording(notification.id)}
+                      className="
+                        inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
+                        text-zinc-200 cursor-pointer
+                        transition-all duration-150 active:scale-95
+                      "
+                    >
+                      Decline
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            )}
+            {/* Mark as read button */}
+            {!notification.isRead && (
+              <button
+                onClick={() => onMarkRead(notification.id)}
+                className="mt-2 rounded-lg cursor-pointer border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-400/20 transition-all"
+              >
+                Mark as read
+              </button>
+            )}
+            {/* Time ago */}
+            <span className="mt-2 flex-shrink-0 text-[11px] text-zinc-500 block">
+              {timeAgo(notification.createdAt)}
             </span>
           </div>
-        )}
+        </div>
 
         {/* Scheduled time for reminders */}
         {notification.type === "MEETING_REMINDER" && notification.metadata?.scheduledAt && (
@@ -132,13 +192,13 @@ export function NotificationCard({
                 <button
                   onClick={() =>
                     onAcceptRecording(
-                      notification.metadata!.roomId!,
+                      notification.metadata!.meetingId!,
                       notification.metadata!.requestedBy!,
                       notification.id
                     )
                   }
                   className="
-                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black
+                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
                     shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
                   "
                 >
@@ -152,7 +212,7 @@ export function NotificationCard({
                   onClick={() => onDeclineRecording(notification.id)}
                   className="
                     inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
-                    text-zinc-200
+                    text-zinc-200 cursor-pointer
                     transition-all duration-150 active:scale-95
                   "
                 >
@@ -165,10 +225,10 @@ export function NotificationCard({
               <>
                 <button
                   onClick={() =>
-                    onAcceptInvite(notification.metadata!.roomId!, notification.id)
+                    onAcceptInvite(notification.metadata!.meetingId!, notification.id)
                   }
                   className="
-                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white
+                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white cursor-pointer
                     transition-all duration-150 active:scale-95
                     shadow-[0_12px_24px_rgba(43,127,255,0.18)]
                   "
@@ -182,7 +242,7 @@ export function NotificationCard({
                   onClick={() => onDeclineRecording(notification.id)}
                   className="
                     inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
-                    text-zinc-200
+                    text-zinc-200 cursor-pointer
                     transition-all duration-150 active:scale-95
                   "
                 >
@@ -194,25 +254,19 @@ export function NotificationCard({
         )}
       </div>
 
-      {/* Delete on hover */}
-      <motion.button
-        initial={{ opacity: 0 }}
-        whileHover={{ opacity: 1 }}
-        className="
-          absolute right-8 top-3 flex h-7 w-7 items-center justify-center rounded-lg
-          opacity-0 text-zinc-500 transition-all duration-150 group-hover:opacity-100
-          hover:bg-red-500/10 hover:text-red-300
-          transition-all duration-150
-        "
+      {/* Delete always visible */}
+      <button
+        className="absolute right-8 cursor-pointer top-3 flex h-7 w-7 items-center border border-neutral-800 justify-center rounded-lg text-zinc-500 transition-all duration-150 hover:bg-red-500/10 hover:text-red-300"
         onClick={(e) => {
           e.stopPropagation();
           onDelete(notification.id);
         }}
+        aria-label="Delete notification"
       >
-        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
           <path d="M6 2h4a1 1 0 011 1v1H5V3a1 1 0 011-1zM3 5h10l-.8 8H3.8L3 5zm3 2v5h1V7H6zm3 0v5h1V7H9z" />
         </svg>
-      </motion.button>
+      </button>
     </motion.div>
   );
 }

@@ -134,7 +134,7 @@ export function useMeetingRealtime({
         type: "join-room",
         roomId,
         displayName,
-        participantId: participantId ?? undefined,
+        participantId: selfParticipantIdRef.current ?? undefined,
         isHost,
       });
       safeSend({ type: "get-recording-state", roomId });
@@ -240,7 +240,6 @@ export function useMeetingRealtime({
     displayName,
     enabled,
     isHost,
-    participantId,
     roomId,
     safeSend,
   ]);

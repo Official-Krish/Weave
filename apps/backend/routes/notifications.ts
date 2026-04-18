@@ -43,7 +43,7 @@ NotificationRouter.post("/mark-as-read", authMiddleware, async (req, res) => {
                 id: { in: notificationIds },
                 userId,
             },
-            data: { read: true },
+            data: { isRead: true },
         });
         return res.json({ message: 'Notifications marked as read successfully' });
     } catch (error) {

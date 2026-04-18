@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, serviceAuthMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
-import { redisClient } from "../utils/redis";
+import { redisPublisher } from "../utils/redis";
 import { toSingleString, normalizeEmails, canViewFinalRecording, getUserMeetingSession, getMeetingSessions, generateString, normalizeFinalRecordingLink } from "../utils/helpers";
 import { CreateMeetingSchema, putRecordingVisibilitySchema, removeRecordingVisibilitySchema } from "@repo/types";
 
@@ -53,7 +53,7 @@ async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
         });
 
         if (shouldProcessRecording) {
-            await redisClient.rpush("ProcessVideo", JSON.stringify({
+            await redisPublisher.rpush("ProcessVideo", JSON.stringify({
                 meetingId: roomId,
             }));
         }
@@ -225,8 +225,8 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
             }
         });
         if(normalizedParticipants.length > 0){
-            normalizedParticipants.forEach((email) => {
-                redisClient.lpush("MeetingInvitations", JSON.stringify({
+            normalizedParticipants.forEach(async (email) => {
+                await redisPublisher.lpush("MeetingInvitations", JSON.stringify({
                     email,
                     meetingId: newMeeting.roomId,
                     meetingName: newMeeting.roomName,

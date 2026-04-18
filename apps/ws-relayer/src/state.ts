@@ -4,6 +4,7 @@ export const roomRecordingStates = new Map<string, boolean>();
 export const roomSockets = new Map<string, Set<RelayerSocket>>();
 export const socketMetadata = new Map<RelayerSocket, SocketMetadata>();
 export const roomParticipants = new Map<string, Map<string, RoomParticipant>>();
+export const hostDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function getParticipantList(roomId: string) {
   const participants = roomParticipants.get(roomId);

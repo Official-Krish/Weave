@@ -29,6 +29,8 @@ export function LiveMeetingPage() {
   const isHost = searchParams.get("role") === "host";
   const roomName = useMemo(() => meetingId.trim(), [meetingId]);
   const initialRecordingState = searchParams.get("recordingState") === "true";
+  const selectedMicId = searchParams.get("micId") || "";
+  const selectedCameraId = searchParams.get("cameraId") || "";
 
   useEffect(() => {
     endingRef.current = ending;
@@ -70,6 +72,8 @@ export function LiveMeetingPage() {
   } = useMeetingRoom({
     meetingId: roomName,
     displayName,
+    selectedCameraId,
+    selectedMicId,
   });
 
   const allTiles = useMemo<MeetingTile[]>(() => {
@@ -224,6 +228,7 @@ export function LiveMeetingPage() {
     connectionState,
     isRecording,
     setIsRecording,
+    selectedMicId,
   });
 
   const {

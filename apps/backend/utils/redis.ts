@@ -1,7 +1,12 @@
 import { prisma } from "@repo/db/client";
 import { Redis } from "ioredis";
 
-export const redisClient = new Redis({
+export const redisSubscriber = new Redis({
+  host: process.env.REDIS_HOST,
+  port: 6379,
+});
+
+export const redisPublisher = new Redis({
   host: process.env.REDIS_HOST,
   port: 6379,
 });
@@ -9,7 +14,7 @@ export const redisClient = new Redis({
 export async function sendInvitationEmail() {
   while (true) {
     try {
-      const reciever = await redisClient.brpop("MeetingInvitations", 0);
+      const reciever = await redisSubscriber.brpop("MeetingInvitations", 0);
       if (!reciever) continue;
 
       const { email, meetingId, meetingName, inviterName } = JSON.parse(reciever[1]);
