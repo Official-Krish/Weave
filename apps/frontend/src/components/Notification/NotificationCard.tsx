@@ -22,7 +22,7 @@ export function NotificationCard({
   const config = TYPE_CONFIG[notification.type];
   const navigate = useNavigate();
   const isActionable =
-    notification.type === "RECORDING_REQUEST" || notification.type === "MEETING_INVITE" || notification.type === "RECORDING_READY";
+    notification.type === "RECORDING_REQUEST" || notification.type === "MEETING_INVITE" || notification.type === "RECORDING_READY" || notification.type === "RECORDING_REQUEST_APPROVED";
 
   return (
     <motion.div
@@ -155,12 +155,13 @@ export function NotificationCard({
                 className="flex items-center gap-2 pt-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                {notification.type === "RECORDING_READY" && (
+                {(notification.type === "RECORDING_READY" || notification.type === "RECORDING_REQUEST_APPROVED") && (
                   <>
                     <button
-                      onClick={() =>
-                        navigate(`/recordings/${notification?.metadata?.recordingId}`)
-                      }
+                      onClick={() => {
+                        onMarkRead(notification.id);
+                        navigate(`/recordings/${notification?.metadata?.recordingId}`);
+                      }}
                       className="
                         inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
                         shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
@@ -201,9 +202,10 @@ export function NotificationCard({
             {notification.type === "MEETING_INVITE" && (
               <>
                 <button
-                  onClick={() =>
-                    onAcceptInvite(notification.metadata!.roomId!, notification.id)
-                  }
+                  onClick={() => {
+                    onAcceptInvite(notification.metadata!.roomId!, notification.id);
+                    onMarkRead(notification.id);
+                  }}
                   className="
                     inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white cursor-pointer
                     transition-all duration-150 active:scale-95

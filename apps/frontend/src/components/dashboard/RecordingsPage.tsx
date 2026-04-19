@@ -32,17 +32,9 @@ export function RecordingsPage({
   const queryClient = useQueryClient();
   const pageSize = 4;
   // Paginate meetings
-  const recordings = meetings.filter((meeting) => meeting.finalRecording);
-  const paginatedMeetings = recordings.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(recordings.length / pageSize);
-
-  // Filter paginated meetings into groups
-  const readyRecordings = paginatedMeetings.filter((meeting) => {
-    if(!meeting.finalRecording){
-      return false;
-    }
-    return meeting.recordingState === "READY"
-  });
+  const readyRecordings = meetings.filter((meeting) => meeting.recordingState === "READY");
+  const paginatedMeetings = readyRecordings.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(readyRecordings.length / pageSize);
 
   const processingRecordings = paginatedMeetings.filter(
     (meeting) =>

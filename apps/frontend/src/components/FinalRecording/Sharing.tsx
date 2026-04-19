@@ -56,8 +56,8 @@ export const Sharing = ({
             return response.data;
         },
         onSuccess: () => {
+            persistedVisibleEmails = persistedVisibleEmails.filter((e) => e !== emailInput);
             toast.success("Email visibility removed successfully");
-            window.location.reload();
         },
         onError: (error) => {
             toast.error(getHttpErrorMessage(error) || "Failed to remove email visibility");

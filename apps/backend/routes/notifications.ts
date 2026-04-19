@@ -219,7 +219,15 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
 
             const requestedUser = await prisma.user.findFirst({
                 where: { id: requestedBy },
-                select: { email: true },
+                select: {
+                    email: true,
+                    meetings: {
+                        where: { roomId },
+                        select: {
+                            id: true,
+                        },
+                    }
+                },
             });
 
             if (!requestedUser || !requestedUser.email) {
@@ -254,7 +262,10 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
             notificationData = {
                 userId: requestedBy,
                 message: `Your request for recording access to room ${roomId} has been approved`,
-                metadata: { roomId },
+                metadata: { 
+                    roomId,
+                    recordingId: requestedUser.meetings[0].id
+                },
             };
             break;
         }

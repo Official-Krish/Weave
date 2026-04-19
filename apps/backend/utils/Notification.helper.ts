@@ -40,7 +40,7 @@ export async function handleReadyStatus(meetingId: string, finalPath: string) {
     const publicFinalPath = toPublicRecordingLink(finalPath);
 
     await prisma.$transaction(async (tx) => {
-        const finalRecording = await tx.finalRecording.upsert({
+         await tx.finalRecording.upsert({
             where: { meetingId: meeting.id },
             create: {
                 meetingId: meeting.id,
@@ -67,7 +67,7 @@ export async function handleReadyStatus(meetingId: string, finalPath: string) {
                 message: `Recording for meeting "${meeting.roomName}" is ready.`,
                 metadata: {
                     roomId: meeting.roomId,
-                    recordingId: finalRecording.id, 
+                    recordingId: meeting.id, 
                 },
                 createdAt: new Date(),
             },

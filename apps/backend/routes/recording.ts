@@ -394,7 +394,6 @@ RecordingRouter.post("/removeVisibleEmail/:id", authMiddleware, async (req, res)
                 finalRecording: true,
             }
         });
-        console.log("Host session for removing visible email:", hostSession);
 
         if (!hostSession) {
             res.status(403).json({ message: "Only host can manage recording visibility" });

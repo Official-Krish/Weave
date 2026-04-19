@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import { useNavigate } from "react-router-dom";
 import type { MeetingDetails } from "@repo/types/api";
+import { findDuration } from "@/lib/utils";
 
 const UPCOMING_MOCK = [
   { day: "14", mon: "Apr", dow: "Mon", name: "Investor Q&A session", time: "10:00 AM", invitees: 6 },
@@ -212,7 +213,9 @@ function MeetingRow({ meeting, index, onClick }: { meeting: MeetingDetails; inde
   const gradient = INITIAL_COLORS[index % INITIAL_COLORS.length];
   const textCol = TEXT_COLORS[index % TEXT_COLORS.length];
   const isLive = !meeting.isEnded;
-  const isReady = meeting.recordingState === "READY";
+  const startedAt = meeting?.startTime ? new Date(meeting.startTime) : null;
+  const endedAt = meeting?.endTime ? new Date(meeting.endTime) : null;
+  const durationLabel = findDuration(startedAt ?? new Date(), endedAt ?? new Date());
 
   return (
     <motion.button
@@ -232,17 +235,15 @@ function MeetingRow({ meeting, index, onClick }: { meeting: MeetingDetails; inde
         <div className="mt-1 flex flex-wrap items-center gap-2.5 text-[11px] text-[#b49650]/60">
           <span className="flex items-center gap-1"><CalendarDays className="size-2.5" />{new Date(meeting.date).toLocaleDateString()}</span>
           <span className="flex items-center gap-1"><Users className="size-2.5" />{meeting.joinedParticipants.length}</span>
-          <span className="flex items-center gap-1"><Clock3 className="size-2.5" />{meeting.recordingState || "Processing"}</span>
+          <span className="flex items-center gap-1"><Clock3 className="size-2.5" />{durationLabel}</span>
         </div>
       </div>
       {isLive ? (
         <span className="flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/12 px-2.5 py-0.5 text-[10px] font-bold text-red-400/90">
           <span className="inline-block size-1.5 animate-pulse rounded-full bg-red-400" /> Live
         </span>
-      ) : isReady ? (
-        <span className="rounded-full border border-green-500/20 bg-green-500/12 px-2.5 py-0.5 text-[10px] font-bold text-green-400/85">Ready</span>
       ) : (
-        <span className="rounded-full border border-[#f5a623]/20 bg-[#f5a623]/10 px-2.5 py-0.5 text-[10px] font-bold text-[#f5a623]/80">Processing</span>
+        <span className="rounded-full border border-green-500/20 bg-green-500/12 px-2.5 py-0.5 text-[10px] font-bold text-green-400/85">Ended</span>
       )}
     </motion.button>
   );

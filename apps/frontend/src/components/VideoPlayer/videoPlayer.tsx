@@ -70,6 +70,8 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => setLevels(hls.levels));
       hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => setCurrentLevel(d.level));
+      hls.on(Hls.Events.FRAG_LOADING, () => setIsBuffering(true));
+      hls.on(Hls.Events.FRAG_BUFFERED, () => setIsBuffering(false));
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
@@ -322,15 +324,30 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
       ? `${levels[currentLevel].height}p`
       : "Auto";
 
+    let clickTimeout: ReturnType<typeof setTimeout> | undefined = undefined;
+
+    const handleClick = () => {
+      clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => {
+        togglePlay();
+      }, 200);
+    };
+
+    const handleDoubleClick = () => {
+      clearTimeout(clickTimeout);
+      toggleFullscreen();
+    };
+
   return (
     <div
       ref={containerRef}
       tabIndex={0}
-      onClick={() => containerRef.current?.focus()}
       className={`relative select-none outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-black ${className}`}
       style={{ background: "#000", borderRadius: isFullscreen ? 0 : 12, overflow: "hidden" }}
       onMouseMove={resetHideTimer}
       onMouseEnter={resetHideTimer}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onMouseLeave={() => {
         setShowVolume(false);
         setShowQuality(false);
@@ -346,10 +363,10 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
         onPause={onPause}
         onEnded={onEnded}
         onLoadedMetadata={onLoadedMetadata}
-        onClick={togglePlay}
-        onDoubleClick={toggleFullscreen}
         onWaiting={() => setIsBuffering(true)}
-        onLoadStart={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => setIsBuffering(false)}
+        onCanPlayThrough={() => setIsBuffering(false)}
       />
 
       {isBuffering && (
