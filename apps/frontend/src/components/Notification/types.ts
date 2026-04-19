@@ -16,6 +16,7 @@ export interface NotificationMetadata {
   scheduledAt?: string;
   requestedBy?: string;
   reason?: string;
+  recordingId?: string;
 }
 
 export interface Notification {

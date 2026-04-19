@@ -349,7 +349,6 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
         onClick={togglePlay}
         onDoubleClick={toggleFullscreen}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
         onLoadStart={() => setIsBuffering(true)}
       />
 

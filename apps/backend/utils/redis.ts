@@ -17,7 +17,7 @@ export async function sendInvitationEmail() {
       const reciever = await redisSubscriber.brpop("MeetingInvitations", 0);
       if (!reciever) continue;
 
-      const { email, meetingId, meetingName, inviterName } = JSON.parse(reciever[1]);
+      const { email, roomId, meetingName, inviterName } = JSON.parse(reciever[1]);
 
       const user = await prisma.user.findFirst({
         where: { email: email.toLowerCase() },
@@ -31,7 +31,9 @@ export async function sendInvitationEmail() {
           userId: user.id,
           type: "MEETING_INVITE",
           message: `You have been invited to join the meeting "${meetingName}" by ${inviterName}.`,
-          metadata: { meetingId },
+          metadata: {
+            roomId: roomId,
+          },
         },
       });
 

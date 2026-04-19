@@ -473,6 +473,7 @@ export function LiveMeetingPage() {
         onClose={() => setIsChatOpen(false)}
         messages={chatMessages}
         typingNames={typingNames}
+        selfName={displayName}
         onSendMessage={sendChatMessage}
         onTyping={setTyping}
       />

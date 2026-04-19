@@ -46,7 +46,7 @@ export function MeetingStage({
         <div className="h-full w-[25%] overflow-y-auto">
           <div className="flex flex-col gap-2 pr-1.5">
             {sideTiles.map((tile) => (
-              <div key={tile.id} className="h-30 min-h-24">
+              <div key={tile.id} className="h-40 min-h-24">
                 <TrackTile
                   title={tile.title}
                   subtitle={tile.subtitle}
@@ -80,7 +80,7 @@ export function MeetingStage({
         <div className="h-full w-[25%] overflow-y-auto">
           <div className="flex flex-col gap-2 pr-1.5">
             {focusedTiles.others.map((tile) => (
-              <div key={tile.id} className="h-30 min-h-24">
+              <div key={tile.id} className="h-44 min-h-24">
                 <TrackTile
                   title={tile.title}
                   subtitle={tile.subtitle}

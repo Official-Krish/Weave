@@ -8,6 +8,7 @@ type MeetingChatSidebarProps = {
   onClose: () => void;
   messages: RealtimeChatMessage[];
   typingNames: string[];
+  selfName?: string;
   participants?: { name: string; color: string }[];
   onSendMessage: (text: string) => void;
   onTyping: (isTyping: boolean) => void;
@@ -35,9 +36,9 @@ function senderIndex(name: string) {
   return h % AVATAR_GRADIENTS.length;
 }
 
-function SenderAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "xs" }) {
+function SenderAvatar({ name, size = "lg" }: { name: string; size?: "sm" | "lg" }) {
   const i = senderIndex(name);
-  const dim = size === "xs" ? "size-5 text-[8px]" : "size-6 text-[9px]";
+  const dim = size === "sm" ? "size-6 text-[10px]" : "size-8 text-[12px]";
   return (
     <span className={`inline-flex ${dim} shrink-0 items-center justify-center rounded-full bg-linear-to-br ${AVATAR_GRADIENTS[i]} ${AVATAR_TEXT[i]} font-extrabold`}>
       {name.charAt(0).toUpperCase()}
@@ -47,6 +48,7 @@ function SenderAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "xs" 
 
 export function MeetingChatSidebar({
   isOpen, onClose, messages, typingNames,
+  selfName,
   participants = [], onSendMessage, onTyping,
 }: MeetingChatSidebarProps) {
   const [draft, setDraft] = useState("");
@@ -138,7 +140,15 @@ export function MeetingChatSidebar({
 
             {messages.map((msg, i) => {
               const systemMessage = msg as RealtimeChatMessage & { isSystem?: boolean };
-              const prevSame = i > 0 && messages[i - 1].senderName === msg.senderName && !(messages[i - 1] as RealtimeChatMessage & { isSystem?: boolean }).isSystem;
+              const normalizedSelfName = (selfName || "").trim().toLowerCase();
+              const isOwnMessage =
+                msg.isOwn ||
+                (normalizedSelfName.length > 0 &&
+                  msg.senderName.trim().toLowerCase() === normalizedSelfName);
+              const prevSame =
+                i > 0 &&
+                messages[i - 1].senderName === msg.senderName &&
+                !(messages[i - 1] as RealtimeChatMessage & { isSystem?: boolean }).isSystem;
               const isSystem = Boolean(systemMessage.isSystem);
 
               if (isSystem) {
@@ -150,26 +160,36 @@ export function MeetingChatSidebar({
               }
 
               return (
-                <div key={msg.id} className={["flex flex-col gap-0.5", msg.isOwn ? "items-end" : "items-start"].join(" ")}>
-                  {!msg.isOwn && !prevSame && (
-                    <div className="mb-0.5 flex items-center gap-1.5">
-                      <SenderAvatar name={msg.senderName} size="xs" />
-                      <span className="text-[10px] font-bold tracking-wide text-[#c8a870]/65">{msg.senderName}</span>
-                      <span className="text-[9px] text-[#b49650]/35">{formatTimestamp(msg.timestamp)}</span>
-                    </div>
+                <div
+                  key={msg.id}
+                  className={["flex w-full flex-col gap-0.5", isOwnMessage ? "items-end" : "items-start"].join(" ")}
+                >
+                  {isOwnMessage ? (
+                    !prevSame && (
+                      <div className="mb-0.5 flex w-full justify-end gap-1.5 pr-1">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#f5c050]/55">You</span>
+                        <span className="text-[11px] text-[#b49650]/35">{formatTimestamp(msg.timestamp)}</span>
+                      </div>
+                    )
+                  ) : (
+                    !prevSame && (
+                      <div className="mb-0.5 flex items-center gap-1.5">
+                        <SenderAvatar name={msg.senderName} size="lg" />
+                        <span className="text-[12px] font-bold tracking-wide text-[#c8a870]/65">{msg.senderName}</span>
+                        <span className="text-[11px] text-neutral-600">{formatTimestamp(msg.timestamp)}</span>
+                      </div>
+                    )
                   )}
+
                   <div
                     className={[
-                      "max-w-[88%] rounded-2xl px-3 py-2",
-                      msg.isOwn
-                        ? "rounded-br-lg border border-[#f5a623]/14 bg-[#3c2810]/90"
-                        : "rounded-bl-lg border border-white/7 bg-white/4",
+                      "max-w-[84%] px-3.5 py-2.5 shadow-[0_8px_20px_rgba(0,0,0,0.12)]",
+                      isOwnMessage
+                        ? "rounded-[18px] rounded-br-md border border-[#f5a623]/20 bg-linear-to-br from-[#6f4815] via-[#53340f] to-[#3c250a]"
+                        : "rounded-[18px] rounded-bl-md border border-white/7 bg-white/4",
                     ].join(" ")}
                   >
                     <p className="text-[13px] leading-relaxed text-[#fff5de]">{msg.text}</p>
-                    {msg.isOwn && (
-                      <p className="mt-0.5 text-right text-[9px] text-[#b49650]/40">{formatTimestamp(msg.timestamp)}</p>
-                    )}
                   </div>
                 </div>
               );

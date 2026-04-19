@@ -165,7 +165,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
             normalizedParticipants.forEach(async (email) => {
                 await redisPublisher.lpush("MeetingInvitations", JSON.stringify({
                     email,
-                    meetingId: newMeeting.roomId,
+                    roomId: newMeeting.roomId,
                     meetingName: newMeeting.roomName,
                     inviterName: user.name,
                 }));
@@ -370,51 +370,6 @@ meetingRouter.post("/end/:id", authMiddleware, async (req, res) => {
         console.error("Error fetching meeting:", error);
         const statusCode = (error as Error & { statusCode?: number }).statusCode ?? 500;
         res.status(statusCode).json({ message: statusCode === 500 ? "Internal server error" : (error as Error).message });
-    }
-});
-
-meetingRouter.delete("/delete/:id", authMiddleware, async (req, res) => {
-    const userId = req.userId;
-    const meetingId = toSingleString(req.params.id);
-    if (!meetingId || !userId) {
-        res.status(400).json({ message: "Meeting ID and User ID are required" });
-        return;
-    }
-    try {
-        const meeting = await prisma.meeting.findFirst({
-            where: {
-                id: meetingId,
-                userId: userId as string,
-                isHost: true,
-            },
-            select: {
-                rawChunks: true,
-            }
-        });
-
-        if (!meeting) {
-            res.status(404).json({ message: "Meeting not found" });
-            return;
-        }
-
-        if(meeting.rawChunks.length > 0){
-            await prisma.mediaChunks.deleteMany({
-                where: {
-                    meetingId: meetingId,
-                },
-            });
-        }
-
-        await prisma.meeting.delete({
-            where: {
-                id: meetingId,
-            },
-        });
-
-        res.status(200).json({ message: "Meeting deleted successfully" });
-    } catch (error) {
-        console.error("Error deleting meeting:", error);
-        res.status(500).json({ message: "Internal server error" });
     }
 });
 

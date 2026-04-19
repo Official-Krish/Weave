@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { TYPE_CONFIG } from "./config";
 import { timeAgo } from "./helpers";
 import type { Notification } from "./types";
@@ -19,8 +20,9 @@ export function NotificationCard({
   onAcceptInvite: (roomId: string, notifId: string) => void;
 }) {
   const config = TYPE_CONFIG[notification.type];
+  const navigate = useNavigate();
   const isActionable =
-    notification.type === "RECORDING_REQUEST" || notification.type === "MEETING_INVITE";
+    notification.type === "RECORDING_REQUEST" || notification.type === "MEETING_INVITE" || notification.type === "RECORDING_READY";
 
   return (
     <motion.div
@@ -95,9 +97,9 @@ export function NotificationCard({
               </p>
             )}
             {/* Failed reason */}
-            {notification.type === "RECORDING_FAILED" && notification.metadata?.reason && (
+            {notification.type === "RECORDING_FAILED" && (
               <p className="font-mono text-xs text-red-300 mt-2">
-                ↳ {notification.metadata.reason}
+                ↳ {notification?.metadata?.reason} || Contact support if you think this is a mistake.
               </p>
             )}
             {/* Action buttons */}
@@ -145,6 +147,33 @@ export function NotificationCard({
                 )}
               </motion.div>
             )}
+
+            {isActionable && !notification.isRead && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="flex items-center gap-2 pt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {notification.type === "RECORDING_READY" && (
+                  <>
+                    <button
+                      onClick={() =>
+                        navigate(`/recordings/${notification?.metadata?.recordingId}`)
+                      }
+                      className="
+                        inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#ffd166,#f5a623)] px-3.5 py-2 text-xs font-semibold text-black cursor-pointer
+                        shadow-[0_12px_24px_rgba(245,166,35,0.18)] transition-all duration-150 active:scale-95
+                        hover:bg-[linear-gradient(135deg,#ffd166,#f5a623)] hover:brightness-110
+                      "
+                    >
+                      View Recording
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            )}
+
             {/* Mark as read button */}
             {!notification.isRead && (
               <button
@@ -160,26 +189,6 @@ export function NotificationCard({
             </span>
           </div>
         </div>
-
-        {/* Scheduled time for reminders */}
-        {notification.type === "MEETING_REMINDER" && notification.metadata?.scheduledAt && (
-          <p className="text-xs text-zinc-500">
-            Scheduled:{" "}
-            {new Date(notification.metadata.scheduledAt).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        )}
-
-        {/* Failed reason */}
-        {notification.type === "RECORDING_FAILED" && notification.metadata?.reason && (
-          <p className="font-mono text-xs text-red-300">
-            ↳ {notification.metadata.reason}
-          </p>
-        )}
 
         {/* Action buttons */}
         {isActionable && !notification.isRead && (
@@ -199,6 +208,7 @@ export function NotificationCard({
                     inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white cursor-pointer
                     transition-all duration-150 active:scale-95
                     shadow-[0_12px_24px_rgba(43,127,255,0.18)]
+                    hover:bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] hover:brightness-110
                   "
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
@@ -212,6 +222,7 @@ export function NotificationCard({
                     inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold
                     text-zinc-200 cursor-pointer
                     transition-all duration-150 active:scale-95
+                    hover:border-white/20 hover:bg-white/6 hover:text-zinc-100
                   "
                 >
                   Decline

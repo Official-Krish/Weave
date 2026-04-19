@@ -311,8 +311,6 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       setInvites(nextInvites);
       setInviteEmail("");
     }
-
-    console.log("Creating meeting with", { createRoomName, createPasscode, invites: nextInvites });
     setErrorMessage(null);
     createMeetingMutation.mutate(nextInvites);
   };
