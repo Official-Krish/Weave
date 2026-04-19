@@ -10,6 +10,17 @@ type UseMeetingSetupArgs = {
   navigate: (path: string) => void;
 };
 
+function buildPreviewAudioConstraints(selectedMicId: string): MediaTrackConstraints | boolean {
+  return {
+    deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000,
+  };
+}
+
 export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSetupArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const monitorAudioRef = useRef<HTMLAudioElement>(null);
@@ -33,6 +44,27 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
   const [micMonitorEnabled, setMicMonitorEnabled] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const buildMeetingRoute = (roomId: string, name: string, role: "host" | "guest", recordingState?: boolean) => {
+    const params = new URLSearchParams({
+      name: name || displayNameFallback || (role === "host" ? "Host" : "Guest"),
+      role,
+    });
+
+    if (recordingState) {
+      params.set("recordingState", "true");
+    }
+
+    if (selectedMicId) {
+      params.set("micId", selectedMicId);
+    }
+
+    if (selectedCameraId) {
+      params.set("cameraId", selectedCameraId);
+    }
+
+    return `/meeting/live/${roomId}?${params.toString()}`;
+  };
 
   useEffect(() => {
     micMonitorEnabledRef.current = micMonitorEnabled;
@@ -104,9 +136,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
           video: selectedCameraId
             ? { deviceId: { exact: selectedCameraId } }
             : true,
-          audio: selectedMicId
-            ? { deviceId: { exact: selectedMicId } }
-            : true,
+          audio: buildPreviewAudioConstraints(selectedMicId),
         });
 
         streamRef.current = stream;
@@ -139,22 +169,36 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
         if (mounted && audioTracks.length > 0 && typeof AudioContext !== "undefined") {
           const audioContext = new AudioContext();
           audioContextRef.current = audioContext;
+          if (audioContext.state === "suspended") {
+            try {
+              await audioContext.resume();
+            } catch {
+              // best effort
+            }
+          }
 
           const source = audioContext.createMediaStreamSource(stream);
           const analyser = audioContext.createAnalyser();
-          analyser.fftSize = 256;
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.85;
           source.connect(analyser);
 
-          const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+          const timeDomainData = new Float32Array(analyser.fftSize);
 
           const updateMicLevel = () => {
             if (!mounted) {
               return;
             }
 
-            analyser.getByteFrequencyData(frequencyData);
-            const average = frequencyData.reduce((sum, value) => sum + value, 0) / frequencyData.length;
-            setMicLevel(Math.min(100, Math.round((average / 255) * 100)));
+            analyser.getFloatTimeDomainData(timeDomainData);
+            const rms = Math.sqrt(
+              timeDomainData.reduce((sum, value) => sum + value * value, 0) / timeDomainData.length
+            );
+            const normalizedLevel = Math.min(
+              100,
+              Math.round(Math.max(0, ((rms - 0.01) / 0.16) * 100))
+            );
+            setMicLevel(normalizedLevel);
             animationFrameRef.current = requestAnimationFrame(updateMicLevel);
           };
 
@@ -206,11 +250,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       return response.data;
     },
     onSuccess: (data) => {
-      navigate(
-        `/meeting/live/${data.roomId}?name=${encodeURIComponent(
-          data.name || displayNameFallback || "Host"
-        )}&role=host`
-      );
+      navigate(buildMeetingRoute(data.roomId, data.name || "Host", "host"));
     },
     onError: (error) => {
       setErrorMessage(
@@ -233,11 +273,7 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     onSuccess: (data) => {
       const host = data.isHost ? "host" : "guest";
       const recordingState = data.recordingState == "RECORDING";
-      navigate(
-        `/meeting/live/${data.id}?name=${encodeURIComponent(
-          data.name || displayNameFallback || "Guest"
-        )}&role=${host}&recordingState=${recordingState}`
-      );
+      navigate(buildMeetingRoute(data.id, data.name || "Guest", host, recordingState));
     },
     onError: (error) => {
       toast.error(
@@ -275,8 +311,6 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       setInvites(nextInvites);
       setInviteEmail("");
     }
-
-    console.log("Creating meeting with", { createRoomName, createPasscode, invites: nextInvites });
     setErrorMessage(null);
     createMeetingMutation.mutate(nextInvites);
   };

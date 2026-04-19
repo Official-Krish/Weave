@@ -3,14 +3,14 @@ import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AudioTrackSink } from "../components/Meeting/AudioTrackSink";
-import { MeetingAlerts } from "../components/Meeting/MeetingAlerts";
-import { MeetingChatSidebar } from "../components/Meeting/MeetingChatSidebar";
-import { MeetingControls } from "../components/Meeting/MeetingControls";
-import { MeetingInfo } from "../components/Meeting/MeetingInfo";
-import { RecordingIndicator } from "../components/Meeting/RecordingIndicator";
-import { MeetingStage } from "../components/Meeting/MeetingStage";
-import { ParticipantsSidebar } from "../components/Meeting/ParticipantsSidebar";
+import { AudioTrackSink } from "../components/LiveMeeting/AudioTrackSink";
+import { MeetingAlerts } from "../components/LiveMeeting/MeetingAlerts";
+import { MeetingChatSidebar } from "../components/LiveMeeting/MeetingChatSidebar";
+import { MeetingControls } from "../components/LiveMeeting/MeetingControls";
+import { MeetingInfo } from "../components/LiveMeeting/MeetingInfo";
+import { RecordingIndicator } from "../components/LiveMeeting/RecordingIndicator";
+import { MeetingStage } from "../components/LiveMeeting/MeetingStage";
+import { ParticipantsSidebar } from "../components/LiveMeeting/ParticipantsSidebar";
 import { useMeetingRealtime } from "../hooks/useMeetingRealtime";
 import { useMeetingRecording } from "../hooks/useMeetingRecording";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
@@ -29,6 +29,8 @@ export function LiveMeetingPage() {
   const isHost = searchParams.get("role") === "host";
   const roomName = useMemo(() => meetingId.trim(), [meetingId]);
   const initialRecordingState = searchParams.get("recordingState") === "true";
+  const selectedMicId = searchParams.get("micId") || "";
+  const selectedCameraId = searchParams.get("cameraId") || "";
 
   useEffect(() => {
     endingRef.current = ending;
@@ -70,6 +72,8 @@ export function LiveMeetingPage() {
   } = useMeetingRoom({
     meetingId: roomName,
     displayName,
+    selectedCameraId,
+    selectedMicId,
   });
 
   const allTiles = useMemo<MeetingTile[]>(() => {
@@ -224,6 +228,7 @@ export function LiveMeetingPage() {
     connectionState,
     isRecording,
     setIsRecording,
+    selectedMicId,
   });
 
   const {
@@ -468,6 +473,7 @@ export function LiveMeetingPage() {
         onClose={() => setIsChatOpen(false)}
         messages={chatMessages}
         typingNames={typingNames}
+        selfName={displayName}
         onSendMessage={sendChatMessage}
         onTyping={setTyping}
       />

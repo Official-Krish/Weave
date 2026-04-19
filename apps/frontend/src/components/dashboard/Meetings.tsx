@@ -7,48 +7,9 @@ import {
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
-import type { MeetingDetails } from "@repo/types/api";
-
-type MeetingsProps = {
-  meetings: MeetingDetails[];
-  isLoading?: boolean;
-  isError?: boolean;
-  errorMessage?: string;
-  onOpenMeeting: (meetingId: string) => void;
-  onOpenRecording: (recordingId: string) => void;
-};
-
-function getStatusTone(meeting: MeetingDetails) {
-  if (!meeting.isEnded) {
-    return "live";
-  }
-
-  if (meeting.recordingState === "READY") {
-    return "ended with ready recording";
-  }
-
-  if (meeting.recordingState === "FAILED") {
-    return "failed";
-  }
-
-  return "processing";
-}
-
-function getStatusLabel(meeting: MeetingDetails) {
-  if (!meeting.isEnded) {
-    return "Live";
-  }
-
-  if (meeting.recordingState === "READY") {
-    return "ended with ready recording";
-  }
-
-  if (meeting.recordingState === "FAILED") {
-    return "Failed";
-  }
-
-  return "Processing";
-}
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
+import { getStatusLabel, getStatusTone, type MeetingsProps } from "./types";
 
 export function Meetings({
   meetings,
@@ -60,6 +21,18 @@ export function Meetings({
 }: MeetingsProps) {
   const liveMeetings = meetings.filter((meeting) => !meeting.isEnded);
   const endedMeetings = meetings.filter((meeting) => meeting.isEnded);
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 4;
+  // Flatten all meetings for pagination
+  const allMeetings = [...liveMeetings, ...endedMeetings];
+  const totalPages = Math.ceil(allMeetings.length / pageSize);
+  // Paginate the flattened list
+  const paginatedMeetings = allMeetings.slice((page - 1) * pageSize, page * pageSize);
+  // Re-group paginated meetings
+  const paginatedLive = paginatedMeetings.filter((meeting) => !meeting.isEnded);
+  const paginatedEnded = paginatedMeetings.filter((meeting) => meeting.isEnded);
 
   return (
     <section className="rounded-2xl border border-[#f5a623]/10 bg-white/[0.022] p-5">
@@ -113,8 +86,8 @@ export function Meetings({
       ) : (
         <div className="space-y-6">
           {[
-            { title: "Live now", items: liveMeetings },
-            { title: "Ended sessions", items: endedMeetings },
+            { title: "Live now", items: paginatedLive },
+            { title: "Ended sessions", items: paginatedEnded },
           ]
             .filter((group) => group.items.length > 0)
             .map((group) => (
@@ -201,7 +174,7 @@ export function Meetings({
                             <button
                               type="button"
                               onClick={() => onOpenRecording(meeting.id)}
-                              className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
+                              className="inline-flex items-center gap-2 rounded-full cursor-pointer border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
                             >
                               Details
                               <ChevronRight className="size-3.5" />
@@ -214,6 +187,41 @@ export function Meetings({
                 </div>
               </div>
             ))}
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pt-6 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      aria-disabled={page === 1}
+                      tabIndex={page === 1 ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink
+                        isActive={page === i + 1}
+                        onClick={() => setPage(i + 1)}
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      aria-disabled={page === totalPages}
+                      tabIndex={page === totalPages ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       )}
     </section>

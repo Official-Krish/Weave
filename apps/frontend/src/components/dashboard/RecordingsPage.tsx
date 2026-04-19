@@ -4,20 +4,19 @@ import {
   ChevronRight,
   Clock3,
   LoaderCircle,
+  Trash2,
   Users,
   Video,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
 import type { MeetingDetails } from "@repo/types/api";
 import { getHttpErrorMessage } from "@/lib/httpError";
-
-type RecordingsPageProps = {
-  meetings: MeetingDetails[];
-  isLoading?: boolean;
-  isError?: boolean;
-  error?: unknown;
-  onOpenRecording: (recordingId: string) => void;
-};
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { http } from "@/https";
+import { getDuration, type RecordingsPageProps } from "./types";
 
 export function RecordingsPage({
   meetings,
@@ -26,14 +25,69 @@ export function RecordingsPage({
   error,
   onOpenRecording,
 }: RecordingsPageProps) {
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const pageSize = 4;
+  // Paginate meetings
   const readyRecordings = meetings.filter((meeting) => meeting.recordingState === "READY");
-  const processingRecordings = meetings.filter(
+  const paginatedMeetings = readyRecordings.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(readyRecordings.length / pageSize);
+
+  const processingRecordings = paginatedMeetings.filter(
     (meeting) =>
       meeting.recordingState === "PROCESSING" ||
       meeting.recordingState === "UPLOADING" ||
       meeting.recordingState === "RECORDING"
   );
-  const failedRecordings = meetings.filter((meeting) => meeting.recordingState === "FAILED");
+  const failedRecordings = paginatedMeetings.filter((meeting) => meeting.recordingState === "FAILED");
+
+  const deleteMutation = useMutation({
+    mutationFn: async (roomId: string) => {
+      await http.delete(`/recording/delete/${roomId}`);
+    },
+
+    onMutate: async (id: string) => {
+      setDeletingId(id);
+
+      await queryClient.cancelQueries({ queryKey: ["recordings"] });
+
+      const previousRecordings = queryClient.getQueryData<MeetingDetails[]>([
+        "recordings",
+      ]);
+
+      queryClient.setQueryData<MeetingDetails[]>(
+        ["recordings"],
+        (old = []) => old.filter((m) => m.id !== id)
+      );
+
+      return { previousRecordings };
+    },
+
+    onError: (error, _id, context) => {
+      if (context?.previousRecordings) {
+        queryClient.setQueryData(
+          ["recordings"],
+          context.previousRecordings
+        );
+      }
+
+      toast.error(getHttpErrorMessage(error, "Failed to delete recording."));
+    },
+
+    onSuccess: () => {
+      toast.success("Recording deleted successfully");
+    },
+
+    onSettled: () => {
+      setDeletingId(null);
+      queryClient.invalidateQueries({
+        queryKey: ["recordings"],
+      });
+    },
+  });
 
   return (
     <section className="rounded-2xl border border-[#f5a623]/10 bg-white/[0.022] p-5">
@@ -50,7 +104,6 @@ export function RecordingsPage({
             the dashboard instead of sending you to a separate route.
           </p>
         </div>
-
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Ready", value: readyRecordings.length },
@@ -107,19 +160,37 @@ export function RecordingsPage({
 
                 <div className="grid gap-3 lg:grid-cols-2">
                   {group.items.map((meeting, index) => (
-                    <motion.button
+                    <motion.div
                       key={meeting.id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22, delay: index * 0.03 }}
-                      onClick={() => onOpenRecording(meeting.id)}
-                      className="rounded-2xl border border-[#f5a623]/8 bg-black/18 p-4 text-left transition hover:border-[#f5a623]/18 hover:bg-black/28"
+                      className="rounded-2xl border border-[#f5a623]/8 bg-black/18 p-4 text-left transition hover:border-[#f5a623]/18 hover:bg-black/28 cursor-pointer"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-[15px] font-bold text-[#fff5de]">
-                            {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
-                          </p>
+                          <div className="flex space-x-3">
+                            <p className="truncate text-[15px] font-bold text-[#fff5de]">
+                              {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
+                            </p>
+                            <span
+                              className={[
+                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                                group.tone === "ready"
+                                  ? "border border-green-500/20 bg-green-500/12 text-green-300"
+                                  : group.tone === "failed"
+                                    ? "border border-red-500/20 bg-red-500/12 text-red-300"
+                                    : "border border-[#f5a623]/20 bg-[#f5a623]/10 text-[#f5a623]",
+                              ].join(" ")
+                            }
+                            >
+                              {group.tone === "ready"
+                                ? "Ready"
+                                : group.tone === "failed"
+                                  ? "Failed"
+                                  : "Processing"}
+                            </span>
+                          </div>
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
                             <span className="inline-flex items-center gap-1">
                               <Users className="size-3" />
@@ -131,27 +202,26 @@ export function RecordingsPage({
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <Clock3 className="size-3" />
-                              {meeting.recordingState || "IDLE"}
+                              {getDuration(meeting.startTime, meeting.endTime)}
                             </span>
                           </div>
                         </div>
 
-                        <span
-                          className={[
-                            "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
-                            group.tone === "ready"
-                              ? "border border-green-500/20 bg-green-500/12 text-green-300"
-                              : group.tone === "failed"
-                                ? "border border-red-500/20 bg-red-500/12 text-red-300"
-                                : "border border-[#f5a623]/20 bg-[#f5a623]/10 text-[#f5a623]",
-                          ].join(" ")}
+                        <button
+                          className="cursor-pointer border border-neutral-800 rounded-lg px-2 py-2 hover:bg-red-500 hover:text-white transition-colors duration-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(meeting.roomId);
+                          }}
+                          disabled={deletingId === meeting.id}
+                          aria-label="Delete recording"
                         >
-                          {group.tone === "ready"
-                            ? "Ready"
-                            : group.tone === "failed"
-                              ? "Failed"
-                              : "Processing"}
-                        </span>
+                          {deletingId === meeting.id ? (
+                            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       </div>
 
                       <div className="mt-5 flex items-center justify-between">
@@ -159,13 +229,57 @@ export function RecordingsPage({
                           <Video className="size-3.5" />
                           {group.tone === "ready" ? "Open recording" : "View status"}
                         </div>
-                        <ChevronRight className="size-4 text-[#f5a623]/70" />
+                        <motion.button
+                          initial={{ opacity: 0, x: 6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: 0.1 + index * 0.03 }}
+                          className="flex items-center cursor-pointer gap-1 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/10 px-4 py-2 text-[12px] font-bold text-[#f5a623] transition hover:border-[#f5a623]/30 hover:bg-[#f5a623]/14 focus:outline-none focus:ring-2 focus:ring-[#f5a623]/40"
+                          onClick={() => onOpenRecording(meeting.id)}
+                        >
+                          More details
+                          <ChevronRight className="size-4 text-[#f5a623]/70" />
+                        </motion.button>
                       </div>
-                    </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               </div>
             ))}
+        </div>
+      )}
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="pt-6 flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-disabled={page === 1}
+                  tabIndex={page === 1 ? -1 : 0}
+                  className="cursor-pointer"
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={page === i + 1}
+                    onClick={() => setPage(i + 1)}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-disabled={page === totalPages}
+                  tabIndex={page === totalPages ? -1 : 0}
+                  className="cursor-pointer"
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       )}
     </section>

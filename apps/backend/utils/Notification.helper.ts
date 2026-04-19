@@ -39,8 +39,8 @@ export async function handleReadyStatus(meetingId: string, finalPath: string) {
     const meeting = await getMeetingByRoomId(meetingId);
     const publicFinalPath = toPublicRecordingLink(finalPath);
 
-    await prisma.$transaction([
-        prisma.finalRecording.upsert({
+    await prisma.$transaction(async (tx) => {
+         await tx.finalRecording.upsert({
             where: { meetingId: meeting.id },
             create: {
                 meetingId: meeting.id,
@@ -50,24 +50,29 @@ export async function handleReadyStatus(meetingId: string, finalPath: string) {
             update: {
                 videoLink: publicFinalPath,
             },
-        }),
-        prisma.meeting.updateMany({
+        });
+
+        await tx.meeting.updateMany({
             where: { roomId: meetingId },
             data: {
                 recordingState: "READY",
                 processingEndedAt: new Date(),
             },
-        }),
-        prisma.notification.create({
+        });
+
+        await tx.notification.create({
             data: {
                 userId: meeting.userId,
                 type: "RECORDING_READY",
                 message: `Recording for meeting "${meeting.roomName}" is ready.`,
-                metadata: { roomId: meeting.roomId, recordingLink: publicFinalPath },
+                metadata: {
+                    roomId: meeting.roomId,
+                    recordingId: meeting.id, 
+                },
                 createdAt: new Date(),
             },
-        }),
-    ]);
+        });
+    });
 }
 
 async function getMeetingByRoomId(meetingId: string) {

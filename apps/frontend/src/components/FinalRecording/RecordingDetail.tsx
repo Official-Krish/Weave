@@ -1,3 +1,4 @@
+import { findDuration } from "@/lib/utils";
 import type { RecordingPageResponse } from "@repo/types/api"
 import { CalendarDays, Clock3, Users, Video, Download } from "lucide-react"
 
@@ -7,10 +8,7 @@ export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;})
 
     const startedAt = meeting?.startTime ? new Date(meeting.startTime) : null;
     const endedAt = meeting?.endTime ? new Date(meeting.endTime) : null;
-    const durationLabel =
-        startedAt && endedAt
-          ? `${Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 60000))} min`
-          : "Unknown";
+    const durationLabel = findDuration(startedAt ?? new Date(), endedAt ?? new Date());
           
     return (
         <div className="wrp-panel">
@@ -33,7 +31,7 @@ export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;})
             </div>
             <div className="wrp-meta-item">
                 <Clock3 size={13} />
-                <span>Duration: {durationLabel}</span>
+                <span>Meeting Duration: {durationLabel}</span>
             </div>
             </div>
 

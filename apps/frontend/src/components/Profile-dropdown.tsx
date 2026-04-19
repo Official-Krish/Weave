@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { UserProfileResponse } from "@repo/types/api";
 import { http } from "../https";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 type ProfileDropdownProps = {
   name?: string | null;
@@ -168,9 +169,9 @@ export function ProfileDropdown({
               <MenuButton theme={theme} label="Notifications" onClick={() => navigate("/notifications")} icon={<Bell className="size-3.5 cursor-pointer" />} shortcut="W" />
               <MenuButton
                 theme={theme}
-                label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                icon={theme === "dark" ? <SunMedium className="size-3.5" /> : <Moon className="size-3.5" />}
-                onClick={toggleTheme}
+                label="Theme (Coming soon)"
+                icon={<Moon className="size-3.5" />}
+                onClick={() => toast("Theme switching is coming soon! Stay tuned for updates.")} 
               />
               <button
                 type="button"

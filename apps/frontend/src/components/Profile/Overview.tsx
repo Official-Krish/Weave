@@ -12,6 +12,7 @@ export const Overview = ({
     setActiveTab: (tab: "overview" | "meetings" | "billing" | "integrations") => void;
     dark: boolean;
 }) => {
+    console.log("User data in Overview:", user);
     return (
         <motion.div className="space-y-4"
             initial={{ opacity: 0 }}

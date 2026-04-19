@@ -1,4 +1,4 @@
-import { formatDate, formatTime, getDuration } from "./helpers";
+import { formatDate } from "./helpers";
 import type { Meeting } from "./types";
 
 export function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "host" | "guest" }) {
@@ -35,9 +35,6 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
       <div className="flex items-center gap-3 flex-shrink-0">
         <div className="text-right hidden sm:block">
           <div className={`text-xs font-medium ${dark ? "text-zinc-300" : "text-zinc-600"}`}>{formatDate(meeting.startTime)}</div>
-          <div className={`text-[11px] ${dark ? "text-zinc-600" : "text-zinc-400"}`}>
-            {formatTime(meeting.startTime)} · {getDuration(meeting.startTime, meeting.endTime)}
-          </div>
         </div>
         <div className={`flex items-center gap-1 text-xs ${dark ? "text-zinc-500" : "text-zinc-400"}`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -46,7 +43,7 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          {meeting.joinedParticipants}
+          {meeting.joinedParticipants.length} participants
         </div>
         <Badge variant={meeting.isHost ? "host" : "guest"}>{meeting.isHost ? "Host" : "Guest"}</Badge>
       </div>

@@ -21,9 +21,18 @@ export function TrackTile({
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const showVideo = Boolean(track && !isVideoOff);
 
   useEffect(() => {
-    if (!track || !videoRef.current) {
+    if (!track || !videoRef.current || isVideoOff) {
+      if (videoRef.current) {
+        try {
+          track?.detach?.(videoRef.current);
+        } catch {
+          // no-op
+        }
+        videoRef.current.srcObject = null;
+      }
       return;
     }
 
@@ -39,8 +48,11 @@ export function TrackTile({
       } catch {
         // no-op
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [track]);
+  }, [isVideoOff, track]);
 
   return (
     <button
@@ -51,12 +63,20 @@ export function TrackTile({
         className ?? "",
       ].join(" ")}
     >
-      {track ? (
+      {showVideo ? (
         <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-45 w-full object-cover" />
       ) : (
-        <div className="flex min-h-45 w-full items-center justify-center bg-[#110d08] text-[#cfb07a]">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[#f5a623]/16 bg-[#2a1c0e]">
-            <User className="h-7 w-7" />
+        <div className="flex min-h-45 w-full items-center justify-center bg-[#090806] text-[#cfb07a]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-18 w-18 items-center justify-center rounded-full border border-[#f5a623]/16 bg-[#2a1c0e]">
+              <User className="h-8 w-8" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-[#fff3dc]">{title}</p>
+              <p className="text-[11px] text-[#c8a870]/65">
+                {isVideoOff ? "Camera is off" : "Waiting for video"}
+              </p>
+            </div>
           </div>
         </div>
       )}
