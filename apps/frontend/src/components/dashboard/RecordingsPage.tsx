@@ -41,7 +41,7 @@ export function RecordingsPage({
     if(!meeting.finalRecording){
       return false;
     }
-    meeting.recordingState === "READY"
+    return meeting.recordingState === "READY"
   });
 
   const processingRecordings = paginatedMeetings.filter(
@@ -168,7 +168,7 @@ export function RecordingsPage({
 
                 <div className="grid gap-3 lg:grid-cols-2">
                   {group.items.map((meeting, index) => (
-                    <motion.button
+                    <motion.div
                       key={meeting.id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -248,7 +248,7 @@ export function RecordingsPage({
                           <ChevronRight className="size-4 text-[#f5a623]/70" />
                         </motion.button>
                       </div>
-                    </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               </div>
