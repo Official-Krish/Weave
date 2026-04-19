@@ -186,6 +186,7 @@ model ExportJob {
   projectId String
   status    ExportStatus @default(QUEUED)
   outputUrl String?
+  progress  Int          @default(0)
   error     String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt  
