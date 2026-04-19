@@ -96,3 +96,40 @@ export const schemas = {
         message: z.string(),
     }),
 };
+
+export const CreateEditorProjectSchema = z.object({
+    meetingId: z.string(),
+    sourceMode: z.enum(["FINAL", "MULTITRACK"]),
+});
+
+export const SaveEditorProjectSchema = z.object({
+    tracks: z.array(
+        z.object({
+            type: z.enum(["VIDEO", "AUDIO", "TEXT"]),
+            order: z.number(),
+            visible: z.boolean(),
+            muted: z.boolean(),
+            volume: z.number(),
+            clips: z.array(
+                z.object({
+                    sourceAssetId: z.string(),
+                    sourceStartMs: z.number(),
+                    timelineStartMs: z.number(),
+                    durationMs: z.number(),
+                })
+            ),
+        })
+    ),
+    overlays: z.array(
+        z.object({
+            id: z.string(),
+            type: z.enum(["TEXT"]),
+            content: z.any(),
+            timelineStartMs: z.number(),
+            durationMs: z.number(),
+            transform: z.any(),
+            style: z.any(),
+        })
+    ),
+    durationMs: z.number(),
+});
