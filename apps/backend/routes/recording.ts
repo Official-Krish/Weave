@@ -421,4 +421,32 @@ RecordingRouter.post("/removeVisibleEmail/:id", authMiddleware, async (req, res)
     }
 });
 
+RecordingRouter.get("/getRaw/:id", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const roomId = toSingleString(req.params.id);
+    if (!roomId) {
+        res.status(400).json({ message: "Room ID is required" });
+        return;
+    }
+    try {
+        const meeting = await prisma.meeting.findFirst({
+            where: {
+                id: roomId,
+                userId: userId
+            },
+            include: {
+                rawChunks: true,
+            }
+        });
+        if (!meeting) {
+            res.status(404).json({ message: "Meeting not found" });
+            return;
+        }
+        res.status(200).json(meeting);
+    } catch (error) {
+        console.error("Error fetching meeting:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 export default RecordingRouter;
