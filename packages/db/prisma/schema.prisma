@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -14,55 +8,62 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String?
-  email     String?   @unique
-  password  String?
-  googleId  String?   @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             String          @id @default(uuid())
+  name           String?
+  email          String?         @unique
+  password       String?
+  googleId       String?         @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
-  meetings  meeting[]
-  notifications Notification[]
+  meetings       Meeting[]
+  notifications  Notification[]
+  editorProjects EditorProject[]
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
   message   String
   type      NotificationType
-  isRead    Boolean  @default(false)
+  isRead    Boolean          @default(false)
   metadata  Json?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])        
 }
 
-model meeting {
-  id                  String           @id @default(uuid())
-  roomId              String           
+model Meeting {                  
+  id                  String         @id @default(uuid())
+  roomId              String
   passcode            String?
   userId              String
   roomName            String?
-  date                DateTime         @default(now())
+  date                DateTime       @default(now())
   startTime           DateTime?
   endTime             DateTime?
-  isEnded             Boolean          @default(false)
+  isEnded             Boolean        @default(false)
   isHost              Boolean
   joinedParticipants  String[]
   invitedParticipants String[]
-  recordingState      RecordingState   @default(IDLE)
+  recordingState      RecordingState @default(IDLE)
   recordingStartedAt  DateTime?
   recordingStoppedAt  DateTime?
   processingStartedAt DateTime?
   processingEndedAt   DateTime?
-  user                User              @relation(fields: [userId], references: [id])
-  rawChunks           mediaChunks[]
-  finalRecording      FinalRecording? 
+
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rawChunks           MediaChunk[]
+  finalRecording      FinalRecording?
+  editorProjects      EditorProject[]
 
   @@index([roomId])
+  @@index([userId])        
 }
 
-model mediaChunks {
+model MediaChunk {               
   id             String            @id @default(uuid())
   meetingId      String
   bucketLink     String
@@ -73,19 +74,161 @@ model mediaChunks {
   startedAt      DateTime?
   createdAt      DateTime          @default(now())
   status         ChunkUploadStatus @default(UPLOADED)
-  meeting        meeting           @relation(fields: [meetingId], references: [id])
+
+  meeting        Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId, uploaderUserId, sequenceNumber])
 }
 
 model FinalRecording {
-  id               String   @id @default(uuid())
-  meetingId        String   @unique 
-  meeting          meeting  @relation(fields: [meetingId], references: [id])
-  videoLink        String
-  audioLink        String?
-  visibleToEmails  String[] @default([])
-  generatedAt      DateTime @default(now())
+  id              String          @id @default(uuid())
+  meetingId       String          @unique
+  videoLink       String
+  audioLink       String?
+  visibleToEmails String[]        @default([])
+  generatedAt     DateTime        @default(now())
+
+  meeting         Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  editorProjects  EditorProject[] 
+}
+
+model EditorProject {
+  id               String        @id @default(uuid())
+  ownerId          String
+  meetingId        String
+  finalRecordingId String?       
+  sourceMode       SourceMode
+  status           ProjectStatus @default(DRAFT)
+  durationMs       Int?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  owner            User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  meeting          Meeting       @relation(fields: [meetingId], references: [id])
+  finalRecording   FinalRecording? @relation(fields: [finalRecordingId], references: [id]) // ✅ Fix
+
+  tracks           EditorTrack[]
+  overlays         EditorOverlay[]
+  assets           EditorAsset[]
+  exports          ExportJob[]
+
+  @@index([meetingId])
+  @@index([ownerId])       
+  @@index([finalRecordingId]) 
+}
+
+model EditorTrack {
+  id        String      @id @default(uuid())
+  projectId String
+  type      TrackType
+  order     Int
+  visible   Boolean     @default(true)
+  muted     Boolean     @default(false)
+  volume    Float?      @default(1.0)
+
+  project   EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clips     EditorClip[]
+
+  @@index([projectId])
+  @@unique([projectId, order])  
+}
+
+model EditorClip {
+  id              String      @id @default(uuid())
+  trackId         String
+  sourceAssetId   String
+  sourceStartMs   Int
+  timelineStartMs Int
+  durationMs      Int
+
+  track           EditorTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  asset           EditorAsset @relation(fields: [sourceAssetId], references: [id])
+
+  @@index([trackId])
+  @@index([sourceAssetId])  
+}
+
+model EditorOverlay {
+  id              String        @id @default(uuid())
+  projectId       String
+  type            OverlayType
+  content         Json
+  timelineStartMs Int
+  durationMs      Int
+  transform       Json
+  style           Json
+
+  project         EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model EditorAsset {
+  id            String        @id @default(uuid())
+  projectId     String
+  meetingId     String        
+  participantId String?
+  assetType     AssetType
+  url           String
+  waveformUrl   String?
+  thumbUrl      String?
+  durationMs    Int?
+
+  project       EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clips         EditorClip[] 
+
+  @@index([projectId])
+  @@index([participantId])   
+}
+
+model ExportJob {
+  id        String       @id @default(uuid())
+  projectId String
+  status    ExportStatus @default(QUEUED)
+  outputUrl String?
+  error     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt  
+
+  project   EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])     
+}
+
+enum SourceMode {
+  FINAL
+  MULTITRACK
+}
+
+enum ProjectStatus {
+  DRAFT
+  READY
+  EXPORTING
+  COMPLETED
+  FAILED
+}
+
+enum TrackType {
+  VIDEO
+  AUDIO
+  TEXT
+}
+
+enum OverlayType {
+  TEXT
+}
+
+enum AssetType {
+  VIDEO
+  AUDIO
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  DONE
+  FAILED
 }
 
 enum RecordingState {
