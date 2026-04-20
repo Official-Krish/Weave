@@ -129,7 +129,11 @@ export const SaveEditorProjectSchema = z.object({
             durationMs: z.number(),
             transform: z.any(),
             style: z.any(),
+            zIndex: z.number().optional(),
         })
     ),
     durationMs: z.number(),
+    fps: z.number(), 
+    width: z.number(), 
+    height: z.number()
 });
