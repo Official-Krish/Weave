@@ -26,7 +26,7 @@ editorRouter.post("/projects", authMiddleware, async (req, res) => {
         });
 
         if (existing) {
-            return res.status(409).json({ message: "Project already exists", projectId: existing.id });
+            return res.status(201).json({ message: "Project already exists", projectId: existing.id });
         }
 
         const meeting = await prisma.meeting.findFirst({
@@ -45,6 +45,9 @@ editorRouter.post("/projects", authMiddleware, async (req, res) => {
                     meetingId,
                     sourceMode,
                     finalRecordingId: meeting.finalRecording?.id,
+                    fps: 30,
+                    width: 1920,
+                    height: 1080,
                 },
             });
             if (meeting.finalRecording?.videoLink) {
@@ -157,7 +160,7 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
             });
         }
 
-        const { tracks, overlays, durationMs } = parsedData.data;
+        const { tracks, overlays, durationMs, fps, width, height } = parsedData.data;
 
         const project = await prisma.editorProject.findFirst({
             where: { id: projectId, ownerId: userId },
@@ -226,13 +229,19 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                         durationMs: o.durationMs,
                         transform: o.transform,
                         style: o.style,
+                        zIndex: o.zIndex ?? 0,
                     })),
                 });
             }
 
             await tx.editorProject.update({
                 where: { id: projectId },
-                data: { durationMs },
+                data: { 
+                    durationMs,
+                    ...(fps && { fps }),
+                    ...(width && { width }),
+                    ...(height && { height }),
+                },
             });
         });
 
@@ -242,6 +251,9 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                 meetingId: project.meetingId,
                 roomId: project.meeting.roomId,
                 sourceMode: project.sourceMode,
+                fps: project.fps,
+                width: project.width,
+                height: project.height,
                 tracks,
                 overlays,
                 assets: project.assets.map((asset) => ({
@@ -351,6 +363,7 @@ editorRouter.post("/projects/:id/exports", authMiddleware, async (req, res) => {
                 data: {
                     projectId,
                     status: "QUEUED",
+                    progress: 0,
                 },
             });
 
@@ -376,6 +389,43 @@ editorRouter.post("/projects/:id/exports", authMiddleware, async (req, res) => {
         return res.status(201).json({ job });
     } catch (error) {
         console.error("Error creating export job:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+editorRouter.get("/exports/:jobId", authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    const jobId = req.params.jobId;
+
+    if (!userId || !jobId) {
+        return res.status(400).json({ message: "Missing fields" });
+    }
+
+    try {
+        const job = await prisma.exportJob.findFirst({
+            where: {
+                id: jobId as string,
+                project: {
+                    ownerId: userId,
+                },
+            },
+            include: {
+                project: {
+                    select: {
+                        id: true,
+                        meetingId: true,
+                    },
+                },
+            },
+        });
+
+        if (!job) {
+            return res.status(404).json({ message: "Export job not found" });
+        }
+
+        return res.status(200).json({ job });
+    } catch (error) {
+        console.error("Error fetching export job:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 });
