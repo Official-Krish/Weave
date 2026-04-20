@@ -102,6 +102,9 @@ model EditorProject {
   durationMs       Int?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
+  fps              Int           @default(30)
+  width            Int           @default(1280)
+  height           Int           @default(720)
 
   owner            User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   meeting          Meeting       @relation(fields: [meetingId], references: [id])
@@ -157,6 +160,7 @@ model EditorOverlay {
   durationMs      Int
   transform       Json
   style           Json
+  zIndex          Int @default(0)
 
   project         EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
