@@ -17,7 +17,6 @@ type ParticipantState = {
   id: string;
   displayName: string;
   tracks: JitsiTrack[];
-  trackRevision?: number;
 };
 
 export function useMeetingRoom({
@@ -53,7 +52,6 @@ export function useMeetingRoom({
   const [localVideoTrack, setLocalVideoTrack] = useState<JitsiTrack | null>(null);
   const [localScreenTrack, setLocalScreenTrack] = useState<JitsiTrack | null>(null);
   const [participantsMap, setParticipantsMap] = useState<Record<string, ParticipantState>>({});
-  const remoteTrackCleanupRef = useRef<Map<string, () => void>>(new Map());
 
   const parsedBase = useMemo(() => {
     try {
@@ -110,13 +108,6 @@ export function useMeetingRoom({
   }, [parsedBase.host, parsedBase.hostname, parsedBase.protocol]);
 
   const removeRemoteTrackById = useCallback((participantId: string, trackId: string) => {
-    const cleanupKey = `${participantId}:${trackId}`;
-    const cleanup = remoteTrackCleanupRef.current.get(cleanupKey);
-    if (cleanup) {
-      cleanup();
-      remoteTrackCleanupRef.current.delete(cleanupKey);
-    }
-
     setParticipantsMap((prev) => {
       const participant = prev[participantId];
       if (!participant) {
@@ -128,52 +119,10 @@ export function useMeetingRoom({
         [participantId]: {
           ...participant,
           tracks: nextTracks,
-          trackRevision: (participant.trackRevision ?? 0) + 1,
         },
       };
     });
   }, []);
-
-  const refreshRemoteParticipant = useCallback((participantId: string) => {
-    setParticipantsMap((prev) => {
-      const participant = prev[participantId];
-      if (!participant) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [participantId]: {
-          ...participant,
-          trackRevision: (participant.trackRevision ?? 0) + 1,
-        },
-      };
-    });
-  }, []);
-
-  const bindRemoteTrackEvents = useCallback((participantId: string, track: JitsiTrack) => {
-    const trackId = track.getId?.();
-    if (!trackId) {
-      return;
-    }
-
-    const cleanupKey = `${participantId}:${trackId}`;
-    if (remoteTrackCleanupRef.current.has(cleanupKey)) {
-      return;
-    }
-
-    const handleTrackStateChange = () => {
-      refreshRemoteParticipant(participantId);
-    };
-
-    track.addEventListener?.("TRACK_MUTE_CHANGED", handleTrackStateChange);
-    track.addEventListener?.("LOCAL_TRACK_STOPPED", handleTrackStateChange);
-
-    remoteTrackCleanupRef.current.set(cleanupKey, () => {
-      track.removeEventListener?.("TRACK_MUTE_CHANGED", handleTrackStateChange);
-      track.removeEventListener?.("LOCAL_TRACK_STOPPED", handleTrackStateChange);
-    });
-  }, [refreshRemoteParticipant]);
 
   const addRemoteTrack = useCallback((participantId: string, track: JitsiTrack) => {
     setParticipantsMap((prev) => {
@@ -195,12 +144,10 @@ export function useMeetingRoom({
         [participantId]: {
           ...current,
           tracks: [...current.tracks, track],
-          trackRevision: (current.trackRevision ?? 0) + 1,
         },
       };
     });
-    bindRemoteTrackEvents(participantId, track);
-  }, [bindRemoteTrackEvents]);
+  }, []);
 
   const updateParticipantName = useCallback((participantId: string, nextName: string) => {
     setParticipantsMap((prev) => {
@@ -223,8 +170,6 @@ export function useMeetingRoom({
   }, []);
 
   const clearRoomState = useCallback(() => {
-    remoteTrackCleanupRef.current.forEach((cleanup) => cleanup());
-    remoteTrackCleanupRef.current.clear();
     setParticipantsMap({});
     setLocalVideoTrack(null);
     setLocalScreenTrack(null);
@@ -403,21 +348,16 @@ export function useMeetingRoom({
         if (!window.JitsiMeetJS) {
           await new Promise<void>((resolve, reject) => {
             const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
-            if (existing && window.JitsiMeetJS) {
-              resolve();
-              return;
-            }
-
             if (existing) {
-              existing.remove();
+              existing.addEventListener("load", () => resolve(), { once: true });
+              existing.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
+              return;
             }
 
             const script = document.createElement("script");
             script.id = scriptId;
             script.async = true;
-            // Load Jitsi through the local dev proxy to avoid browser TLS issues
-            // with self-signed local Jitsi certificates.
-            script.src = "/jitsi/libs/lib-jitsi-meet.min.js";
+            script.src = `${JITSI_BASE_URL}/libs/lib-jitsi-meet.min.js`;
             script.addEventListener("load", () => resolve(), { once: true });
             script.addEventListener("error", () => reject(new Error("lib-jitsi-meet load error")), { once: true });
             document.body.appendChild(script);
@@ -478,12 +418,6 @@ export function useMeetingRoom({
             });
 
             conference.on(JitsiMeetJS.events.conference.USER_LEFT, (participantId: string) => {
-              for (const [cleanupKey, cleanup] of remoteTrackCleanupRef.current.entries()) {
-                if (cleanupKey.startsWith(`${participantId}:`)) {
-                  cleanup();
-                  remoteTrackCleanupRef.current.delete(cleanupKey);
-                }
-              }
               setParticipantsMap((prev) => {
                 const next = { ...prev };
                 delete next[participantId];
@@ -589,7 +523,6 @@ export function useMeetingRoom({
     removeRemoteTrackById,
     selectedCameraId,
     selectedMicId,
-    refreshRemoteParticipant,
     updateParticipantName,
   ]);
 
