@@ -10,7 +10,7 @@ import {
   toLocalRecordingPath,
 } from "./src/helpers";
 
-// Types
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RenderPayload = {
   projectId: string;
@@ -19,87 +19,148 @@ type RenderPayload = {
   retryCount?: number;
 };
 
-// Constants 
+type LogLevel = "info" | "warn" | "error" | "debug";
 
-const QUEUE_NAME = "EditorRender";
-const MAX_RETRIES = 3;
-const LOOP_ERROR_BACKOFF_MS = 2000;
-const ffmpegBin = process.env.FFMPEG_PATH || ffmpegStatic || "ffmpeg";
+// ─── Config ───────────────────────────────────────────────────────────────────
 
-// Redis
+const CONFIG = {
+  QUEUE_NAME: "EditorRender",
+  MAX_RETRIES: 3,
+  LOOP_ERROR_BACKOFF_MS: 2_000,
+  CONCURRENCY: Math.max(1, Number(process.env.WORKER_CONCURRENCY ?? 1)),
+  BLPOP_TIMEOUT_S: 5, // non-infinite so shutdown signal is checked regularly
+  FFMPEG_BIN: process.env.FFMPEG_PATH || ffmpegStatic || "ffmpeg",
+} as const;
 
-const connection = new Redis({
-  host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT || 6379),
-});
+// ─── Logging ──────────────────────────────────────────────────────────────────
 
-// Logging
-
-function log(msg: string) {
-  console.log(`[editor-worker] ${new Date().toISOString()} ${msg}`);
+function log(level: LogLevel, msg: string, meta?: Record<string, unknown>) {
+  const entry: Record<string, unknown> = {
+    ts: new Date().toISOString(),
+    level,
+    worker: "editor-worker",
+    msg,
+    ...meta,
+  };
+  const line = JSON.stringify(entry);
+  level === "error" ? console.error(line) : console.log(line);
 }
 
-// Payload Parsing 
+// ─── Metrics (lightweight in-process counters) ────────────────────────────────
+
+const metrics = {
+  processed: 0,
+  failed: 0,
+  retried: 0,
+  activeSlots: 0,
+};
+
+function logMetrics() {
+  log("info", "metrics", { ...metrics });
+}
+
+// ─── Redis ────────────────────────────────────────────────────────────────────
+
+function createRedis(name: string) {
+  const client = new Redis({
+    host: process.env.REDIS_HOST,
+    port: Number(process.env.REDIS_PORT ?? 6379),
+    password: process.env.REDIS_PASSWORD,
+    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    retryStrategy: (times) => Math.min(times * 100, 3_000),
+    maxRetriesPerRequest: null, // required for BullMQ / blocking commands
+    enableReadyCheck: true,
+    lazyConnect: false,
+  });
+
+  client.on("error", (err) => log("error", `Redis[${name}] error`, { err: err.message }));
+  client.on("reconnecting", () => log("warn", `Redis[${name}] reconnecting`));
+  client.on("ready", () => log("info", `Redis[${name}] ready`));
+  return client;
+}
+
+const connection = createRedis("main");
+
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log("info", `Received ${signal} — draining active jobs then exiting`);
+
+  // Wait until all slots are free (max 60 s)
+  const deadline = Date.now() + 60_000;
+  while (metrics.activeSlots > 0 && Date.now() < deadline) {
+    await sleep(500);
+  }
+
+  logMetrics();
+  await connection.quit().catch(() => {});
+  await prisma.$disconnect().catch(() => {});
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function sleep(ms: number) {
+  return new Promise<void>((r) => setTimeout(r, ms));
+}
 
 function parsePayload(raw: string): RenderPayload | null {
   try {
     const p = JSON.parse(raw);
-    if (!p.projectId || !p.jobId || !p.roomId) return null;
+    if (typeof p.projectId !== "string" || typeof p.jobId !== "string" || typeof p.roomId !== "string") {
+      log("warn", "Invalid payload shape", { raw: raw.slice(0, 200) });
+      return null;
+    }
     return { ...p, retryCount: p.retryCount ?? 0 };
-  } catch {
+  } catch (err: any) {
+    log("warn", "Failed to parse payload", { err: err.message, raw: raw.slice(0, 200) });
     return null;
   }
 }
 
-// Progress
-
 async function updateProgress(jobId: string, percent: number) {
   await prisma.exportJob.update({
     where: { id: jobId },
-    data: {
-      progress: percent
-    },
+    data: { progress: percent },
   });
 }
 
-// Source Verification
-
-// Descriptive error with full path context
 async function verifySourceExists(sourcePath: string) {
   try {
     const stat = await fs.stat(sourcePath);
-    if (!stat.isFile()) {
-      throw new Error(`Path exists but is not a file: ${sourcePath}`);
-    }
+    if (!stat.isFile()) throw new Error(`Path exists but is not a file: ${sourcePath}`);
   } catch (err: any) {
     throw new Error(`Source file not accessible at "${sourcePath}": ${err.message}`);
   }
 }
 
-// Overlay Filter
+function sanitizeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/:/g, "\\:")
+    .replace(/'/g, "\\'")
+    .replace(/,/g, "\\,");
+}
+
 function buildOverlayFilter(overlays: any[], timelineOffsetMs = 0): string | null {
   if (!overlays?.length) return null;
 
   const filters = overlays
     .map((o) => {
-      const content = o.content as Record<string, any>;
-      const text = (content?.text ?? "")
-        .replace(/:/g, "\\:")
-        .replace(/'/g, "\\'")
-        .replace(/,/g, "\\,");
-
+      const text = sanitizeDrawtext(o.content?.text ?? "");
       if (!text) return null;
 
-      const transform = o.transform as Record<string, any>;
-      const x = transform?.x ?? 100;
-      const y = transform?.y ?? 100;
-
-      // Adjust timestamps relative to this clip's start
-      const adjustedStart = Math.max(0, o.timelineStartMs - timelineOffsetMs);
-      const adjustedEnd = Math.max(0, o.timelineStartMs + o.durationMs - timelineOffsetMs);
-
-      const start = (adjustedStart / 1000).toFixed(2);
-      const end = (adjustedEnd / 1000).toFixed(2);
+      const x = Number.isFinite(o.transform?.x) ? o.transform.x : 100;
+      const y = Number.isFinite(o.transform?.y) ? o.transform.y : 100;
+      const start = ((o.timelineStartMs - timelineOffsetMs) / 1000).toFixed(2);
+      const end = ((o.timelineStartMs + o.durationMs - timelineOffsetMs) / 1000).toFixed(2);
 
       return `drawtext=text='${text}':x=${x}:y=${y}:fontsize=24:fontcolor=white:enable='between(t,${start},${end})'`;
     })
@@ -108,36 +169,10 @@ function buildOverlayFilter(overlays: any[], timelineOffsetMs = 0): string | nul
   return filters.length ? filters.join(",") : null;
 }
 
-// FFmpeg Builders
-
-function buildTrimArgs(
-  input: string,
-  output: string,
-  startSec: string,
-  durationSec: string,
-  overlayFilter?: string | null
-): string[] {
-  return [
-    "-y",
-    "-ss", startSec,
-    "-i", input,
-    "-t", durationSec,
-    ...(overlayFilter ? ["-vf", overlayFilter] : []),
-    "-c:v", "libx264",
-    "-preset", "fast",
-    "-crf", "22",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    output,
-  ];
-}
-
-async function buildConcatArgs(
-  parts: string[],
-  output: string
-): Promise<{ args: string[]; listPath: string }> {
-  const listPath = output.replace(".mp4", "_concat.txt");
-  await fs.writeFile(listPath, parts.map((p) => `file '${p}'`).join("\n"), "utf8");
+async function buildConcatArgs(parts: string[], output: string) {
+  const listPath = output.replace(/\.mp4$/, "_concat.txt");
+  const content = parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n");
+  await fs.writeFile(listPath, content, "utf8");
 
   return {
     args: [
@@ -156,32 +191,15 @@ async function buildConcatArgs(
   };
 }
 
-// Preview scoped to the actual export region, not the whole source file
-async function renderPreview(
-  input: string,
-  output: string,
-  startSec: string,
-  durationSec: string
-) {
-  await runBinary(ffmpegBin, [
-    "-y",
-    "-ss", startSec,
-    "-i", input,
-    "-t", durationSec,
-    "-vf", "scale=640:-2",
-    "-preset", "ultrafast",
-    "-crf", "32",
-    "-c:a", "aac",
-    "-b:a", "96k",
-    output,
-  ]);
-}
+// ─── Core render logic ────────────────────────────────────────────────────────
 
-// Core Render
+async function processRenderJob(payload: RenderPayload): Promise<void> {
+  const { projectId, jobId, roomId } = payload;
 
-async function processRenderJob(payload: RenderPayload) {
+  log("info", "Job started", { jobId, projectId });
+
   const project = await prisma.editorProject.findFirst({
-    where: { id: payload.projectId },
+    where: { id: projectId },
     include: {
       tracks: { include: { clips: true }, orderBy: { order: "asc" } },
       overlays: true,
@@ -190,213 +208,249 @@ async function processRenderJob(payload: RenderPayload) {
     },
   });
 
-  if (!project) throw new Error(`Project not found: ${payload.projectId}`);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
 
-  // Prefer persisted asset URL, fall back to finalRecording
-  const assetUrl = project.assets[0]?.url ?? project.meeting.finalRecording?.videoLink;
-  if (!assetUrl) throw new Error("No source video configured for project");
+  const fps = project.fps ?? 30;
+  const width = project.width ?? 1280;
+  const height = project.height ?? 720;
 
-  // All clips across all tracks, sorted by timeline position
+  const assetUrl = project.assets[0]?.url ?? project.meeting?.finalRecording?.videoLink;
+  if (!assetUrl) throw new Error("No source video asset found");
+
   const clips = project.tracks
     .flatMap((t) => t.clips)
     .sort((a, b) => a.timelineStartMs - b.timelineStartMs);
 
-  if (!clips.length) throw new Error("No clips found for export");
+  if (!clips.length) throw new Error("No clips found in project");
 
   const inputPath = toLocalRecordingPath(assetUrl);
   await verifySourceExists(inputPath);
 
-  const exportDir = path.join(
-    recordingsRoot,
-    payload.roomId,
-    "editor",
-    "projects",
-    payload.projectId,
-    "exports"
-  );
+  const exportDir = path.join(recordingsRoot, roomId, "editor", "projects", projectId, "exports");
   await ensureDir(exportDir);
 
-  const outputPath = path.join(exportDir, `${payload.jobId}.mp4`);
-  const previewPath = outputPath.replace(".mp4", "_preview.mp4");
+  const outputPath = path.join(exportDir, `${jobId}.mp4`);
+  const previewPath = outputPath.replace(/\.mp4$/, "_preview.mp4");
 
-  // Preview only the export region
   const firstClip = clips[0]!;
   const totalDurationMs = clips.reduce((sum, c) => sum + c.durationMs, 0);
 
-  await renderPreview(
-    inputPath,
+  // ── Preview (low-res, ultrafast) ──────────────────────────────────────────
+  log("debug", "Generating preview", { jobId });
+  await runBinary(CONFIG.FFMPEG_BIN, [
+    "-y",
+    "-ss", (firstClip.sourceStartMs / 1000).toFixed(3),
+    "-i", inputPath,
+    "-t", (totalDurationMs / 1000).toFixed(3),
+    "-vf", "scale=640:-2",
+    "-preset", "ultrafast",
+    "-crf", "32",
+    "-c:a", "aac",
     previewPath,
-    (firstClip.sourceStartMs / 1000).toFixed(3),
-    (totalDurationMs / 1000).toFixed(3)
-  );
-  await updateProgress(payload.jobId, 10);
+  ]);
+
+  await updateProgress(jobId, 10);
+
+  const buildVF = (overlay: string | null) =>
+    overlay ? `${overlay},scale=${width}:${height}` : `scale=${width}:${height}`;
 
   const tempFiles: string[] = [];
   let concatListPath: string | null = null;
 
-  if (clips.length === 1) {
-    const c = clips[0]!;
+  try {
+    if (clips.length === 1) {
+      const c = clips[0]!;
+      const overlay = buildOverlayFilter(project.overlays, c.timelineStartMs);
 
-    // Overlay timestamps offset by clip's timeline start
-    const overlayFilter = buildOverlayFilter(project.overlays, c.timelineStartMs);
-
-    await runBinary(
-      ffmpegBin,
-      buildTrimArgs(
-        inputPath,
+      await runBinary(CONFIG.FFMPEG_BIN, [
+        "-y",
+        "-ss", (c.sourceStartMs / 1000).toFixed(3),
+        "-i", inputPath,
+        "-t", (c.durationMs / 1000).toFixed(3),
+        "-vf", buildVF(overlay),
+        "-r", String(fps),
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "22",
+        "-c:a", "aac",
+        "-b:a", "192k",
         outputPath,
-        (c.sourceStartMs / 1000).toFixed(3),
-        (c.durationMs / 1000).toFixed(3),
-        overlayFilter
-      )
-    );
+      ]);
 
-    await updateProgress(payload.jobId, 80);
-  } else {
-    // Sequential — never run ffmpeg processes in parallel (CPU corruption risk)
-    for (let i = 0; i < clips.length; i++) {
-      const c = clips[i]!;
-      const partPath = path.join(exportDir, `${payload.jobId}_part${i}.mp4`);
+      await updateProgress(jobId, 80);
+    } else {
+      // ── Multi-clip: encode parts then concat ────────────────────────────
+      for (let i = 0; i < clips.length; i++) {
+        const c = clips[i]!;
+        const partPath = path.join(exportDir, `${jobId}_part${i}.mp4`);
+        const overlay = buildOverlayFilter(project.overlays, c.timelineStartMs);
 
-      // Per-clip overlay offset so timestamps align within the trimmed segment
-      const overlayFilter = buildOverlayFilter(project.overlays, c.timelineStartMs);
-
-      await runBinary(
-        ffmpegBin,
-        buildTrimArgs(
-          inputPath,
+        log("debug", `Encoding part ${i + 1}/${clips.length}`, { jobId });
+        await runBinary(CONFIG.FFMPEG_BIN, [
+          "-y",
+          "-ss", (c.sourceStartMs / 1000).toFixed(3),
+          "-i", inputPath,
+          "-t", (c.durationMs / 1000).toFixed(3),
+          "-vf", buildVF(overlay),
+          "-r", String(fps),
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-crf", "22",
+          "-c:a", "aac",
+          "-b:a", "192k",
           partPath,
-          (c.sourceStartMs / 1000).toFixed(3),
-          (c.durationMs / 1000).toFixed(3),
-          overlayFilter
-        )
-      );
+        ]);
 
-      tempFiles.push(partPath);
+        tempFiles.push(partPath);
+        await updateProgress(jobId, 10 + Math.round(((i + 1) / clips.length) * 70));
+      }
 
-      const percent = 10 + Math.round(((i + 1) / clips.length) * 70);
-      await updateProgress(payload.jobId, percent);
+      const { args, listPath } = await buildConcatArgs(tempFiles, outputPath);
+      concatListPath = listPath;
+
+      log("debug", "Concatenating parts", { jobId, parts: tempFiles.length });
+      await runBinary(CONFIG.FFMPEG_BIN, args);
+      await updateProgress(jobId, 90);
     }
 
-    const { args, listPath } = await buildConcatArgs(tempFiles, outputPath);
-    concatListPath = listPath;
+    // ── Finalise ───────────────────────────────────────────────────────────
+    const relativeOutputPath = path.relative(recordingsRoot, outputPath);
 
-    await runBinary(ffmpegBin, args);
-    await updateProgress(payload.jobId, 90);
+    await prisma.$transaction([
+      prisma.exportJob.update({
+        where: { id: jobId },
+        data: { status: "DONE", outputUrl: relativeOutputPath, progress: 100, error: null },
+      }),
+      prisma.editorProject.update({
+        where: { id: projectId },
+        data: { status: "COMPLETED" },
+      }),
+    ]);
+
+    log("info", "Job completed", { jobId, output: relativeOutputPath });
+    metrics.processed++;
+  } finally {
+    // Always clean up temp files, even on failure
+    await Promise.allSettled([
+      ...tempFiles.map((f) => fs.unlink(f)),
+      concatListPath ? fs.unlink(concatListPath) : Promise.resolve(),
+    ]);
   }
-
-  // Cleanup temp part files and concat list
-  await Promise.allSettled(tempFiles.map((f) => fs.unlink(f)));
-  if (concatListPath) await fs.unlink(concatListPath).catch(() => {});
-
-  // Store path relative to recordingsRoot — serve as public URL at request time
-  const relativeOutputPath = path.relative(recordingsRoot, outputPath);
-
-  await prisma.exportJob.update({
-    where: { id: payload.jobId },
-    data: {
-      status: "DONE",
-      outputUrl: relativeOutputPath,
-      error: null, // not overwritten by progress — progress lives in Redis
-    },
-  });
-
-  await prisma.editorProject.update({
-    where: { id: payload.projectId },
-    data: { status: "COMPLETED" },
-  });
-
-  // No updateProgress(100) here — job is already finalized above
-  log(`Done: ${payload.jobId}`);
 }
 
-// ─── Main Loop ────────────────────────────────────────────────────────────────
+// ─── Job runner with retry logic ──────────────────────────────────────────────
+
+async function handleJob(payload: RenderPayload): Promise<void> {
+  const { jobId, projectId } = payload;
+
+  // Atomic QUEUED → PROCESSING transition (guards against duplicate processing)
+  try {
+    await prisma.exportJob.update({
+      where: { id: jobId, status: "QUEUED" },
+      data: { status: "PROCESSING", error: null },
+    });
+  } catch {
+    log("warn", "Job already processing or not QUEUED — skipping", { jobId });
+    return;
+  }
+
+  try {
+    await processRenderJob(payload);
+  } catch (err: any) {
+    const retry = payload.retryCount ?? 0;
+    log("error", "Job failed", { jobId, retry, err: err.message });
+
+    if (retry < CONFIG.MAX_RETRIES) {
+      metrics.retried++;
+      await prisma.exportJob.update({
+        where: { id: jobId },
+        data: { status: "QUEUED", error: err.message },
+      });
+      await connection.rpush(
+        CONFIG.QUEUE_NAME,
+        JSON.stringify({ ...payload, retryCount: retry + 1 }),
+      );
+      log("info", "Job re-queued", { jobId, attempt: retry + 1 });
+    } else {
+      metrics.failed++;
+      await prisma.$transaction([
+        prisma.exportJob.update({
+          where: { id: jobId },
+          data: { status: "FAILED", error: err.message },
+        }),
+        prisma.editorProject.update({
+          where: { id: projectId },
+          data: { status: "FAILED" },
+        }),
+      ]);
+      log("error", "Job permanently failed", { jobId, projectId });
+    }
+  }
+}
+
+// ─── Worker loop ──────────────────────────────────────────────────────────────
+
+async function workerLoop(id: number): Promise<void> {
+  log("info", `Worker ${id} started`, { concurrency: CONFIG.CONCURRENCY });
+
+  while (!shuttingDown) {
+    let result: [string, string] | null = null;
+
+    try {
+      result = await connection.blpop(CONFIG.QUEUE_NAME, CONFIG.BLPOP_TIMEOUT_S);
+    } catch (err: any) {
+      log("error", `Worker ${id} blpop error`, { err: err.message });
+      await sleep(CONFIG.LOOP_ERROR_BACKOFF_MS);
+      continue;
+    }
+
+    if (!result) continue; // timeout — loop again so we check shuttingDown
+
+    const payload = parsePayload(result[1]);
+    if (!payload) continue;
+
+    const job = await prisma.exportJob
+      .findUnique({ where: { id: payload.jobId } })
+      .catch((err) => {
+        log("error", "DB lookup failed", { jobId: payload.jobId, err: err.message });
+        return null;
+      });
+
+    if (!job || job.status !== "QUEUED") {
+      log("debug", "Skipping non-QUEUED job", { jobId: payload.jobId, status: job?.status });
+      continue;
+    }
+
+    metrics.activeSlots++;
+    try {
+      await handleJob(payload);
+    } finally {
+      metrics.activeSlots--;
+    }
+  }
+
+  log("info", `Worker ${id} exiting`);
+}
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
 
 async function main() {
-  log(`Listening on ${QUEUE_NAME}`);
+  log("info", "Editor worker starting", {
+    concurrency: CONFIG.CONCURRENCY,
+    queue: CONFIG.QUEUE_NAME,
+    ffmpeg: CONFIG.FFMPEG_BIN,
+  });
 
-  while (true) {
-    // Outer try/catch — Redis or DB blip won't crash the entire worker
-    try {
-      const result = await connection.blpop(QUEUE_NAME, 0);
-      if (!result) continue;
+  // Emit metrics every 60 s
+  const metricsInterval = setInterval(logMetrics, 60_000);
+  metricsInterval.unref();
 
-      const payload = parsePayload(result[1]);
-      if (!payload) {
-        log("Skipped invalid payload");
-        continue;
-      }
-
-      // Verify the job still exists and is in QUEUED state
-      const job = await prisma.exportJob.findUnique({ where: { id: payload.jobId } });
-      if (!job) {
-        log(`Job ${payload.jobId} not found in DB, skipping`);
-        continue;
-      }
-      if (job.status !== "QUEUED") {
-        log(`Skipping job ${payload.jobId} — status is "${job.status}"`);
-        continue;
-      }
-
-      // Optimistic lock: filter by status: "QUEUED" so two workers
-      //    racing on the same job can't both transition to PROCESSING
-      try {
-        await prisma.exportJob.update({
-          where: { id: payload.jobId, status: "QUEUED" },
-          data: { status: "PROCESSING", error: null },
-        });
-      } catch {
-        log(`Job ${payload.jobId} claimed by another worker, skipping`);
-        continue;
-      }
-
-      try {
-        await processRenderJob(payload);
-      } catch (err: any) {
-        const retry = payload.retryCount ?? 0;
-        console.error(`[editor-worker] Job ${payload.jobId} failed (attempt ${retry + 1}):`, err);
-
-        if (retry < MAX_RETRIES) {
-          log(`Re-queuing job ${payload.jobId} for retry ${retry + 1}/${MAX_RETRIES}`);
-
-          await prisma.exportJob.update({
-            where: { id: payload.jobId },
-            data: {
-              status: "QUEUED",
-              error: `Attempt ${retry + 1} failed: ${err.message}`,
-            },
-          });
-
-          await connection.lpush(
-            QUEUE_NAME,
-            JSON.stringify({ ...payload, retryCount: retry + 1 })
-          );
-        } else {
-          log(`Job ${payload.jobId} permanently failed after ${MAX_RETRIES} retries`);
-
-          await prisma.exportJob.update({
-            where: { id: payload.jobId },
-            data: {
-              status: "FAILED",
-              error: err.message ?? "Unknown failure",
-            },
-          });
-
-          await prisma.editorProject.update({
-            where: { id: payload.projectId },
-            data: { status: "FAILED" },
-          });
-        }
-      }
-    } catch (loopErr) {
-      // Log and back off — never let a transient error kill the worker process
-      console.error("[editor-worker] Queue loop error:", loopErr);
-      await new Promise((r) => setTimeout(r, LOOP_ERROR_BACKOFF_MS));
-    }
-  }
+  // Launch N concurrent worker loops
+  const workers = Array.from({ length: CONFIG.CONCURRENCY }, (_, i) => workerLoop(i + 1));
+  await Promise.all(workers);
 }
 
-main().catch((e) => {
-  console.error("[editor-worker] Fatal startup error:", e);
+main().catch((err) => {
+  log("error", "Fatal startup error", { err: err.message, stack: err.stack });
   process.exit(1);
 });
