@@ -1,6 +1,7 @@
 import { findDuration } from "@/lib/utils";
 import type { RecordingPageResponse } from "@repo/types/api"
-import { CalendarDays, Clock3, Users, Video, Download } from "lucide-react"
+import { CalendarDays, Clock3, Users, Video, Download, Pencil } from "lucide-react"
+import { Link } from "react-router-dom"
 
 export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;}) => {
     const downloadableMp4Url = meeting?.meetingId
@@ -35,12 +36,24 @@ export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;})
             </div>
             </div>
 
-            {meeting.recordingState === "READY" && meeting.canViewRecording && (
-            <a href={downloadableMp4Url} download className="wrp-download-btn">
-                <Download size={13} />
-                Download recording
-            </a>
-            )}
+            <div className="flex gap-2 mt-4">
+                {meeting.recordingState === "READY" && meeting.canViewRecording && (
+                <a href={downloadableMp4Url} download className="wrp-download-btn">
+                    <Download size={13} />
+                    Download recording
+                </a>
+                )}
+                {meeting?.meetingId && (
+                    <Link
+                        to={`/editor?meetingId=${meeting.meetingId}`}
+                        className="wrp-download-btn"
+                        style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+                    >
+                        <Pencil size={13} />
+                        Edit in editor
+                    </Link>
+                )}
+            </div>
         </div>
     )
 }
