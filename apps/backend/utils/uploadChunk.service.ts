@@ -47,7 +47,7 @@ export async function uploadChunk({
 
   const meeting = await resolveOrCreateMeetingSession(roomId, userId);
 
-  await prisma.mediaChunks.create({
+  await prisma.mediaChunk.create({
     data: {
       meetingId: meeting.id,
       bucketLink: outputPath,

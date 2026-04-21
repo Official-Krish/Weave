@@ -9,7 +9,7 @@ import {
   Video,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import type { RecordingPageResponse } from "@repo/types/api";
 import { useAuth } from "../hooks/useAuth";
@@ -26,6 +26,7 @@ export function FinalRecordingPage() {
   const [persistedVisibleEmails, setPersistedVisibleEmails] = useState<string[]>([]);
   const [draftNewEmails, setDraftNewEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState("");
+  const navigate = useNavigate();
 
   const meetingQuery = useQuery({
     queryKey: ["final-recording-page", recordingId],
@@ -152,10 +153,31 @@ export function FinalRecordingPage() {
           <div>
             <p className="wrp-eyebrow">Final Recording</p>
           </div>
-          <Link to="/dashboard?section=recordings" className="wrp-back-btn">
-            <ArrowLeft size={14} />
-            Back to recordings
-          </Link>
+          <div className="flex space-x-2">
+            <Link to="/dashboard?section=recordings" className="wrp-back-btn">
+              <ArrowLeft size={14} />
+              Back to recordings
+            </Link>
+            {meeting && meeting.isHost && (
+              <button
+                onClick={() => navigate("/edit/" + meeting.id)}
+                className="flex items-center group relative overflow-hidden rounded-full px-6 py-3 text-sm font-bold tracking-wide transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                style={{
+                    background: "#F5A623",
+                    color: "#0c0c0e",
+                }}
+              >
+                {/* Shimmer sweep */}
+                <span
+                  className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+                  style={{
+                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
+                  }}
+                />
+                Edit Recording
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Auth gate ── */}

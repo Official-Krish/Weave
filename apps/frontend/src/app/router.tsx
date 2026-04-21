@@ -49,10 +49,6 @@ const router = createBrowserRouter([
         element: <FinalRecordingPage />,
       },
       {
-        path: "editor",
-        element: <EditorPage />,
-      },
-      {
         path: "signin",
         element: <PublicAuth><SignInPage /></PublicAuth>,
       },
@@ -99,6 +95,10 @@ const router = createBrowserRouter([
       {
         path: "notifications",
         element: <NotificationsPage />,
+      },
+      {
+        path: "edit/:meetingId",
+        element: <EditorPage />
       }
     ],
   },

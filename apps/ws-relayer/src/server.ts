@@ -12,11 +12,9 @@ export function startRelayerServer() {
     },
     websocket: {
       open() {
-        console.log("WebSocket connection opened");
       },
       close(ws) {
         handleSocketClose(ws);
-        console.log("WebSocket connection closed");
       },
       message(ws, rawMessage) {
         const data = parseJsonMessage(rawMessage);

@@ -1,4 +1,4 @@
-import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement } from 'react';
+import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement, useEffect } from 'react';
 import { createPlayer, Poster, Container, usePlayer, BufferingIndicator, CaptionsButton, Controls, ErrorDialog, FullscreenButton, MediaGesture, MediaHotkey, MuteButton, PiPButton, PlayButton, PlaybackRateButton, Popover, SeekButton, Slider, Time, TimeSlider, Tooltip, VolumeSlider, type RenderProp } from '@videojs/react';
 import { Video, videoFeatures } from '@videojs/react/video';
 import './player.css';
@@ -17,6 +17,10 @@ export interface VideoPlayerProps {
   className?: string;
   poster?: string | RenderProp<Poster.State> | undefined;
   thumbnailSrc?: string;
+  currentTime?: number; // ms
+  onTimeUpdate?: (timeMs: number) => void;
+  isPlaying?: boolean;
+  onPlayStateChange?: (playing: boolean) => void;
 }
 
 /**
@@ -28,8 +32,56 @@ export interface VideoPlayerProps {
  * />
  * ```
  */
-export function VideoPlayer({ src, className, poster, ...rest }: VideoPlayerProps): ReactNode {
+export function VideoPlayer({ src, className, poster, currentTime, onTimeUpdate, isPlaying, onPlayStateChange, ...rest }: VideoPlayerProps): ReactNode {
   const { thumbnailSrc, ...containerProps } = rest;
+  const player = Player.usePlayer();
+
+  // Sync PLAYER → EDITOR (time updates)
+  useEffect(() => {
+    if (!player || !onTimeUpdate) return;
+
+    const interval = setInterval(() => {
+      const time = player.currentTime ?? 0;
+      onTimeUpdate(Number(time) * 1000);
+    }, 100); // 100ms precision is enough
+
+    return () => clearInterval(interval);
+  }, [player, onTimeUpdate]);
+
+  // Sync EDITOR → PLAYER (seek)
+  useEffect(() => {
+    if (!player || currentTime == null) return;
+
+    const current = (player.currentTime ?? 0) * 1000;
+
+    if (Math.abs(current - currentTime) > 200) {
+      player.currentTime = currentTime / 1000;
+    }
+  }, [currentTime, player]);
+
+  // Sync play/pause
+  useEffect(() => {
+    if (!player || isPlaying == null) return;
+
+    if (isPlaying) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isPlaying, player]);
+
+  // Listen to play state
+  useEffect(() => {
+    if (!player || !onPlayStateChange) return;
+
+    const interval = setInterval(() => {
+      onPlayStateChange(!player.paused);
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [player, onPlayStateChange]);
+
+  
 
   return (
     <Player.Provider>
