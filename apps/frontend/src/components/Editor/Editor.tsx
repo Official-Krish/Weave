@@ -203,6 +203,9 @@ export function Editor() {
           tracks,
           overlays,
           durationMs,
+          fps: project.fps ?? 60,
+          width: project.width ?? 1920,
+          height: project.height ?? 1080,
         });
       } catch (error) {
         console.error("Failed to save project:", error);
@@ -325,10 +328,29 @@ export function Editor() {
     setTracks((prev) =>
       prev.map((track, i) => {
         if (i !== trackIndex) return track;
-        return { ...track, clips: [...track.clips, clip] };
+
+        const defaultAsset = project?.assets?.find(
+          (a) => a.assetType === "VIDEO"
+        );
+
+        if (!defaultAsset) {
+          console.error("No valid asset found for clip");
+          return track;
+        }
+
+        const newClip: Clip = {
+          ...clip,
+          id: clip.id ?? crypto.randomUUID(),
+          sourceAssetId: defaultAsset.id,
+        };
+
+        return {
+          ...track,
+          clips: [...track.clips, newClip],
+        };
       })
     );
-  }, []);
+  }, [project]);
 
   const handleUpdateClip = useCallback((trackIndex: number, clipId: string, updates: Partial<Clip>) => {
     setTracks((prev) =>
@@ -363,6 +385,10 @@ export function Editor() {
       console.error("Failed to start export:", error);
     }
   };
+
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying(prev => !prev);
+  }, []);
 
   const handleSeek = useCallback((timeMs: number) => {
     isSeekingRef.current = true;
@@ -722,6 +748,7 @@ export function Editor() {
               tracks={tracks}
               onAddTrack={() => {}}
               onAddOverlay={handleAddOverlay}
+              onPlayPause={handlePlayPause}
             />
 
             {/* Quick stats */}

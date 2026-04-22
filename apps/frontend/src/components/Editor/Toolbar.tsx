@@ -12,6 +12,7 @@ interface ToolbarProps {
   tracks: any[];
   onAddTrack: () => void;
   onAddOverlay: (overlay: any) => void;
+  onPlayPause: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -32,6 +33,7 @@ export function Toolbar({
   tracks,
   onAddTrack,
   onAddOverlay,
+  onPlayPause,
 }: ToolbarProps) {
   const handleSliderChange = (value: number[]) => {
     onSeek(value[0]);
@@ -73,7 +75,7 @@ export function Toolbar({
         <Button
           variant="default"
           size="icon"
-          onClick={() => {}}
+          onClick={onPlayPause}
           className="h-11 w-11 rounded-full bg-[#f5a623] text-[#0a0a08] hover:bg-[#f5a623]/90"
         >
           {isPlaying ? (

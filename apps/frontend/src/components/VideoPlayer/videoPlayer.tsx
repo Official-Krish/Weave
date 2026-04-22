@@ -329,7 +329,6 @@ export default function HLSPlayer({ src, poster, thumbnailVtt, className = "" }:
     const handleClick = () => {
       clearTimeout(clickTimeout);
       clickTimeout = setTimeout(() => {
-        togglePlay();
       }, 200);
     };
 

@@ -1,5 +1,5 @@
-import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement, useEffect } from 'react';
-import { createPlayer, Poster, Container, usePlayer, BufferingIndicator, CaptionsButton, Controls, ErrorDialog, FullscreenButton, MediaGesture, MediaHotkey, MuteButton, PiPButton, PlayButton, PlaybackRateButton, Popover, SeekButton, Slider, Time, TimeSlider, Tooltip, VolumeSlider, type RenderProp } from '@videojs/react';
+import { type CSSProperties, type ComponentProps, forwardRef, type ReactNode, isValidElement, useEffect, useRef } from 'react';
+import { createPlayer, Poster, BufferingIndicator, CaptionsButton, Controls, ErrorDialog, FullscreenButton, MediaGesture, MediaHotkey, MuteButton, PiPButton, PlayButton, PlaybackRateButton, Popover, SeekButton, Slider, Time, TimeSlider, Tooltip, VolumeSlider, type RenderProp } from '@videojs/react';
 import { Video, videoFeatures } from '@videojs/react/video';
 import './player.css';
 
@@ -32,21 +32,51 @@ export interface VideoPlayerProps {
  * />
  * ```
  */
+
 export function VideoPlayer({ src, className, poster, currentTime, onTimeUpdate, isPlaying, onPlayStateChange, ...rest }: VideoPlayerProps): ReactNode {
+  return (
+    <Player.Provider>
+      <InnerVideoPlayer
+        src={src}
+        className={className}
+        poster={poster}
+        currentTime={currentTime}
+        onTimeUpdate={onTimeUpdate}
+        isPlaying={isPlaying}
+        onPlayStateChange={onPlayStateChange}
+        {...rest}
+      />
+    </Player.Provider>
+  )
+}
+
+function InnerVideoPlayer({ src, className, poster, currentTime, onTimeUpdate, isPlaying, onPlayStateChange, ...rest }: VideoPlayerProps): ReactNode {
   const { thumbnailSrc, ...containerProps } = rest;
   const player = Player.usePlayer();
+  const { paused, duration } = Player.usePlayer((s) => ({
+    paused: s.paused,
+    duration: s.duration,
+  }));
+  const isExternalChangeRef = useRef(false);
 
   // Sync PLAYER → EDITOR (time updates)
   useEffect(() => {
-    if (!player || !onTimeUpdate) return;
+    if (isPlaying == null) return;
+    if (duration === 0) return;
 
-    const interval = setInterval(() => {
-      const time = player.currentTime ?? 0;
-      onTimeUpdate(Number(time) * 1000);
-    }, 100); // 100ms precision is enough
+    try {
+      if (isPlaying && paused) {
+        isExternalChangeRef.current = true;
+        player.play();
+      } else if (!isPlaying && !paused) {
+        isExternalChangeRef.current = true;
+        player.pause();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [isPlaying, paused, duration, player]);
 
-    return () => clearInterval(interval);
-  }, [player, onTimeUpdate]);
 
   // Sync EDITOR → PLAYER (seek)
   useEffect(() => {
@@ -61,31 +91,34 @@ export function VideoPlayer({ src, className, poster, currentTime, onTimeUpdate,
 
   // Sync play/pause
   useEffect(() => {
-    if (!player || isPlaying == null) return;
+    if (isPlaying == null) return;
+    if (duration === 0) return;
 
-    if (isPlaying) {
-      player.play();
-    } else {
-      player.pause();
+    try {
+      if (isPlaying && paused) {
+        player.play();
+      } else if (!isPlaying && !paused) {
+        player.pause();
+      }
+    } catch (e) {
+      console.error("Failed to sync play state:", e);
     }
-  }, [isPlaying, player]);
+  }, [isPlaying, paused, duration, player]);
 
   // Listen to play state
   useEffect(() => {
-    if (!player || !onPlayStateChange) return;
-
-    const interval = setInterval(() => {
-      onPlayStateChange(!player.paused);
-    }, 200);
-
-    return () => clearInterval(interval);
-  }, [player, onPlayStateChange]);
+    if (!onPlayStateChange) return;
+    if (isExternalChangeRef.current) {
+      isExternalChangeRef.current = false;
+      return;
+    }
+    onPlayStateChange(!paused);
+  }, [paused, onPlayStateChange])
 
   
 
   return (
-    <Player.Provider>
-      <Container className={`media-default-skin media-default-skin--video ${className ?? ''}`} {...containerProps}>
+      <Player.Container className={`media-default-skin media-default-skin--video ${className ?? ''}`} {...containerProps}>
         <Video src={src} playsInline>
           <track
             kind="metadata"
@@ -262,9 +295,8 @@ export function VideoPlayer({ src, className, poster, currentTime, onTimeUpdate,
         <MediaGesture type="doubletap" action="seekStep" value={-10} region="left" />
         <MediaGesture type="doubletap" action="toggleFullscreen" region="center" />
         <MediaGesture type="doubletap" action="seekStep" value={10} region="right" />
-      </Container>
+      </Player.Container>
 
-    </Player.Provider>
   );
 }
 
@@ -284,7 +316,7 @@ const Button = forwardRef<HTMLButtonElement, ComponentProps<'button'>>(function 
 });
 
 function VolumePopover(): ReactNode {
-  const volumeUnsupported = usePlayer((s) => s.volumeAvailability === 'unsupported');
+  const volumeUnsupported = Player.usePlayer((s) => s.volumeAvailability === 'unsupported');
 
   const muteButton = (
     <MuteButton className="media-button--mute" render={<Button />}>
