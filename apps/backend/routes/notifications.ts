@@ -133,7 +133,7 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
             }
 
             const hostMeeting = await prisma.meeting.findFirst({
-                where: { roomId, isHost: true },
+                where: { roomId, userId: userId, isHost: true },
                 select: {
                     userId: true,
                     roomName: true,
@@ -169,14 +169,14 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
                     AND: [
                         {
                             metadata: {
-                            path: ["roomId"],
-                            equals: roomId,
+                                path: ["roomId"],
+                                equals: roomId,
                             },
                         },
                         {
                             metadata: {
-                            path: ["requestedBy"],
-                            equals: userId,
+                                path: ["requestedBy"],
+                                equals: userId,
                             },
                         },
                     ],
@@ -221,12 +221,6 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
                 where: { id: requestedBy },
                 select: {
                     email: true,
-                    meetings: {
-                        where: { roomId },
-                        select: {
-                            id: true,
-                        },
-                    }
                 },
             });
 
@@ -264,7 +258,7 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
                 message: `Your request for recording access to room ${roomId} has been approved`,
                 metadata: { 
                     roomId,
-                    recordingId: requestedUser.meetings[0].id
+                    recordingId: hostMeeting.id
                 },
             };
             break;
@@ -309,13 +303,38 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
         case "MEETING_REMINDER": {
             const { roomId, scheduledAt } = parsed.data as z.infer<typeof schemas.MEETING_REMINDER>;
 
-            notificationData = {
-                userId,
-                message: `Reminder for meeting ${roomId}`,
-                metadata: { roomId, scheduledAt },
-            };
+            const meeting = await prisma.meeting.findUnique({
+                where: { roomId },
+                    include: {
+                    participants: true,
+                },
+            });
 
-            break;
+            if (!meeting) {
+                return res.status(404).json({ message: "Meeting not found" });
+            }
+
+            const userIds = new Set<string>();
+
+            userIds.add(meeting.userId);
+
+            meeting.participants.forEach(p => {
+                userIds.add(p.userId);
+            });
+
+            const notifications = await prisma.notification.createMany({
+                data: Array.from(userIds).map(uid => ({
+                    userId: uid,
+                    type: "MEETING_REMINDER",
+                    message: `Reminder for meeting ${roomId}`,
+                    metadata: { roomId, scheduledAt },
+                })),
+            });
+
+            return res.json({
+                message: "Reminder sent to all participants",
+                count: notifications.count,
+            });
         }
 
         case "RECORDING_READY": {

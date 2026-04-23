@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { LoginSchema, SignupSchema } from "@repo/types";
