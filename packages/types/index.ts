@@ -19,6 +19,17 @@ export const CreateMeetingSchema = z.object({
     passcode: z.string().min(4).optional(),
 });
 
+export const ScheduleMeetingSchema = z.object({
+    title: z.string().min(2),
+    description: z.string().optional(),
+    startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid date format",
+    }),
+    isRecurring: z.boolean().optional(),
+    recurrenceRule: z.string().optional(),
+    invitedParticipants: z.array(z.string().email().includes("@")).optional(),
+});
+
 export const putRecordingVisibilitySchema = z.object({
     visibleToEmails: z.array(z.string().email().includes("@")),
 });

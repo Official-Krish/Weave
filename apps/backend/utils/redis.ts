@@ -17,28 +17,55 @@ export async function sendInvitationEmail() {
       const reciever = await redisSubscriber.brpop("MeetingInvitations", 0);
       if (!reciever) continue;
 
-      const { email, roomId, meetingName, inviterName } = JSON.parse(reciever[1]);
+      const { roomId, message, participants } = JSON.parse(reciever[1]);
 
-      const user = await prisma.user.findFirst({
-        where: { email: email.toLowerCase() },
-        select: { id: true },
-      });
+      if (!participants) continue;
 
-      if (!user) continue;
-
-      await prisma.notification.create({
-        data: {
-          userId: user.id,
-          type: "MEETING_INVITE",
-          message: `You have been invited to join the meeting "${meetingName}" by ${inviterName}.`,
-          metadata: {
-            roomId: roomId,
+      participants.forEach(async (userId: string) => {
+        await prisma.notification.create({
+          data: {
+            userId: userId,
+            type: "MEETING_INVITE",
+            message: message,
+            metadata: {
+              roomId: roomId,
+            },
           },
-        },
+        });
       });
 
     } catch (error) {
       console.error("Error processing invitation, retrying...", error);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+}
+
+export async function sendMeetingReminders() {
+  while (true) {
+    try {
+      const reciever = await redisSubscriber.brpop("MeetingReminders", 0);
+      if (!reciever) continue;
+
+      const { scheduleId, message, participants } = JSON.parse(reciever[1]);
+
+      if (!participants) continue;
+
+      participants.forEach(async (userId: string) => {
+        await prisma.notification.create({
+          data: {
+            userId: userId,
+            type: "MEETING_REMINDER",
+            message: message,
+            metadata: {
+              scheduleId: scheduleId,
+            },
+          },
+        });
+      });
+
+    } catch (error) {
+      console.error("Error processing reminder, retrying...", error);
       await new Promise((r) => setTimeout(r, 1000));
     }
   }

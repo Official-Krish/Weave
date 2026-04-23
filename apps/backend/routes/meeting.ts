@@ -3,7 +3,7 @@ import { authMiddleware, serviceAuthMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisPublisher } from "../utils/redis";
 import { toSingleString, normalizeEmails, canViewFinalRecording, generateString, normalizeFinalRecordingLink, finalizeMeetingRoom } from "../utils/helpers";
-import { CreateMeetingSchema } from "@repo/types";
+import { CreateMeetingSchema, ScheduleMeetingSchema } from "@repo/types";
 
 const meetingRouter = Router();
 
@@ -244,7 +244,6 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
             {
               userId,
               role: "HOST",
-              joinedAt: new Date(),
             },
             // invited users
             ...invitedUsers.map((u) => ({
@@ -260,17 +259,13 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
 
     // send notifications to invited users
     if (invitedUsers.length > 0) {
-      await prisma.notification.createMany({
-        data: invitedUsers.map((u) => ({
+      await redisPublisher.publish("MeetingInvitations", JSON.stringify({
+        roomId: meeting.roomId,
+        message: `You have been invited to join the meeting "${roomName}" by ${user.name}.`, 
+        participants: invitedUsers.map((u) => ({
           userId: u.id,
-          type: "MEETING_INVITE",
-          message: `${user.name} invited you to meeting "${roomName}"`,
-          metadata: {
-            roomId: meeting.roomId,
-            invitedBy: userId,
-          },
         })),
-      });
+      }));
     }
 
     return res.status(200).json({
@@ -281,6 +276,213 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating meeting:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
+  const userId = req.userId;
+  const id = toSingleString(req.params.id); 
+  const { passcode } = req.body;
+
+  if (!userId || !id) {
+    return res.status(400).json({ message: "Invalid request" });
+  }
+
+  try {
+    let meeting = await prisma.meeting.findUnique({
+      where: { roomId: id },
+      include: { participants: true },
+    });
+
+    if (!meeting) {
+      const schedule = await prisma.meetingSchedule.findUnique({
+        where: { id },
+        include: { participants: true },
+      });
+
+      if (!schedule) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+
+      meeting = await prisma.meeting.findFirst({
+        where: { scheduleId: schedule.id },
+        include: { participants: true },
+      });
+
+      if (!meeting && schedule.hostId === userId) {
+        meeting = await prisma.meeting.create({
+          data: {
+            roomId: generateString().toLowerCase(),
+            roomName: schedule.title,
+            userId: schedule.hostId,
+            isHost: true,
+            scheduleId: schedule.id,
+            participants: {
+              create: [
+                {
+                  userId: schedule.hostId,
+                  role: "HOST",
+                },
+                ...schedule.participants
+                  .filter((p) => p.userId !== schedule.hostId)
+                  .map((p) => ({
+                    userId: p.userId,
+                  })),
+              ],
+            },
+          },
+          include: { participants: true },
+        });
+        await redisPublisher.publish("MeetingInvitations", JSON.stringify({
+          roomId: meeting.roomId,
+          message: `Your scheduled meeting "${schedule.title}" is starting now.`,
+          participants: schedule.participants
+            .filter((p) => p.userId !== schedule.hostId)
+            .map((p) => ({
+              userId: p.userId,
+            })),
+        }));
+        return res.status(200).json({
+          roomId: meeting.roomId,
+          meetingId: meeting.id,
+          isHost: true,
+          recordingState: meeting.recordingState,
+        });
+      } else if (!meeting) {
+        return res.status(201).json({ message: "Waiting for host to start the meeting" });
+      }
+    }
+
+    if (meeting.isEnded) {
+      return res.status(400).json({ message: "Meeting ended" });
+    }
+
+    const existing = meeting.participants.find(p => p.userId === userId);
+
+    const isInvited = meeting.scheduleId
+      ? true 
+      : existing !== undefined;
+
+    if (!isInvited && meeting.passcode && meeting.passcode !== passcode) {
+      return res.status(403).json({ message: "Invalid passcode" });
+    }
+
+    if (!existing) {
+      await prisma.meetingParticipant.create({
+        data: {
+          meetingId: meeting.id,
+          userId,
+          role: "PARTICIPANT",
+        },
+      });
+    } else {
+      await prisma.meetingParticipant.update({
+        where: { id: existing.id },
+        data: { leftAt: null },
+      });
+    }
+
+    return res.status(200).json({
+      roomId: meeting.roomId,
+      meetingId: meeting.id,
+      isHost: meeting.userId === userId,
+      recordingState: meeting.recordingState,
+    });
+
+  } catch (error) {
+    console.error("Join error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  const parsedData = ScheduleMeetingSchema.safeParse(req.body);
+
+  if (!parsedData.success) {
+    return res.status(400).json({ message: "Invalid request body" });
+  }
+
+  try {
+    const {
+      title,
+      description,
+      startTime,
+      isRecurring,
+      recurrenceRule,
+      invitedParticipants,
+    } = parsedData.data;
+
+    const normalizedEmails = normalizeEmails(invitedParticipants || []);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    if (!user || !user.email) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        email: { in: normalizedEmails },
+      },
+      select: { id: true, email: true },
+    });
+
+    const schedule = await prisma.meetingSchedule.create({
+      data: {
+        hostId: userId,
+        title,
+        description,
+        startTime: new Date(startTime),
+        isRecurring: isRecurring ?? false,
+        recurrenceRule: recurrenceRule ?? null,
+        participants: {
+          create: [
+            // host
+            {
+              userId,
+              role: "HOST",
+              joinedAt: new Date(),
+            },
+            // invited users
+            ...users.map((u) => ({
+              userId: u.id,
+            })),
+          ],
+        },
+      },
+      include: {
+        participants: true,
+      },
+    });
+
+    // send notifications
+    if (users.length > 0) {
+      await redisPublisher.publish("MeetingReminders", JSON.stringify({
+        scheduleId: schedule.id,
+        message: `You have been invited to join the scheduled meeting "${title}" by ${user.name}. at ${startTime}. You will be notified again when the meeting is about to start with the join link.`,
+        participants: users.map((u) => ({
+          userId: u.id,
+        })),
+      }));
+    }
+
+    return res.status(200).json({
+      id: schedule.id,
+      title: schedule.title,
+      startTime: schedule.startTime,
+    });
+  } catch (error) {
+    console.error("Error creating schedule:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -306,10 +508,6 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Meeting not found or ended" });
     }
 
-    if (meeting.passcode && meeting.passcode !== passcode) {
-      return res.status(403).json({ message: "Invalid passcode" });
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true },
@@ -324,14 +522,26 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
     );
 
     if (!existingParticipant) {
-      await prisma.meetingParticipant.create({
-        data: {
-          meetingId: meeting.id,
-          userId,
-          role: "PARTICIPANT",
-          joinedAt: new Date(),
-        },
-      });
+      if(passcode){
+        if(meeting.passcode && passcode === meeting.passcode){
+          await prisma.meetingParticipant.create({
+            data: {
+              meetingId: meeting.id,
+              userId,
+              role: "PARTICIPANT",
+              joinedAt: new Date(),
+            },
+          });
+          return res.status(200).json({
+            roomId: meeting.roomId,
+            passcode: meeting.passcode,
+            name: user.name,
+            isHost: meeting.userId === userId,
+            recordingState: meeting.recordingState,
+          });
+        }
+      } 
+      return res.status(403).json({ message: "Incorrect passcode" });
     } else {
       await prisma.meetingParticipant.update({
         where: { id: existingParticipant.id },
