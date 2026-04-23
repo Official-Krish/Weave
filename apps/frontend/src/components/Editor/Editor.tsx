@@ -9,6 +9,7 @@ import { Loader2, Film, Pencil, X } from "lucide-react";
 import { VideoPlayer } from "../videojsPlayer";
 import { Stage, Layer, Text, Transformer, Line } from "react-konva";
 import type Konva from "konva";
+import { findClipByVideoTime, getOrderedClips, mapSourceToTimelineTime, mapTimelineToSourceTime } from "./helpers";
 
 
 const EDITOR_CSS = `
@@ -27,63 +28,6 @@ const EDITOR_CSS = `
     50% { opacity: 0.6; }
   }
 `;
-
-function mapTimelineToSourceTime(
-  tracks: Track[],
-  timeMs: number
-): number {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const start = clip.timelineStartMs;
-      const end = start + clip.durationMs;
-
-      if (timeMs >= start && timeMs < end) {
-        const offset = timeMs - start;
-        return clip.sourceStartMs + offset;
-      }
-    }
-  }
-
-  return timeMs; 
-}
-
-function mapSourceToTimelineTime(
-  tracks: Track[],
-  videoTimeMs: number
-): number {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const sourceStart = clip.sourceStartMs;
-      const sourceEnd = sourceStart + clip.durationMs;
-
-      if (videoTimeMs >= sourceStart && videoTimeMs < sourceEnd) {
-        const offset = videoTimeMs - sourceStart;
-        return clip.timelineStartMs + offset;
-      }
-    }
-  }
-  return videoTimeMs;
-}
-
-function findClipByVideoTime(tracks: Track[], videoTime: number) {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const start = clip.sourceStartMs;
-      const end = start + clip.durationMs;
-
-      if (videoTime >= start && videoTime < end) {
-        return clip;
-      }
-    }
-  }
-  return null;
-}
-
-function getOrderedClips(tracks: Track[]) {
-  return tracks
-    .flatMap(t => t.clips)
-    .sort((a, b) => a.timelineStartMs - b.timelineStartMs);
-}
 
 export function Editor() {
   const { meetingId } = useParams();
@@ -203,6 +147,9 @@ export function Editor() {
           tracks,
           overlays,
           durationMs,
+          fps: project.fps ?? 60,
+          width: project.width ?? 1920,
+          height: project.height ?? 1080,
         });
       } catch (error) {
         console.error("Failed to save project:", error);
@@ -325,10 +272,29 @@ export function Editor() {
     setTracks((prev) =>
       prev.map((track, i) => {
         if (i !== trackIndex) return track;
-        return { ...track, clips: [...track.clips, clip] };
+
+        const defaultAsset = project?.assets?.find(
+          (a) => a.assetType === "VIDEO"
+        );
+
+        if (!defaultAsset) {
+          console.error("No valid asset found for clip");
+          return track;
+        }
+
+        const newClip: Clip = {
+          ...clip,
+          id: clip.id ?? crypto.randomUUID(),
+          sourceAssetId: defaultAsset.id,
+        };
+
+        return {
+          ...track,
+          clips: [...track.clips, newClip],
+        };
       })
     );
-  }, []);
+  }, [project]);
 
   const handleUpdateClip = useCallback((trackIndex: number, clipId: string, updates: Partial<Clip>) => {
     setTracks((prev) =>
@@ -363,6 +329,10 @@ export function Editor() {
       console.error("Failed to start export:", error);
     }
   };
+
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying(prev => !prev);
+  }, []);
 
   const handleSeek = useCallback((timeMs: number) => {
     isSeekingRef.current = true;
@@ -722,6 +692,7 @@ export function Editor() {
               tracks={tracks}
               onAddTrack={() => {}}
               onAddOverlay={handleAddOverlay}
+              onPlayPause={handlePlayPause}
             />
 
             {/* Quick stats */}

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Download, Plus, Type, Scissors } from "lucide-react";
+import { formatTime } from "./helpers";
 
 interface ToolbarProps {
   onExport: () => void;
@@ -12,14 +13,7 @@ interface ToolbarProps {
   tracks: any[];
   onAddTrack: () => void;
   onAddOverlay: (overlay: any) => void;
-}
-
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const centiseconds = Math.floor((ms % 1000) / 10);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
+  onPlayPause: () => void;
 }
 
 export function Toolbar({
@@ -32,6 +26,7 @@ export function Toolbar({
   tracks,
   onAddTrack,
   onAddOverlay,
+  onPlayPause,
 }: ToolbarProps) {
   const handleSliderChange = (value: number[]) => {
     onSeek(value[0]);
@@ -73,7 +68,7 @@ export function Toolbar({
         <Button
           variant="default"
           size="icon"
-          onClick={() => {}}
+          onClick={onPlayPause}
           className="h-11 w-11 rounded-full bg-[#f5a623] text-[#0a0a08] hover:bg-[#f5a623]/90"
         >
           {isPlaying ? (

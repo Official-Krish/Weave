@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Track, Clip } from "./types";
-import { Video, AudioWaveform, Type, Trash2, Eye, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { Trash2, Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type } from "lucide-react";
+import { getTrackColors } from "./helpers";
 
 interface TimelineTrackProps {
   track: Track;
@@ -14,7 +15,7 @@ interface TimelineTrackProps {
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-function getTrackIcon(type: Track["type"]) {
+export function getTrackIcon(type: Track["type"]) {
   switch (type) {
     case "VIDEO": return <Video className="h-3.5 w-3.5" />;
     case "AUDIO": return <AudioWaveform className="h-3.5 w-3.5" />;
@@ -22,34 +23,6 @@ function getTrackIcon(type: Track["type"]) {
   }
 }
 
-function getTrackColors(type: Track["type"]) {
-  switch (type) {
-    case "VIDEO":
-      return {
-        bg: "bg-[#3b82f6]/15",
-        border: "border-[#3b82f6]/40",
-        clip: "bg-[#3b82f6]/25 border-[#3b82f6]/50",
-        clipSelected: "bg-[#3b82f6]/40 border-[#3b82f6]",
-        label: "bg-[#3b82f6]/10 text-[#60a5fa]",
-      };
-    case "AUDIO":
-      return {
-        bg: "bg-[#22c55e]/15",
-        border: "border-[#22c55e]/40",
-        clip: "bg-[#22c55e]/25 border-[#22c55e]/50",
-        clipSelected: "bg-[#22c55e]/40 border-[#22c55e]",
-        label: "bg-[#22c55e]/10 text-[#4ade80]",
-      };
-    case "TEXT":
-      return {
-        bg: "bg-[#a855f7]/15",
-        border: "border-[#a855f7]/40",
-        clip: "bg-[#a855f7]/25 border-[#a855f7]/50",
-        clipSelected: "bg-[#a855f7]/40 border-[#a855f7]",
-        label: "bg-[#a855f7]/10 text-[#c084fc]",
-      };
-  }
-}
 
 
 export function TimelineTrack({

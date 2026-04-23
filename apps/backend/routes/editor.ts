@@ -191,6 +191,7 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                 tracks.map((track) =>
                     tx.editorTrack.create({
                         data: {
+                            id: track.id,
                             projectId,
                             type: track.type,
                             order: track.order,
@@ -202,19 +203,34 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                 )
             );
 
+            const projectAssets = await tx.editorAsset.findMany({
+                where: { projectId },
+            });
+            const assetMap = new Map(
+                projectAssets.map((a) => [a.id, a])
+            );
+
             for (let i = 0; i < tracks.length; i++) {
                 const track = tracks[i];
                 const createdTrack = createdTracks[i];
 
                 if (track.clips?.length) {
-                    await tx.editorClip.createMany({
-                        data: track.clips.map((clip) => ({
+                    const validClips = track.clips
+                        .filter((clip) => assetMap.has(clip.sourceAssetId))
+                        .map((clip) => ({
                             trackId: createdTrack.id,
                             sourceAssetId: clip.sourceAssetId,
                             sourceStartMs: clip.sourceStartMs,
                             timelineStartMs: clip.timelineStartMs,
                             durationMs: clip.durationMs,
-                        })),
+                        }));
+
+                    if (validClips.length !== track.clips.length) {
+                        throw new Error("Invalid sourceAssetId in clips");
+                    }
+
+                    await tx.editorClip.createMany({
+                        data: validClips,
                     });
                 }
             }
@@ -222,6 +238,7 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
             if (overlays?.length) {
                 await tx.editorOverlay.createMany({
                     data: overlays.map((o) => ({
+                        id: o.id,
                         projectId,
                         type: o.type,
                         content: o.content,
