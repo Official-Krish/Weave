@@ -105,6 +105,7 @@ export const CreateEditorProjectSchema = z.object({
 export const SaveEditorProjectSchema = z.object({
     tracks: z.array(
         z.object({
+            id: z.string(),
             type: z.enum(["VIDEO", "AUDIO", "TEXT"]),
             order: z.number(),
             visible: z.boolean(),

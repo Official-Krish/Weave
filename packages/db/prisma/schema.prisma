@@ -108,7 +108,7 @@ model EditorProject {
 
   owner            User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   meeting          Meeting       @relation(fields: [meetingId], references: [id])
-  finalRecording   FinalRecording? @relation(fields: [finalRecordingId], references: [id]) // ✅ Fix
+  finalRecording   FinalRecording? @relation(fields: [finalRecordingId], references: [id])
 
   tracks           EditorTrack[]
   overlays         EditorOverlay[]

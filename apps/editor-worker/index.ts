@@ -25,6 +25,7 @@ type LogLevel = "info" | "warn" | "error" | "debug";
 
 const CONFIG = {
   QUEUE_NAME: "EditorRender",
+  TRANSCODE_QUEUE_NAME: "TranscodeVideo",
   MAX_RETRIES: 3,
   LOOP_ERROR_BACKOFF_MS: 2_000,
   CONCURRENCY: Math.max(1, Number(process.env.WORKER_CONCURRENCY ?? 1)),
@@ -191,6 +192,105 @@ async function buildConcatArgs(parts: string[], output: string) {
   };
 }
 
+function getCanonicalFinalDir(roomId: string) {
+  return path.join(recordingsRoot, roomId, "final");
+}
+
+function getCanonicalFinalPath(roomId: string) {
+  return path.join(getCanonicalFinalDir(roomId), "meeting_grid_recording.mp4");
+}
+
+function getCanonicalHlsDir(roomId: string) {
+  return path.join(recordingsRoot, roomId, "hls");
+}
+
+async function removeIfExists(targetPath: string) {
+  await fs.rm(targetPath, { recursive: true, force: true });
+}
+
+async function promoteRenderedVideo(roomId: string, renderedPath: string) {
+  const finalDir = getCanonicalFinalDir(roomId);
+  const finalPath = getCanonicalFinalPath(roomId);
+
+  await ensureDir(finalDir);
+  await removeIfExists(finalPath);
+  await fs.rename(renderedPath, finalPath);
+
+  return finalPath;
+}
+
+async function refreshMeetingRecordingArtifacts(roomId: string, finalPath: string, jobId: string, projectId: string) {
+  const publicFinalPath = path.relative(recordingsRoot, finalPath);
+  const normalizedPublicFinalPath = publicFinalPath.startsWith("..")
+    ? finalPath
+    : `/api/v1/recordings/${publicFinalPath.split(path.sep).join("/")}`;
+
+  await removeIfExists(getCanonicalHlsDir(roomId));
+
+  const hostMeeting = await prisma.meeting.findFirst({
+    where: {
+      roomId,
+      isHost: true,
+    },
+    include: {
+      finalRecording: true,
+    },
+  });
+
+  if (!hostMeeting) {
+    throw new Error(`Host meeting not found for room ${roomId}`);
+  }
+
+  await prisma.$transaction([
+    prisma.exportJob.update({
+      where: { id: jobId },
+      data: {
+        status: "DONE",
+        outputUrl: normalizedPublicFinalPath,
+        progress: 100,
+        error: null,
+      },
+    }),
+    prisma.editorProject.update({
+      where: { id: projectId },
+      data: { status: "COMPLETED" },
+    }),
+    prisma.finalRecording.upsert({
+      where: {
+        meetingId: hostMeeting.id,
+      },
+      create: {
+        meetingId: hostMeeting.id,
+        videoLink: normalizedPublicFinalPath,
+        visibleToEmails: hostMeeting.finalRecording?.visibleToEmails ?? [],
+      },
+      update: {
+        videoLink: normalizedPublicFinalPath,
+      },
+    }),
+    prisma.meeting.updateMany({
+      where: {
+        roomId,
+      },
+      data: {
+        recordingState: "PROCESSING",
+        processingStartedAt: new Date(),
+        processingEndedAt: null,
+      },
+    }),
+  ]);
+
+  await connection.rpush(
+    CONFIG.TRANSCODE_QUEUE_NAME,
+    JSON.stringify({
+      meetingId: roomId,
+      finalPath,
+    }),
+  );
+
+  return normalizedPublicFinalPath;
+}
+
 // ─── Core render logic ────────────────────────────────────────────────────────
 
 async function processRenderJob(payload: RenderPayload): Promise<void> {
@@ -313,25 +413,21 @@ async function processRenderJob(payload: RenderPayload): Promise<void> {
       await updateProgress(jobId, 90);
     }
 
-    // ── Finalise ───────────────────────────────────────────────────────────
-    const relativeOutputPath = path.relative(recordingsRoot, outputPath);
+    // ── Promote to canonical final recording and trigger retranscode ──────
+    const finalPath = await promoteRenderedVideo(roomId, outputPath);
+    const publicFinalPath = await refreshMeetingRecordingArtifacts(roomId, finalPath, jobId, projectId);
 
-    await prisma.$transaction([
-      prisma.exportJob.update({
-        where: { id: jobId },
-        data: { status: "DONE", outputUrl: relativeOutputPath, progress: 100, error: null },
-      }),
-      prisma.editorProject.update({
-        where: { id: projectId },
-        data: { status: "COMPLETED" },
-      }),
-    ]);
-
-    log("info", "Job completed", { jobId, output: relativeOutputPath });
+    log("info", "Job completed and promoted to final recording", {
+      jobId,
+      finalPath,
+      publicFinalPath,
+      transcodeQueue: CONFIG.TRANSCODE_QUEUE_NAME,
+    });
     metrics.processed++;
   } finally {
     // Always clean up temp files, even on failure
     await Promise.allSettled([
+      fs.unlink(previewPath),
       ...tempFiles.map((f) => fs.unlink(f)),
       concatListPath ? fs.unlink(concatListPath) : Promise.resolve(),
     ]);
