@@ -9,6 +9,7 @@ import { Loader2, Film, Pencil, X } from "lucide-react";
 import { VideoPlayer } from "../videojsPlayer";
 import { Stage, Layer, Text, Transformer, Line } from "react-konva";
 import type Konva from "konva";
+import { findClipByVideoTime, getOrderedClips, mapSourceToTimelineTime, mapTimelineToSourceTime } from "./helpers";
 
 
 const EDITOR_CSS = `
@@ -27,63 +28,6 @@ const EDITOR_CSS = `
     50% { opacity: 0.6; }
   }
 `;
-
-function mapTimelineToSourceTime(
-  tracks: Track[],
-  timeMs: number
-): number {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const start = clip.timelineStartMs;
-      const end = start + clip.durationMs;
-
-      if (timeMs >= start && timeMs < end) {
-        const offset = timeMs - start;
-        return clip.sourceStartMs + offset;
-      }
-    }
-  }
-
-  return timeMs; 
-}
-
-function mapSourceToTimelineTime(
-  tracks: Track[],
-  videoTimeMs: number
-): number {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const sourceStart = clip.sourceStartMs;
-      const sourceEnd = sourceStart + clip.durationMs;
-
-      if (videoTimeMs >= sourceStart && videoTimeMs < sourceEnd) {
-        const offset = videoTimeMs - sourceStart;
-        return clip.timelineStartMs + offset;
-      }
-    }
-  }
-  return videoTimeMs;
-}
-
-function findClipByVideoTime(tracks: Track[], videoTime: number) {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const start = clip.sourceStartMs;
-      const end = start + clip.durationMs;
-
-      if (videoTime >= start && videoTime < end) {
-        return clip;
-      }
-    }
-  }
-  return null;
-}
-
-function getOrderedClips(tracks: Track[]) {
-  return tracks
-    .flatMap(t => t.clips)
-    .sort((a, b) => a.timelineStartMs - b.timelineStartMs);
-}
 
 export function Editor() {
   const { meetingId } = useParams();

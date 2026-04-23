@@ -20,20 +20,6 @@ interface TimelineProps {
   onSeek: (timeMs: number) => void;
 }
 
-function findActiveClip(tracks: Track[], timeMs: number): Clip | null {
-  for (const track of tracks) {
-    for (const clip of track.clips) {
-      const start = clip.timelineStartMs;
-      const end = start + clip.durationMs;
-
-      if (timeMs >= start && timeMs < end) {
-        return clip;
-      }
-    }
-  }
-  return null;
-}
-
 export function Timeline({
   tracks,
   durationMs,
