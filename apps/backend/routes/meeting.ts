@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authMiddleware, serviceAuthMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { redisPublisher } from "../utils/redis";
-import { toSingleString, normalizeEmails, canViewFinalRecording, generateString, normalizeFinalRecordingLink, finalizeMeetingRoom } from "../utils/helpers";
+import { toSingleString, normalizeEmails, canViewFinalRecording, generateString, normalizeFinalRecordingLink, finalizeMeetingRoom, formatTime } from "../utils/helpers";
 import { CreateMeetingSchema, ScheduleMeetingSchema } from "@repo/types";
 
 const meetingRouter = Router();
@@ -47,6 +47,20 @@ meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
             }
         });
 
+        const schedules = await prisma.meetingSchedule.findMany({
+            where: {
+                participants: {
+                    some: { userId }
+                }
+            },
+            include: {
+                participants: true,
+            },
+            orderBy: {
+                startTime: "asc",
+            }
+        });
+
         const formatted = meetings.map((meeting) => {
         const normalizedRecording = normalizeFinalRecordingLink(meeting.finalRecording);
 
@@ -66,6 +80,7 @@ meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
                 roomName: meeting.roomName,
                 isHost,
                 isEnded: meeting.isEnded,
+                recordingState: meeting.recordingState,
                 createdAt: meeting.createdAt,
 
                 participants: meeting.participants.map(p => ({
@@ -90,8 +105,16 @@ meetingRouter.get("/getAll", authMiddleware, async (req, res) => {
             };
         });
 
-        res.status(200).json(formatted);
-
+        res.status(200).json({ meetings: formatted, schedules: schedules.map(s => ({
+            id: s.id,
+            title: s.title,
+            isHost: s.hostId === userId,
+            description: s.description,
+            startTime: s.startTime,
+            isRecurring: s.isRecurring,
+            recurrenceRule: s.recurrenceRule,
+            participantCount: s.participants.length,
+        })) || []});
     } catch (error) {
         console.error("Error fetching meetings:", error);
         res.status(500).json({ message: "Internal server error" });
@@ -259,7 +282,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
 
     // send notifications to invited users
     if (invitedUsers.length > 0) {
-      await redisPublisher.publish("MeetingInvitations", JSON.stringify({
+      await redisPublisher.lpush("MeetingInvitations", JSON.stringify({
         roomId: meeting.roomId,
         message: `You have been invited to join the meeting "${roomName}" by ${user.name}.`, 
         participants: invitedUsers.map((u) => ({
@@ -310,13 +333,14 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
         include: { participants: true },
       });
 
-      if (!meeting && schedule.hostId === userId) {
+      if (meeting && schedule.hostId === userId) {
         meeting = await prisma.meeting.create({
           data: {
             roomId: generateString().toLowerCase(),
             roomName: schedule.title,
             userId: schedule.hostId,
             isHost: true,
+            isEnded: false,
             scheduleId: schedule.id,
             participants: {
               create: [
@@ -334,7 +358,8 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
           },
           include: { participants: true },
         });
-        await redisPublisher.publish("MeetingInvitations", JSON.stringify({
+
+        await redisPublisher.lpush("MeetingInvitations", JSON.stringify({
           roomId: meeting.roomId,
           message: `Your scheduled meeting "${schedule.title}" is starting now.`,
           participants: schedule.participants
@@ -349,9 +374,13 @@ meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
           isHost: true,
           recordingState: meeting.recordingState,
         });
-      } else if (!meeting) {
+      } else if (meeting && schedule.hostId !== userId) {
         return res.status(201).json({ message: "Waiting for host to start the meeting" });
       }
+    }
+
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found" });
     }
 
     if (meeting.isEnded) {
@@ -451,7 +480,6 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
             {
               userId,
               role: "HOST",
-              joinedAt: new Date(),
             },
             // invited users
             ...users.map((u) => ({
@@ -467,9 +495,10 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
 
     // send notifications
     if (users.length > 0) {
-      await redisPublisher.publish("MeetingReminders", JSON.stringify({
+      await redisPublisher.lpush("MeetingReminders", JSON.stringify({
         scheduleId: schedule.id,
-        message: `You have been invited to join the scheduled meeting "${title}" by ${user.name}. at ${startTime}. You will be notified again when the meeting is about to start with the join link.`,
+        scheduledAt: schedule.startTime,
+        message: `You have been invited to join the scheduled meeting "${title}" by ${user.name}. at ${formatTime(schedule.startTime)}. You will be notified again when the meeting is about to start with the join link.`,
         participants: users.map((u) => ({
           userId: u.id,
         })),
@@ -483,84 +512,6 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating schedule:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-meetingRouter.post("/join/:id", authMiddleware, async (req, res) => {
-  const userId = req.userId;
-  const roomId = toSingleString(req.params.id);
-  const { passcode } = req.body;
-
-  if (!userId || !roomId) {
-    return res.status(400).json({ message: "Invalid request" });
-  }
-
-  try {
-    const meeting = await prisma.meeting.findUnique({
-      where: { roomId, isHost: true },
-      include: {
-        participants: true,
-      },
-    });
-
-    if (!meeting || meeting.isEnded) {
-      return res.status(404).json({ message: "Meeting not found or ended" });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, email: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const existingParticipant = meeting.participants.find(
-      (p) => p.userId === userId
-    );
-
-    if (!existingParticipant) {
-      if(passcode){
-        if(meeting.passcode && passcode === meeting.passcode){
-          await prisma.meetingParticipant.create({
-            data: {
-              meetingId: meeting.id,
-              userId,
-              role: "PARTICIPANT",
-              joinedAt: new Date(),
-            },
-          });
-          return res.status(200).json({
-            roomId: meeting.roomId,
-            passcode: meeting.passcode,
-            name: user.name,
-            isHost: meeting.userId === userId,
-            recordingState: meeting.recordingState,
-          });
-        }
-      } 
-      return res.status(403).json({ message: "Incorrect passcode" });
-    } else {
-      await prisma.meetingParticipant.update({
-        where: { id: existingParticipant.id },
-        data: {
-          leftAt: null,
-          joinedAt: new Date(),
-        },
-      });
-    }
-
-    return res.status(200).json({
-      roomId: meeting.roomId,
-      passcode: meeting.passcode,
-      name: user.name,
-      isHost: meeting.userId === userId,
-      recordingState: meeting.recordingState,
-    });
-  } catch (error) {
-    console.error("Error joining meeting:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

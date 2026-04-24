@@ -133,7 +133,7 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
             }
 
             const hostMeeting = await prisma.meeting.findFirst({
-                where: { roomId, userId: userId, isHost: true },
+                where: { roomId, isHost: true },
                 select: {
                     userId: true,
                     roomName: true,

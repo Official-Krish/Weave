@@ -35,6 +35,8 @@ export async function uploadChunk({
     throw error;
   }
 
+  const meeting = await resolveMeetingForUploader(roomId, userId);
+
   const outputPath = buildChunkOutputPath({
     roomId,
     participantId,
@@ -45,15 +47,27 @@ export async function uploadChunk({
 
   await writeChunkToDisk(outputPath, fileBuffer);
 
-  const meeting = await resolveOrCreateMeetingSession(roomId, userId);
-
-  await prisma.mediaChunk.create({
-    data: {
+  await prisma.mediaChunk.upsert({
+    where: {
+      meetingId_uploaderUserId_sequenceNumber: {
+        meetingId: meeting.id,
+        uploaderUserId: userId,
+        sequenceNumber: toValidNumber(sequenceNumber) ?? 0,
+      },
+    },
+    create: {
       meetingId: meeting.id,
       bucketLink: outputPath,
       mimeType,
       uploaderUserId: userId,
       sequenceNumber: toValidNumber(sequenceNumber),
+      durationMs: toValidNumber(durationMs),
+      startedAt: startedAt && !Number.isNaN(startedAt.getTime()) ? startedAt : null,
+      status: "UPLOADED",
+    },
+    update: {
+      bucketLink: outputPath,
+      mimeType,
       durationMs: toValidNumber(durationMs),
       startedAt: startedAt && !Number.isNaN(startedAt.getTime()) ? startedAt : null,
       status: "UPLOADED",
@@ -102,59 +116,34 @@ async function writeChunkToDisk(outputPath: string, buffer: Buffer) {
   await fs.writeFile(outputPath, buffer);
 }
 
-async function resolveOrCreateMeetingSession(roomId: string, userId: string) {
-  const existing = await prisma.meeting.findFirst({ where: { roomId, userId } });
-  if (existing) return existing;
+async function resolveMeetingForUploader(roomId: string, userId: string) {
+  const meeting = await prisma.meeting.findUnique({
+    where: { roomId },
+    include: {
+      participants: {
+        where: { userId },
+        select: { id: true },
+      },
+    },
+  });
 
-  return createParticipantSession(roomId, userId);
-}
-
-async function createParticipantSession(roomId: string, userId: string) {
-  const [hostSession, uploader] = await Promise.all([
-    prisma.meeting.findFirst({ where: { roomId, isHost: true } }),
-    prisma.user.findFirst({ where: { id: userId }, select: { email: true } }),
-  ]);
-
-  if (!hostSession || !uploader?.email) {
-    console.warn(
-      `Meeting session not found for uploaded chunk: roomId=${roomId}, userId=${userId}`
-    );
+  if (!meeting) {
+    console.warn(`Meeting not found for uploaded chunk: roomId=${roomId}, userId=${userId}`);
     const error = new Error("Meeting session not found for uploader");
     (error as any).statusCode = 404;
     throw error;
   }
 
-  const normalizedEmail = uploader.email.toLowerCase();
-  const mergedParticipants = {
-    joined: [...new Set([...hostSession.joinedParticipants, normalizedEmail])],
-    invited: [...new Set([...hostSession.invitedParticipants, normalizedEmail])],
-  };
+  const isAuthorizedUploader = meeting.userId === userId || meeting.participants.length > 0;
 
-  const [createdSession] = await prisma.$transaction([
-    prisma.meeting.create({
-      data: {
-        roomId: hostSession.roomId,
-        userId,
-        roomName: hostSession.roomName,
-        date: hostSession.date,
-        startTime: hostSession.startTime,
-        endTime: hostSession.endTime,
-        isHost: false,
-        recordingState: hostSession.recordingState,
-        joinedParticipants: mergedParticipants.joined,
-        invitedParticipants: mergedParticipants.invited,
-      },
-    }),
-    prisma.meeting.updateMany({
-      where: { roomId: hostSession.roomId },
-      data: {
-        joinedParticipants: mergedParticipants.joined,
-        invitedParticipants: mergedParticipants.invited,
-      },
-    }),
-  ]);
+  if (!isAuthorizedUploader) {
+    console.warn(`Unauthorized chunk upload attempt: roomId=${roomId}, userId=${userId}`);
+    const error = new Error("Uploader is not part of this meeting");
+    (error as any).statusCode = 403;
+    throw error;
+  }
 
-  return createdSession;
+  return meeting;
 }
 
 function toValidNumber(value: number | null): number | null {

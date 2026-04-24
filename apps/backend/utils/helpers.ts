@@ -214,7 +214,9 @@ export async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
       await redisPublisher.rpush(
         "ProcessVideo",
         JSON.stringify({
-          meetingId: meeting.id,
+          meetingId: meeting.roomId,
+          roomId: meeting.roomId,
+          internalMeetingId: meeting.id,
         })
       );
     }
@@ -232,4 +234,12 @@ export async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
     alreadyEnded,
     shouldProcessRecording,
   };
+}
+
+export function formatTime(time: string | Date) {
+  const date = typeof time === "string" ? new Date(time) : time;
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

@@ -1,7 +1,12 @@
 import { prisma } from "@repo/db/client";
 import { Redis } from "ioredis";
 
-export const redisSubscriber = new Redis({
+export const redisSubscriberReminders = new Redis({
+  host: process.env.REDIS_HOST,
+  port: 6379,
+});
+
+export const redisSubscriberInvitations = new Redis({
   host: process.env.REDIS_HOST,
   port: 6379,
 });
@@ -11,28 +16,41 @@ export const redisPublisher = new Redis({
   port: 6379,
 });
 
+function resolveParticipantUserId(participant: string | { userId?: string }) {
+  if (typeof participant === "string") {
+    return participant;
+  }
+
+  return participant.userId;
+}
+
 export async function sendInvitationEmail() {
   while (true) {
     try {
-      const reciever = await redisSubscriber.brpop("MeetingInvitations", 0);
+      const reciever = await redisSubscriberInvitations.brpop("MeetingInvitations", 0);
       if (!reciever) continue;
 
       const { roomId, message, participants } = JSON.parse(reciever[1]);
 
       if (!participants) continue;
 
-      participants.forEach(async (userId: string) => {
-        await prisma.notification.create({
-          data: {
-            userId: userId,
-            type: "MEETING_INVITE",
-            message: message,
-            metadata: {
-              roomId: roomId,
+      await Promise.all(
+        participants.map(async (participant: string | { userId?: string }) => {
+        const userId = resolveParticipantUserId(participant);
+        if (!userId) return;
+
+          return prisma.notification.create({
+            data: {
+              userId: userId,
+              type: "MEETING_INVITE",
+              message: message,
+              metadata: {
+                roomId: roomId,
+              },
             },
-          },
-        });
-      });
+          });
+        })
+      );
 
     } catch (error) {
       console.error("Error processing invitation, retrying...", error);
@@ -44,25 +62,32 @@ export async function sendInvitationEmail() {
 export async function sendMeetingReminders() {
   while (true) {
     try {
-      const reciever = await redisSubscriber.brpop("MeetingReminders", 0);
+      const reciever = await redisSubscriberReminders.brpop("MeetingReminders", 0);
       if (!reciever) continue;
 
-      const { scheduleId, message, participants } = JSON.parse(reciever[1]);
+      const { scheduleId, message, participants, scheduledAt } = JSON.parse(reciever[1]);
 
       if (!participants) continue;
 
-      participants.forEach(async (userId: string) => {
-        await prisma.notification.create({
-          data: {
-            userId: userId,
-            type: "MEETING_REMINDER",
-            message: message,
-            metadata: {
-              scheduleId: scheduleId,
+      await Promise.all(
+        participants.map(async (participant: string | { userId?: string }) => {
+          const userId = resolveParticipantUserId(participant);
+
+          if (!userId) return;
+
+          return prisma.notification.create({
+            data: {
+              userId,
+              type: "MEETING_REMINDER",
+              message,
+              metadata: {
+                scheduleId,
+                scheduledAt,
+              },
             },
-          },
-        });
-      });
+          });
+        })
+      );
 
     } catch (error) {
       console.error("Error processing reminder, retrying...", error);
