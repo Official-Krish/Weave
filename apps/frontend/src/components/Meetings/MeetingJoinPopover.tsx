@@ -4,9 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DevicePreview } from "./DevicePreview";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { http } from "@/https";
+import { toast } from "sonner";
+import { getHttpErrorMessage } from "@/lib/httpError";
 
 type MeetingJoinPopoverProps = {
   triggerLabel: string;
+  cancelMeetingLabel?: string | null;
+  scheduleId?: string;
   onJoin: (devices: { micId?: string; cameraId?: string }) => Promise<void> | void;
   disabled?: boolean;
   busy?: boolean;
@@ -15,6 +21,8 @@ type MeetingJoinPopoverProps = {
 
 export function MeetingJoinPopover({
   triggerLabel,
+  cancelMeetingLabel,
+  scheduleId,
   onJoin,
   disabled,
   busy,
@@ -29,6 +37,22 @@ export function MeetingJoinPopover({
   const [isJoining, setIsJoining] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const queryClient = useQueryClient();
+
+  const cancelMeetingMutation = useMutation({
+    mutationFn: async (id: string) => {
+
+      const response = await http.post(`/meeting/cancel/schedule/${id}`);
+      return response.data;
+    },
+    onSuccess: async () => {
+      toast.success("Meeting canceled successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["meetings"] });
+    },
+    onError: (error) => {
+      toast.error(getHttpErrorMessage(error, "Could not delete the meeting."));
+    },
+  });
 
   useEffect(() => {
     if (!open || typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -114,12 +138,30 @@ export function MeetingJoinPopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button type="button" disabled={disabled || busy} className={triggerClassName}>
-          {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-          {triggerLabel}
-        </button>
-      </PopoverTrigger>
+      <div className="flex space-x-2">
+        {cancelMeetingLabel && scheduleId && (
+          <button
+            type="button"
+            disabled={disabled || busy}
+            onClick={() => cancelMeetingMutation.mutate(scheduleId)}
+            className="inline-flex items-center gap-2 rounded-full border border-red-500/15 bg-red-500/10 px-4 py-2 text-[12px] font-bold text-red-400 transition hover:border-red-500/30 hover:bg-red-500/14 hover:brightness-105 cursor-pointer disabled:pointer-events-none disabled:opacity-50"
+          >
+            {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+            {cancelMeetingLabel}
+          </button>
+        )}
+
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled || busy}
+            className={triggerClassName}
+          >
+            {busy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+            {triggerLabel}
+          </button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent className="w-[360px] border border-white/10 bg-[#120f0b] p-4 text-[#fff5de]" align="end">
         <div className="space-y-4">
           <div>

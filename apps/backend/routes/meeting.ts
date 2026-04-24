@@ -516,6 +516,96 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
   }
 });
 
+meetingRouter.post("/cancel/schedule/:id", authMiddleware, async (req, res) => {
+  const userId = req.userId;
+  const scheduleId = toSingleString(req.params.id);
+
+  if (!userId || !scheduleId) {
+    return res.status(400).json({ message: "Invalid request" });
+  }
+
+  try {
+    const schedule = await prisma.meetingSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { participants: true },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    if (schedule.hostId !== userId) {
+      return res.status(403).json({ message: "Only the host can cancel the schedule" });
+    }
+
+    await prisma.meetingSchedule.delete({
+      where: { id: scheduleId }
+    });
+
+    await redisPublisher.lpush("MeetingReminders", JSON.stringify({
+      scheduleId,
+      message: `The scheduled meeting "${schedule.title}" has been canceled by the host.`,
+      participants: schedule.participants
+        .filter((p) => p.userId !== schedule.hostId)
+        .map((p) => ({
+          userId: p.userId,
+        })),
+    }));
+
+    return res.status(200).json({ message: "Schedule canceled successfully" });
+  } catch (error) {
+    console.error("Error canceling schedule:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+meetingRouter.post("/reschedule/schedule/:id", authMiddleware, async (req, res) => {
+  const userId = req.userId;
+  const scheduleId = toSingleString(req.params.id);
+  const { startTime } = req.body;
+
+  if (!userId || !scheduleId || !startTime) {
+    return res.status(400).json({ message: "Invalid request" });
+  }
+
+  try {
+    const schedule = await prisma.meetingSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { participants: true },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    if (schedule.hostId !== userId) {
+      return res.status(403).json({ message: "Only the host can reschedule" });
+    }
+
+    const updatedSchedule = await prisma.meetingSchedule.update({
+      where: { id: scheduleId },
+      data: { startTime: new Date(startTime) },
+      include: { participants: true },
+    });
+
+    await redisPublisher.lpush("MeetingReminders", JSON.stringify({
+      scheduleId,
+      scheduledAt: updatedSchedule.startTime,
+      message: `The scheduled meeting "${schedule.title}" has been rescheduled by the host to ${formatTime(updatedSchedule.startTime)}.`,
+      participants: updatedSchedule.participants
+        .filter((p) => p.userId !== updatedSchedule.hostId)
+        .map((p) => ({
+          userId: p.userId,
+        })),
+    }));
+
+    return res.status(200).json({ message: "Schedule rescheduled successfully" });
+  } catch (error) {
+    console.error("Error rescheduling:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 meetingRouter.post("/system/end-on-host-disconnect/:id", serviceAuthMiddleware, async (req, res) => {
     const roomId = toSingleString(req.params.id);
 
