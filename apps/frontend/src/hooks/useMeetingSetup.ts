@@ -4,6 +4,7 @@ import type { CreateMeetingResponse, JoinMeetingResponse } from "@repo/types/api
 import { http } from "../https";
 import { getHttpErrorMessage } from "../lib/httpError";
 import { toast } from "sonner";
+import { buildMeetingLivePath } from "../lib/meeting";
 
 type UseMeetingSetupArgs = {
   displayNameFallback: string;
@@ -44,27 +45,6 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
   const [micMonitorEnabled, setMicMonitorEnabled] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const buildMeetingRoute = (roomId: string, name: string, role: "host" | "guest", recordingState?: boolean) => {
-    const params = new URLSearchParams({
-      name: name || displayNameFallback || (role === "host" ? "Host" : "Guest"),
-      role,
-    });
-
-    if (recordingState) {
-      params.set("recordingState", "true");
-    }
-
-    if (selectedMicId) {
-      params.set("micId", selectedMicId);
-    }
-
-    if (selectedCameraId) {
-      params.set("cameraId", selectedCameraId);
-    }
-
-    return `/meeting/live/${roomId}?${params.toString()}`;
-  };
 
   useEffect(() => {
     micMonitorEnabledRef.current = micMonitorEnabled;
@@ -250,7 +230,15 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
       return response.data;
     },
     onSuccess: (data) => {
-      navigate(buildMeetingRoute(data.roomId, data.name || "Host", "host"));
+      navigate(
+        buildMeetingLivePath({
+          roomId: data.roomId,
+          name: data.name || displayNameFallback || "Host",
+          role: "host",
+          micId: selectedMicId,
+          cameraId: selectedCameraId,
+        })
+      );
     },
     onError: (error) => {
       setErrorMessage(
@@ -273,7 +261,16 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
     onSuccess: (data) => {
       const host = data.isHost ? "host" : "guest";
       const recordingState = data.recordingState == "RECORDING";
-      navigate(buildMeetingRoute(data.id, data.name || "Guest", host, recordingState));
+      navigate(
+        buildMeetingLivePath({
+          roomId: data.roomId,
+          name: displayNameFallback || "Guest",
+          role: host,
+          recordingState,
+          micId: selectedMicId,
+          cameraId: selectedCameraId,
+        })
+      );
     },
     onError: (error) => {
       toast.error(

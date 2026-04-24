@@ -5,7 +5,6 @@ import {
   LogOut,
   Moon,
   Sparkles,
-  SunMedium,
   UserPen,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +26,7 @@ type ProfileDropdownProps = {
 export function ProfileDropdown({
   name,
   theme,
-  toggleTheme,
+  toggleTheme: _toggleTheme,
   signOut,
   menuDirection = "down",
   variant = "compact",

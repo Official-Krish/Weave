@@ -3,6 +3,7 @@ import { TYPE_CONFIG } from "./config";
 import { timeAgo } from "./helpers";
 import type { Notification } from "./types";
 import { motion } from "motion/react";
+import { MeetingJoinPopover } from "@/components/Meetings";
 
 export function NotificationCard({
   notification,
@@ -17,12 +18,16 @@ export function NotificationCard({
   onDelete: (id: string) => void;
   onAcceptRecording: (roomId: string, requestedBy: string, notifId: string) => void;
   onDeclineRecording: (notifId: string) => void;
-  onAcceptInvite: (roomId: string, notifId: string) => void;
+  onAcceptInvite: (targetId: string, notifId: string, devices: { micId?: string; cameraId?: string }) => Promise<void> | void;
 }) {
   const config = TYPE_CONFIG[notification.type];
   const navigate = useNavigate();
   const isActionable =
-    notification.type === "RECORDING_REQUEST" || notification.type === "MEETING_INVITE" || notification.type === "RECORDING_READY" || notification.type === "RECORDING_REQUEST_APPROVED";
+    notification.type === "RECORDING_REQUEST" ||
+    notification.type === "MEETING_INVITE" ||
+    notification.type === "MEETING_REMINDER" ||
+    notification.type === "RECORDING_READY" ||
+    notification.type === "RECORDING_REQUEST_APPROVED";
 
   return (
     <motion.div
@@ -201,23 +206,18 @@ export function NotificationCard({
           >
             {notification.type === "MEETING_INVITE" && (
               <>
-                <button
-                  onClick={() => {
-                    onAcceptInvite(notification.metadata!.roomId!, notification.id);
+                <MeetingJoinPopover
+                  triggerLabel="Join meeting"
+                  variant="blue"
+                  onJoin={async (devices) => {
+                    if (!notification.metadata?.roomId) {
+                      return;
+                    }
+
+                    await onAcceptInvite(notification.metadata.roomId, notification.id, devices);
                     onMarkRead(notification.id);
                   }}
-                  className="
-                    inline-flex items-center gap-1.5 rounded-xl bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] px-3.5 py-2 text-xs font-semibold text-white cursor-pointer
-                    transition-all duration-150 active:scale-95
-                    shadow-[0_12px_24px_rgba(43,127,255,0.18)]
-                    hover:bg-[linear-gradient(135deg,#5ea6ff,#2b7fff)] hover:brightness-110
-                  "
-                >
-                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                    <path fillRule="evenodd" d="M8 14a6 6 0 100-12 6 6 0 000 12zm1-9a1 1 0 10-2 0v2H5a1 1 0 100 2h2v2a1 1 0 102 0V9h2a1 1 0 100-2H9V5z" clipRule="evenodd" />
-                  </svg>
-                  Join Meeting
-                </button>
+                />
                 <button
                   onClick={() => onDeclineRecording(notification.id)}
                   className="

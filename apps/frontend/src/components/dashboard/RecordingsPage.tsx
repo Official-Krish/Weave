@@ -16,7 +16,7 @@ import { getHttpErrorMessage } from "@/lib/httpError";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { http } from "@/https";
-import { getDuration, type RecordingsPageProps } from "./types";
+import { getDuration, getMeetingDate, getMeetingParticipantCount, type RecordingsPageProps } from "./types";
 
 export function RecordingsPage({
   meetings,
@@ -194,15 +194,15 @@ export function RecordingsPage({
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
                             <span className="inline-flex items-center gap-1">
                               <Users className="size-3" />
-                              {meeting.joinedParticipants.length} participants
+                              {getMeetingParticipantCount(meeting)} participants
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <CalendarDays className="size-3" />
-                              {new Date(meeting.date).toLocaleDateString()}
+                              {new Date(getMeetingDate(meeting)).toLocaleDateString()}
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <Clock3 className="size-3" />
-                              {getDuration(meeting.startTime, meeting.endTime)}
+                              {getDuration(meeting.recordingStartedAt, meeting.recordingStoppedAt)}
                             </span>
                           </div>
                         </div>

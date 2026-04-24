@@ -44,6 +44,6 @@ export const api = {
       })
       .then(() => undefined),
 
-  acceptMeetingInvite: (roomId: string): Promise<void> =>
-    http.post(`/meeting/join/${roomId}`, {}).then(() => undefined),
+  acceptMeetingInvite: (targetId: string) =>
+    http.post(`/meeting/join/${targetId}`, {}),
 };

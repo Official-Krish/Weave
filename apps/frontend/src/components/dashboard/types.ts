@@ -9,6 +9,14 @@ export type MeetingsProps = {
   onOpenRecording: (recordingId: string) => void;
 };
 
+export function getMeetingParticipantCount(meeting: MeetingDetails) {
+  return meeting.participants.length;
+}
+
+export function getMeetingDate(meeting: MeetingDetails) {
+  return meeting.createdAt;
+}
+
 export function getStatusTone(meeting: MeetingDetails) {
   if (!meeting.isEnded) {
     return "live";

@@ -1,15 +1,17 @@
-import type { MeetingDetails } from "@repo/types/api";
-import { Clock3, Download, LogIn, Plus, Sparkles, Video } from "lucide-react";
+import type { MeetingDetails, MeetingSchedule } from "@repo/types/api";
+import { CalendarDays, Clock3, Download, LogIn, Plus, Sparkles, Video } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export function Topbar({
     name,
     liveMeetings,
     meetings,
+    schedules,
 }: {
     name: string | null;
     liveMeetings: unknown[];
-    meetings: MeetingDetails[]
+    meetings: MeetingDetails[];
+    schedules: MeetingSchedule[];
 }) {
     const navigate = useNavigate();
     const readyMeetings = meetings.filter((meeting) => meeting.recordingState === "READY");
@@ -26,6 +28,12 @@ export function Topbar({
                     </h1>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={() => navigate("/meeting/schedule")}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/15 bg-white/4 px-4 py-2.5 text-[13px] font-semibold text-[#fff5de]/80 transition hover:border-[#f5a623]/28 cursor-pointer"
+                    >
+                        <CalendarDays className="size-3.5" /> Schedule
+                    </button>
                     <button
                         onClick={() => navigate("/meetingSetup")}
                         className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/15 bg-white/4 px-4 py-2.5 text-[13px] font-semibold text-[#fff5de]/80 transition hover:border-[#f5a623]/28 cursor-pointer"
@@ -52,10 +60,11 @@ export function Topbar({
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
             {[
                 { label: "Total meetings", value: meetings.length, icon: <Video className="size-3.5" /> },
                 { label: "Live now", value: liveMeetings.length, delta: "Active sessions", live: true, icon: <Clock3 className="size-3.5" /> },
+                { label: "Upcoming", value: schedules.length, delta: "Scheduled rooms", icon: <CalendarDays className="size-3.5" /> },
                 { label: "Ready to export", value: readyMeetings.length, icon: <Download className="size-3.5" /> },
                 { label: "Storage used", value: `${storageGb} GB`, delta: "of 6 GB", warn: true, icon: <Sparkles className="size-3.5" /> },
             ].map(({ label, value, delta, live, warn, icon }) => (

@@ -7,8 +7,8 @@ export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;})
     const downloadableMp4Url = meeting?.meetingId
     ? `/api/v1/recordings/${meeting.meetingId}/final/meeting_grid_recording.mp4` : "";
 
-    const startedAt = meeting?.startTime ? new Date(meeting.startTime) : null;
-    const endedAt = meeting?.endTime ? new Date(meeting.endTime) : null;
+    const startedAt = null;
+    const endedAt = null;
     const durationLabel = findDuration(startedAt ?? new Date(), endedAt ?? new Date());
           
     return (
@@ -28,7 +28,7 @@ export const RecordingDetail = ({ meeting }: { meeting: RecordingPageResponse;})
             </div>
             <div className="wrp-meta-item">
                 <CalendarDays size={13} />
-                <span>{new Date(meeting.date).toLocaleString()}</span>
+                <span>{meeting.roomName ? "Meeting recording" : "Recording details"}</span>
             </div>
             <div className="wrp-meta-item">
                 <Clock3 size={13} />

@@ -17,6 +17,7 @@ import { Pricing } from "@/pages/Pricing";
 import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, SupportPage, TermsPage } from "@/pages/StaticPages";
 import ProfilePage from "@/pages/Profile";
 import NotificationsPage from "@/pages/Notification";
+import { ScheduleMeetingPage } from "@/pages/ScheduleMeetingPage";
 
 const router = createBrowserRouter([
   {
@@ -95,6 +96,10 @@ const router = createBrowserRouter([
       {
         path: "notifications",
         element: <NotificationsPage />,
+      },
+      {
+        path: "meeting/schedule",
+        element: <ScheduleMeetingPage />,
       },
       {
         path: "edit/:meetingId",
