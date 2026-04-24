@@ -105,6 +105,7 @@ export function Overview({
           onJoinSchedule={onJoinSchedule}
           onScheduleMeeting={onScheduleMeeting}
           compact
+          isDashboard={true}
         />
       </div>
     </motion.div>

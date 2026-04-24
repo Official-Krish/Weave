@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DatePickerTime } from "@/components/ui/TimePicker";
 import { Button } from "@/components/ui/button";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 type UpcomingMeetingsProps = {
   schedules: MeetingSchedule[];
@@ -20,6 +21,7 @@ type UpcomingMeetingsProps = {
   onJoinSchedule: (scheduleId: string, devices: { micId?: string; cameraId?: string }) => Promise<void>;
   onScheduleMeeting: () => void;
   compact?: boolean;
+  isDashboard?: boolean;
 };
 
 export function UpcomingMeetings({
@@ -31,14 +33,22 @@ export function UpcomingMeetings({
   onJoinSchedule,
   onScheduleMeeting,
   compact = false,
+  isDashboard = false,
 }: UpcomingMeetingsProps) {
   const queryClient = useQueryClient();
   const [rescheduleScheduleId, setRescheduleScheduleId] = useState<string | null>(null);
   const [rescheduleStartTime, setRescheduleStartTime] = useState<Date | null>(null);
+  const [page, setPage] = useState(1);
 
   const upcoming = schedules
     .slice()
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  const pageSize = 4;
+  const totalPages = Math.ceil(upcoming.length / pageSize);
+  const visibleSchedules = compact
+    ? upcoming.slice(0, 3)
+    : upcoming.slice((page - 1) * pageSize, page * pageSize);
 
   const activeSchedule = useMemo(
     () => upcoming.find((schedule) => schedule.id === rescheduleScheduleId) ?? null,
@@ -96,18 +106,21 @@ export function UpcomingMeetings({
           <h2 className="mt-1 text-[26px] font-black leading-none tracking-tight text-[#fff5de]">
             Scheduled rooms, ready when your team is
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#b49650]/65">
-            Hosts can start the room from here, and invited participants can join once it goes live.
-          </p>
+          {!isDashboard && (
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#b49650]/65">
+              Hosts can start the room from here, and invited participants can join once it goes live.
+            </p>
+          )}
         </div>
-
-        <button
-          type="button"
-          onClick={onScheduleMeeting}
-          className="inline-flex items-center justify-center rounded-full bg-[#f5a623] px-5 py-2.5 text-sm font-bold text-[#1b1100] transition hover:brightness-105 cursor-pointer"
-        >
-          Schedule meeting
-        </button>
+        {!isDashboard && 
+          <button
+            type="button"
+            onClick={onScheduleMeeting}
+            className="inline-flex items-center justify-center rounded-full bg-[#f5a623] px-5 py-2.5 text-sm font-bold text-[#1b1100] transition hover:brightness-105 cursor-pointer"
+          >
+            Schedule meeting
+          </button>
+        }
       </div>
 
       {isLoading ? (
@@ -125,7 +138,7 @@ export function UpcomingMeetings({
         </div>
       ) : (
         <div className="space-y-3">
-          {(compact ? upcoming.slice(0, 3) : upcoming).map((schedule, index) => {
+          {visibleSchedules.map((schedule, index) => {
             const start = new Date(schedule.startTime);
             const buttonLabel = schedule.isHost ? "Join as host" : "Join";
             const cancelMeeting = schedule.isHost ? "Cancel meeting" : null;
@@ -173,75 +186,112 @@ export function UpcomingMeetings({
                       ) : null}
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {schedule.isHost ? (
-                      <Popover
-                        open={isRescheduleOpen}
-                        onOpenChange={(open) => handleOpenReschedule(schedule, open)}
-                      >
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-full border border-[#6482f5]/20 bg-[#6482f5]/10 px-4 py-2 text-[12px] font-bold text-[#9eb4ff] transition hover:border-[#6482f5]/35 hover:bg-[#6482f5]/14 cursor-pointer"
-                          >
-                            <CalendarClock className="size-3.5" />
-                            Reschedule
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-[420px] border border-white/10 bg-[#120f0b] p-4 text-[#fff5de]"
-                          align="end"
+                  {!isDashboard && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {schedule.isHost ? (
+                        <Popover
+                          open={isRescheduleOpen}
+                          onOpenChange={(open) => handleOpenReschedule(schedule, open)}
                         >
-                          <div className="space-y-4">
-                            <div>
-                              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#f5a623]/75">
-                                Reschedule meeting
-                              </p>
-                              <h3 className="mt-1 text-base font-bold text-[#fff5de]">{schedule.title}</h3>
-                              <p className="mt-1 text-sm leading-6 text-[#b49650]/65">
-                                Pick a new start time and attendees will receive an updated reminder.
-                              </p>
-                            </div>
-
-                            <DatePickerTime
-                              value={rescheduleStartTime}
-                              onChange={setRescheduleStartTime}
-                              dateLabel="New date"
-                              timeLabel="New time"
-                            />
-
-                            <div className="flex items-center justify-between rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-[#b49650]/70">
-                              <span>Current start</span>
-                              <span className="font-medium text-[#fff5de]">{start.toLocaleString()}</span>
-                            </div>
-
-                            <Button
+                          <PopoverTrigger asChild>
+                            <button
                               type="button"
-                              onClick={() => void handleSubmitReschedule()}
-                              disabled={rescheduleMutation.isPending || !rescheduleStartTime}
-                              className="h-11 w-full font-bold text-black hover:brightness-105 cursor-pointer disabled:pointer-events-none disabled:opacity-50 bg-[#f5a623]"
+                              className="inline-flex items-center gap-2 rounded-full border border-[#6482f5]/20 bg-[#6482f5]/10 px-4 py-2 text-[12px] font-bold text-[#9eb4ff] transition hover:border-[#6482f5]/35 hover:bg-[#6482f5]/14 cursor-pointer"
                             >
-                              {rescheduleMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}
-                              Save new time
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    ) : null}
+                              <CalendarClock className="size-3.5" />
+                              Reschedule
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[420px] border border-white/10 bg-[#120f0b] p-4 text-[#fff5de]"
+                            align="end"
+                          >
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#f5a623]/75">
+                                  Reschedule meeting
+                                </p>
+                                <h3 className="mt-1 text-base font-bold text-[#fff5de]">{schedule.title}</h3>
+                                <p className="mt-1 text-sm leading-6 text-[#b49650]/65">
+                                  Pick a new start time and attendees will receive an updated reminder.
+                                </p>
+                              </div>
 
-                    <MeetingJoinPopover
-                      triggerLabel={buttonLabel}
-                      scheduleId={schedule.id}
-                      cancelMeetingLabel={cancelMeeting}
-                      busy={joiningScheduleId === schedule.id}
-                      onJoin={(devices) => onJoinSchedule(schedule.id, devices)}
-                    />
-                  </div>
+                              <DatePickerTime
+                                value={rescheduleStartTime}
+                                onChange={setRescheduleStartTime}
+                                dateLabel="New date"
+                                timeLabel="New time"
+                              />
+
+                              <div className="flex items-center justify-between rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-[#b49650]/70">
+                                <span>Current start</span>
+                                <span className="font-medium text-[#fff5de]">{start.toLocaleString()}</span>
+                              </div>
+
+                              <Button
+                                type="button"
+                                onClick={() => void handleSubmitReschedule()}
+                                disabled={rescheduleMutation.isPending || !rescheduleStartTime}
+                                className="h-11 w-full font-bold text-black hover:brightness-105 cursor-pointer disabled:pointer-events-none disabled:opacity-50 bg-[#f5a623]"
+                              >
+                                {rescheduleMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <CalendarClock className="size-4" />}
+                                Save new time
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : null}
+
+                      <MeetingJoinPopover
+                        triggerLabel={buttonLabel}
+                        scheduleId={schedule.id}
+                        cancelMeetingLabel={cancelMeeting}
+                        busy={joiningScheduleId === schedule.id}
+                        onJoin={(devices) => onJoinSchedule(schedule.id, devices)}
+                      />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
           })}
+
+          {!compact && !isDashboard && totalPages > 1 ? (
+            <div className="pt-3 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      aria-disabled={page === 1}
+                      tabIndex={page === 1 ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }).map((_, index) => (
+                    <PaginationItem key={index}>
+                      <PaginationLink
+                        isActive={page === index + 1}
+                        onClick={() => setPage(index + 1)}
+                        className="cursor-pointer"
+                      >
+                        {index + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                      aria-disabled={page === totalPages}
+                      tabIndex={page === totalPages ? -1 : 0}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          ) : null}
         </div>
       )}
     </section>

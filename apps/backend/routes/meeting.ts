@@ -591,7 +591,7 @@ meetingRouter.post("/reschedule/schedule/:id", authMiddleware, async (req, res) 
     await redisPublisher.lpush("MeetingReminders", JSON.stringify({
       scheduleId,
       scheduledAt: updatedSchedule.startTime,
-      message: `The scheduled meeting "${schedule.title}" has been rescheduled by the host to ${formatTime(updatedSchedule.startTime)}.`,
+      message: `The scheduled meeting "${schedule.title}" has been rescheduled by the host to ${formatTime(updatedSchedule.startTime)}. You will be notified again when the meeting is about to start with the join link.`,
       participants: updatedSchedule.participants
         .filter((p) => p.userId !== updatedSchedule.hostId)
         .map((p) => ({
