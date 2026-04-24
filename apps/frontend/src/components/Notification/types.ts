@@ -10,6 +10,7 @@ export type NotificationType =
 
 export interface NotificationMetadata {
   roomId?: string;
+  scheduleId?: string;
   roomName?: string;
   invitedBy?: string;
   invitedUserId?: string;

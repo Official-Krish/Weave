@@ -190,8 +190,8 @@ export default function NotificationsPage() {
                               notificationId: notifId,
                             });
                           }}
-                          onAcceptInvite={(roomId, notifId) =>
-                            acceptInvite.mutate({ roomId, notifId })
+                          onAcceptInvite={(targetId, notifId, devices) =>
+                            acceptInvite.mutateAsync({ targetId, notifId, devices }).then(() => undefined)
                           }
                         />
                       ))}

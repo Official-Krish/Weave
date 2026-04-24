@@ -4,6 +4,8 @@ import { type Filter, type Notification } from "./types";
 import { api } from "./api";
 import { getHttpErrorMessage } from "@/lib/httpError";
 import { toast } from "sonner";
+import { buildMeetingLivePath } from "@/lib/meeting";
+import type { JoinMeetingResponse } from "@repo/types/api";
 
 export const notificationsQueryKey = ["notifications"];
 
@@ -88,16 +90,34 @@ export function useNotifications(isAuthenticated: boolean, name?: string, naviga
   });
 
   const acceptInvite = useMutation({
-    mutationFn: ({ roomId }: { roomId: string; notifId: string }) =>
-      api.acceptMeetingInvite(roomId),
-    onSuccess: (_d, vars) => {
+    mutationFn: ({
+      targetId,
+      notifId: _notifId,
+      devices: _devices,
+    }: {
+      targetId: string;
+      notifId: string;
+      devices: { micId?: string; cameraId?: string };
+    }) => api.acceptMeetingInvite(targetId),
+    onSuccess: (response, vars) => {
       markRead.mutate(vars.notifId);
-      if (navigate)
-        navigate(
-          `/meeting/live/${vars.roomId}?name=${encodeURIComponent(
-            name || "Guest"
-          )}&role=guest`
-        );
+
+      if (response.status === 201 || !navigate) {
+        toast.message("Waiting for host to start the meeting");
+        return;
+      }
+
+      const data = response.data as JoinMeetingResponse;
+      navigate(
+        buildMeetingLivePath({
+          roomId: data.roomId,
+          name: name || "Guest",
+          role: data.isHost ? "host" : "guest",
+          recordingState: data.recordingState === "RECORDING",
+          micId: vars.devices.micId,
+          cameraId: vars.devices.cameraId,
+        })
+      );
     },
     onError: (error) =>
       toast.error(getHttpErrorMessage(error, "Could not join meeting")),

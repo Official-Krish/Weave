@@ -29,12 +29,28 @@ export type CreateMeetingResponse = {
   id: string;
 };
 
-export type JoinMeetingResponse = {
+export type ScheduleMeetingResponse = {
   id: string;
-  passcode: string;
-  name?: string | null;
+  title: string;
+  startTime: string;
+};
+
+export type JoinMeetingResponse = {
+  roomId: string;
+  meetingId: string;
   isHost: boolean;
-  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
+  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+};
+
+export type MeetingSchedule = {
+  id: string;
+  title: string;
+  isHost: boolean;
+  description?: string | null;
+  startTime: string;
+  isRecurring: boolean;
+  recurrenceRule?: string | null;
+  participantCount: number;
 };
 
 export type FinalRecording = {
@@ -79,45 +95,57 @@ export type RecordingPageResponse = {
   id: string;
   meetingId: string;
   roomName?: string | null;
-  date: string;
-  startTime?: string | null;
-  endTime?: string | null;
   isHost: boolean;
   recordingState?: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
   hostEmail?: string | null;
   userEmail?: string | null;
   canViewRecording: boolean;
   visibleToEmails: string[];
-  participants: RecordingPageParticipant[];
+  participants: {
+    email?: string | null;
+    role: string;
+  }[];
 };
 
 export type MeetingDetails = {
-  finalRecording: {
+  id: string;
+  roomId: string;
+  passcode: string | null;
+  roomName: string | null;
+  isEnded: boolean;
+  createdAt: string;
+
+  isHost: boolean;
+
+  participants: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    role: "HOST" | "CO_HOST" | "PARTICIPANT";
+    joinedAt: string;
+    leftAt?: string | null;
+  }[];
+
+  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+  recordingStartedAt: string | null;
+  recordingStoppedAt: string | null;
+  processingStartedAt: string | null;
+  processingEndedAt: string | null;
+
+  finalRecording?: {
     id: string;
     meetingId: string;
     videoLink?: string;
     audioLink?: string | null;
     visibleToEmails: string[];
-    generatedAt: Date;
-  },
-  id: string;
-  roomId: string;
-  passcode: string | null;
-  userId: string;
-  roomName: string | null;
-  date: Date;
-  startTime: Date | null;
-  endTime: Date | null;
-  isEnded: boolean;
-  isHost: boolean;
-  joinedParticipants: string[];
-  invitedParticipants: string[];
-  recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
-  recordingStartedAt: Date | null;
-  recordingStoppedAt: Date | null;
-  processingStartedAt: Date | null;
-  processingEndedAt: Date | null;
-}
+    generatedAt: string;
+  } | null;
+};
+
+export type GetAllMeetingsResponse = {
+  meetings: MeetingDetails[];
+  schedules: MeetingSchedule[];
+};
 
 export type RemoveVisibleEmailRequest = {
   meetingId: string;

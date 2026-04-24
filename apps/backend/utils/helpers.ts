@@ -35,20 +35,31 @@ export async function getMeetingSessions(roomId: string) {
         },
         include: {
             finalRecording: true,
+            participants: true,
         }
     });
 }
 
 export async function getUserMeetingSession(roomId: string, userId: string) {
-    return prisma.meeting.findFirst({
-        where: {
-            roomId: roomId,
-            userId,
+  return prisma.meeting.findFirst({
+    where: {
+      roomId,
+      OR: [
+        { userId },
+        {
+          participants: {
+            some: { userId },
+          },
         },
-        include: {
-            finalRecording: true,
-        }
-    });
+      ],
+    },
+    include: {
+      finalRecording: true,
+      participants: {
+        where: { userId },
+      },
+    },
+  });
 }
 
 export function canViewFinalRecording(args: {
@@ -160,60 +171,75 @@ export function getFileExtension(mimeType?: string) {
 }
 
 export async function finalizeMeetingRoom(roomId: string, hostUserId?: string) {
-    const meetings = await getMeetingSessions(roomId);
+  const meeting = await prisma.meeting.findUnique({
+    where: { roomId },
+    include: {
+      participants: true,
+    },
+  });
 
-    if (meetings.length === 0) {
-        const error = new Error("Meeting not found");
-        (error as Error & { statusCode?: number }).statusCode = 404;
-        throw error;
+  if (!meeting) {
+    const error = new Error("Meeting not found");
+    (error as Error & { statusCode?: number }).statusCode = 404;
+    throw error;
+  }
+
+  if (hostUserId && meeting.userId !== hostUserId) {
+    const error = new Error("Only host can end this meeting");
+    (error as Error & { statusCode?: number }).statusCode = 403;
+    throw error;
+  }
+
+  const alreadyEnded = meeting.isEnded;
+  const endTime = new Date();
+
+  const shouldProcessRecording =
+    meeting.recordingState === "RECORDING" ||
+    meeting.recordingState === "UPLOADING" ||
+    meeting.recordingState === "PROCESSING";
+
+  if (!alreadyEnded) {
+    await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: {
+        isEnded: true,
+        endedAt: endTime,
+        recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
+        recordingStoppedAt: shouldProcessRecording ? endTime : null,
+        processingStartedAt: shouldProcessRecording ? endTime : null,
+      },
+    });
+
+    if (shouldProcessRecording) {
+      await redisPublisher.rpush(
+        "ProcessVideo",
+        JSON.stringify({
+          meetingId: meeting.roomId,
+          roomId: meeting.roomId,
+          internalMeetingId: meeting.id,
+        })
+      );
     }
+  }
 
-    const hostMeeting = meetings.find((meeting) => meeting.isHost);
+  return {
+    meeting,
+    participants: meeting.participants.length,
+    duration: meeting.createdAt
+      ? Math.max(
+          0,
+          Math.floor((endTime.getTime() - meeting.createdAt.getTime()) / 60000)
+        )
+      : 0,
+    alreadyEnded,
+    shouldProcessRecording,
+  };
+}
 
-    if (!hostMeeting) {
-        const error = new Error("Host meeting not found");
-        (error as Error & { statusCode?: number }).statusCode = 404;
-        throw error;
-    }
-
-    if (hostUserId && hostMeeting.userId !== hostUserId) {
-        const error = new Error("Only host can end this meeting");
-        (error as Error & { statusCode?: number }).statusCode = 403;
-        throw error;
-    }
-
-    const alreadyEnded = meetings.every((meeting) => meeting.isEnded);
-    const endTime = new Date();
-    const shouldProcessRecording = hostMeeting.recordingState === "RECORDING" || hostMeeting.recordingState === "UPLOADING" ||hostMeeting. recordingState === "PROCESSING";
-
-    if (!alreadyEnded) {
-        await prisma.meeting.updateMany({
-            where: {
-                roomId: hostMeeting.roomId,
-            },
-            data: {
-                isEnded: true,
-                endTime,
-                recordingState: shouldProcessRecording ? "PROCESSING" : "IDLE",
-                recordingStoppedAt: shouldProcessRecording ? endTime : undefined,
-                processingStartedAt: shouldProcessRecording ? endTime : null,
-            },
-        });
-
-        if (shouldProcessRecording) {
-            await redisPublisher.rpush("ProcessVideo", JSON.stringify({
-                meetingId: roomId,
-            }));
-        }
-    }
-
-    return {
-        meeting: hostMeeting,
-        participants: hostMeeting.joinedParticipants.length,
-        duration: hostMeeting.startTime
-            ? Math.max(0, Math.floor((endTime.getTime() - hostMeeting.startTime.getTime()) / 60000))
-            : 0,
-        alreadyEnded,
-        shouldProcessRecording,
-    };
+export function formatTime(time: string | Date) {
+  const date = typeof time === "string" ? new Date(time) : time;
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

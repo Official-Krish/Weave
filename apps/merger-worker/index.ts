@@ -561,7 +561,7 @@ async function processQueue() {
             }
 
             const data = JSON.parse(result[1]);
-            const meetingId = data.meetingId;
+            const meetingId = data.roomId || data.meetingId;
 
             if (!meetingId) {
                 console.error("Invalid queue payload: missing meetingId");

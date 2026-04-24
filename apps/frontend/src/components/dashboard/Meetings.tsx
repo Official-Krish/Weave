@@ -9,7 +9,7 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext } from "@/components/ui/pagination";
-import { getStatusLabel, getStatusTone, type MeetingsProps } from "./types";
+import { getMeetingDate, getMeetingParticipantCount, getStatusLabel, getStatusTone, type MeetingsProps } from "./types";
 
 export function Meetings({
   meetings,
@@ -142,16 +142,16 @@ export function Meetings({
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <Users className="size-3" />
-                                {meeting.joinedParticipants.length} participants
+                                {getMeetingParticipantCount(meeting)} participants
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <CalendarDays className="size-3" />
-                                {new Date(meeting.date).toLocaleDateString()}
+                                {new Date(getMeetingDate(meeting)).toLocaleDateString()}
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <Clock3 className="size-3" />
-                                {meeting.startTime
-                                  ? new Date(meeting.startTime).toLocaleTimeString([], {
+                                {meeting.recordingStartedAt
+                                  ? new Date(meeting.recordingStartedAt).toLocaleTimeString([], {
                                       hour: "2-digit",
                                       minute: "2-digit",
                                     })

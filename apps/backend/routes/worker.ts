@@ -48,6 +48,10 @@ workerRouter.post("/upload-chunk", authMiddleware, upload.single("video"), async
       res.status(404).json({ message: error.message });
       return;
     }
+    if (error?.statusCode === 403) {
+      res.status(403).json({ message: error.message });
+      return;
+    }
     console.error("Upload chunk error:", error);
     res.status(500).json({ message: "Upload failed" });
   }

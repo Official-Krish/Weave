@@ -8,62 +8,137 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(uuid())
-  name           String?
-  email          String?         @unique
-  password       String?
-  googleId       String?         @unique
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id        String    @id @default(uuid())
+  name      String?
+  email     String?   @unique
+  password  String?   
+  googleId  String?   @unique
+  avatarUrl String?
+  timezone  String?   
+  deletedAt DateTime? 
 
-  meetings       Meeting[]
-  notifications  Notification[]
-  editorProjects EditorProject[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications        Notification[]
+  hostedMeetings       Meeting[]             @relation("MeetingHost")
+  meetingParticipants  MeetingParticipant[]
+  hostedSchedules      MeetingSchedule[]     @relation("ScheduleHost")
+  scheduleParticipants ScheduleParticipant[]
+  editorProjects       EditorProject[]
+
+  @@index([email])
+  @@index([googleId])
+  @@map("users")
 }
 
 model Notification {
   id        String           @id @default(uuid())
   userId    String
-  message   String
   type      NotificationType
+  message   String
+  metadata  Json?           
   isRead    Boolean          @default(false)
-  metadata  Json?
+  readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])        
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
 }
 
-model Meeting {                  
-  id                  String         @id @default(uuid())
-  roomId              String
-  passcode            String?
-  userId              String
-  roomName            String?
-  date                DateTime       @default(now())
-  startTime           DateTime?
-  endTime             DateTime?
-  isEnded             Boolean        @default(false)
-  isHost              Boolean
-  joinedParticipants  String[]
-  invitedParticipants String[]
+
+model MeetingSchedule {
+  id             String    @id @default(uuid())
+  hostId         String
+  title          String
+  description    String?
+  startTime      DateTime
+  endTime        DateTime?
+  isRecurring    Boolean   @default(false)
+  recurrenceRule String?   
+  timezone       String?  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  host         User                  @relation("ScheduleHost", fields: [hostId], references: [id], onDelete: Cascade)
+  participants ScheduleParticipant[]
+  meetings     Meeting[]
+
+  @@index([hostId])
+  @@index([startTime])
+  @@map("meeting_schedules")
+}
+
+model ScheduleParticipant {
+  id         String      @id @default(uuid())
+  scheduleId String
+  userId     String
+  role       MeetingRole @default(PARTICIPANT)
+
+  schedule MeetingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, userId])
+  @@index([scheduleId])
+  @@index([userId])
+  @@map("schedule_participants")
+}
+
+model Meeting {
+  id         String  @id @default(uuid())
+  roomId     String  @unique 
+  scheduleId String?
+  passcode   String? 
+  userId     String
+  isHost     Boolean @default(false)
+  roomName   String?
+  isEnded    Boolean @default(false)
+  endedAt    DateTime?
+
   recordingState      RecordingState @default(IDLE)
   recordingStartedAt  DateTime?
   recordingStoppedAt  DateTime?
   processingStartedAt DateTime?
   processingEndedAt   DateTime?
 
-  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rawChunks           MediaChunk[]
-  finalRecording      FinalRecording?
-  editorProjects      EditorProject[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([roomId])
-  @@index([userId])        
+  user           User              @relation("MeetingHost", fields: [userId], references: [id], onDelete: Cascade)
+  schedule       MeetingSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  participants   MeetingParticipant[]
+  rawChunks      MediaChunk[]
+  finalRecording FinalRecording?
+  editorProjects EditorProject[]
+
+  @@index([userId])
+  @@index([scheduleId])
+  @@index([recordingState])
+  @@map("meetings")
 }
 
-model MediaChunk {               
+model MeetingParticipant {
+  id        String      @id @default(uuid())
+  meetingId String
+  userId    String
+  role      MeetingRole @default(PARTICIPANT)
+  joinedAt  DateTime    @default(now())
+  leftAt    DateTime?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([userId])
+  @@index([meetingId, userId])
+  @@map("meeting_participants")
+}
+
+model MediaChunk {
   id             String            @id @default(uuid())
   meetingId      String
   bucketLink     String
@@ -77,7 +152,10 @@ model MediaChunk {
 
   meeting        Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
-  @@index([meetingId, uploaderUserId, sequenceNumber])
+  @@unique([meetingId, uploaderUserId, sequenceNumber])
+  @@index([meetingId, status])
+  @@index([uploaderUserId])
+  @@map("media_chunks")
 }
 
 model FinalRecording {
@@ -90,6 +168,8 @@ model FinalRecording {
 
   meeting         Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   editorProjects  EditorProject[] 
+
+  @@map("final_recordings")
 }
 
 model EditorProject {
@@ -110,14 +190,16 @@ model EditorProject {
   meeting          Meeting       @relation(fields: [meetingId], references: [id])
   finalRecording   FinalRecording? @relation(fields: [finalRecordingId], references: [id])
 
-  tracks           EditorTrack[]
-  overlays         EditorOverlay[]
-  assets           EditorAsset[]
-  exports          ExportJob[]
+  tracks   EditorTrack[]
+  overlays EditorOverlay[]
+  assets   EditorAsset[]
+  exports  ExportJob[]
 
+  @@index([ownerId])
   @@index([meetingId])
-  @@index([ownerId])       
-  @@index([finalRecordingId]) 
+  @@index([finalRecordingId])
+  @@index([status])
+  @@map("editor_projects")
 }
 
 model EditorTrack {
@@ -132,8 +214,9 @@ model EditorTrack {
   project   EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   clips     EditorClip[]
 
+  @@unique([projectId, order])
   @@index([projectId])
-  @@unique([projectId, order])  
+  @@map("editor_tracks")
 }
 
 model EditorClip {
@@ -148,7 +231,8 @@ model EditorClip {
   asset           EditorAsset @relation(fields: [sourceAssetId], references: [id])
 
   @@index([trackId])
-  @@index([sourceAssetId])  
+  @@index([sourceAssetId])
+  @@map("editor_clips")
 }
 
 model EditorOverlay {
@@ -165,6 +249,7 @@ model EditorOverlay {
   project         EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+  @@map("editor_overlays")
 }
 
 model EditorAsset {
@@ -182,7 +267,9 @@ model EditorAsset {
   clips         EditorClip[] 
 
   @@index([projectId])
-  @@index([participantId])   
+  @@index([meetingId])
+  @@index([participantId])
+  @@map("editor_assets")
 }
 
 model ExportJob {
@@ -198,30 +285,42 @@ model ExportJob {
   project   EditorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
-  @@index([status])     
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("export_jobs")
+}
+
+
+enum MeetingRole {
+  HOST
+  CO_HOST
+  PARTICIPANT
 }
 
 enum SourceMode {
-  FINAL
-  MULTITRACK
+  FINAL      
+  MULTITRACK 
 }
 
 enum ProjectStatus {
-  DRAFT
-  READY
-  EXPORTING
-  COMPLETED
-  FAILED
+  DRAFT      
+  READY      
+  EXPORTING  
+  COMPLETED  
+  FAILED     
 }
 
 enum TrackType {
   VIDEO
   AUDIO
-  TEXT
+  TEXT 
 }
 
 enum OverlayType {
   TEXT
+  IMAGE
+  LOWER_THIRD
+  SHAPE
 }
 
 enum AssetType {
@@ -246,9 +345,9 @@ enum RecordingState {
 }
 
 enum ChunkUploadStatus {
-  UPLOADED
+  UPLOADED  
   PROCESSING
-  MERGED
+  MERGED    
   FAILED
 }
 

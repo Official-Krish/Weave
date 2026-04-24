@@ -7,14 +7,16 @@ export function Sidebar({
     section,
     setSection,
     liveMeetings,
+    upcomingMeetingsCount,
     name,
     theme,
     toggleTheme,
     signOut,
 }: {
     section: string;
-    setSection: (section: "overview" | "meetings" | "recordings") => void;
+    setSection: (section: "overview" | "meetings" | "recordings" | "upcoming") => void;
     liveMeetings: unknown[];
+    upcomingMeetingsCount: number;
     name: string;
     theme: "light" | "dark";
     toggleTheme: () => void;
@@ -30,8 +32,8 @@ export function Sidebar({
         <p className="px-2 pb-1 pt-3 text-[9px] font-bold uppercase tracking-[0.2em] text-[#f5a623]/40">Workspace</p>
         <SidebarItem icon={<Video />} label="Dashboard" active={section === "overview"} onClick={() => setSection("overview")} />
         <SidebarItem icon={<Video />} label="Meetings" active={section === "meetings"} badge={liveMeetings.length || undefined} onClick={() => setSection("meetings")} />
+        <SidebarItem icon={<CalendarDays />} label="Upcoming meetings" active={section === "upcoming"} badge={upcomingMeetingsCount || undefined} onClick={() => setSection("upcoming")} />
         <SidebarItem icon={<Sparkles />} label="Recordings" active={section === "recordings"} onClick={() => setSection("recordings")} />
-        <SidebarItem icon={<CalendarDays />} label="Calendar" />
 
         <p className="px-2 pb-1 pt-4 text-[9px] font-bold uppercase tracking-[0.2em] text-[#f5a623]/40">Account</p>
         <SidebarItem icon={<Users />} label="Team" />

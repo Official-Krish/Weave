@@ -138,13 +138,17 @@ async function processMeeting(payload: TranscodePayload) {
 
 function parsePayload(raw: string): TranscodePayload | null {
   try {
-    const parsed = JSON.parse(raw) as Partial<TranscodePayload>;
-    if (!parsed.meetingId || typeof parsed.meetingId !== "string") {
+    const parsed = JSON.parse(raw) as Partial<TranscodePayload> & { roomId?: string };
+    const identifier = typeof parsed.roomId === "string" && parsed.roomId.trim()
+      ? parsed.roomId
+      : parsed.meetingId;
+
+    if (!identifier || typeof identifier !== "string") {
       return null;
     }
 
     return {
-      meetingId: parsed.meetingId.trim(),
+      meetingId: identifier.trim(),
       finalPath: typeof parsed.finalPath === "string" ? parsed.finalPath : undefined,
     };
   } catch {

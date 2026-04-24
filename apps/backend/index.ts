@@ -7,7 +7,7 @@ import meetingRouter from './routes/meeting';
 import workerRouter from './routes/worker';
 import GoogleRouter from "./routes/google";
 import NotificationRouter from "./routes/notifications";
-import { sendInvitationEmail } from "./utils/redis";
+import { sendInvitationEmail, sendMeetingReminders } from "./utils/redis";
 import RecordingRouter from "./routes/recording";
 import editorRouter from "./routes/editor";
 
@@ -28,6 +28,10 @@ app.use("/api/v1/editor", editorRouter);
 
 sendInvitationEmail().catch((error) => {
     console.error("Error in sendInvitationEmail:", error);
+});
+
+sendMeetingReminders().catch((error) => {
+    console.error("Error in sendMeetingReminders:", error);
 });
 
 app.listen(3000, () => {
