@@ -128,14 +128,12 @@ userRouter.get("/profile", authMiddleware, async (req, res) => {
                 email: true,
                 createdAt: true,
                 updatedAt: true,
-                meetings: {
+                hostedMeetings: {
                     select: {
                         roomName: true,
                         roomId: true,
-                        startTime: true,
-                        endTime: true,
                         isHost: true,
-                        joinedParticipants: true,
+                        participants: true,
                     },
                 }
             },

@@ -1,76 +1,114 @@
 import { prisma } from "@repo/db/client";
-import { googleAuthSchema } from "@repo/types";
 import express from "express";
-import { OAuth2Client } from "google-auth-library";
+import { google } from "googleapis";
 import jwt from "jsonwebtoken";
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const JWT_SECRET = process.env.JWT_SECRET!;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-const client = new OAuth2Client(CLIENT_ID);
+function createOAuthClient() {
+  return new google.auth.OAuth2(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI
+  );
+}
+
+function createOAuthState() {
+  return jwt.sign(
+    {
+      purpose: "google-oauth",
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "10m",
+    }
+  );
+}
+
+function assertValidOAuthState(state: string) {
+  const payload = jwt.verify(state, JWT_SECRET) as { purpose?: string };
+  if (payload.purpose !== "google-oauth") {
+    throw new Error("Invalid OAuth state");
+  }
+}
+
 const GoogleRouter = express.Router();
 
-GoogleRouter.post("/auth", async (req, res) => {
-    try {
-        const parsedSchema = googleAuthSchema.safeParse(req.body);
+GoogleRouter.get("/auth/url", (_req, res) => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+    return res.status(500).json({ message: "Google OAuth is not configured correctly" });
+  }
 
-        if (!parsedSchema.success) {
-            return res.status(400).json({ message: "Invalid request body" });
-        }
+  const oauth2Client = createOAuthClient();
+  const url = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: true,
+    state: createOAuthState(),
+    scope: [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/calendar.events",
+    ],
+  });
 
-        const { idToken } = parsedSchema.data;
+  res.json({ url });
+});
 
-        if (!idToken) {
-            return res.status(400).json({ message: "Missing idToken" });
-        }
+GoogleRouter.get("/auth/callback", async (req, res) => {
+  const { code, state } = req.query;
 
-        const ticket = await client.verifyIdToken({
-            idToken,
-            audience: CLIENT_ID,
-        });
+  if (!code) {
+    return res.status(400).json({ message: "Missing code" });
+  }
 
-        const payload = ticket.getPayload();
+  if (!state || typeof state !== "string") {
+    return res.redirect(`${FRONTEND_URL}/signin?error=google_auth_failed`);
+  }
 
-        if (!payload || !payload.email) {
-            return res.status(401).json({ message: "Invalid Google token" });
-        }
+  try {
+    assertValidOAuthState(state);
 
-        const { sub, email, name } = payload;
+    const oauth2Client = createOAuthClient();
+    const { tokens } = await oauth2Client.getToken(code as string);
+    oauth2Client.setCredentials(tokens);
 
-        let user = await prisma.user.findFirst({
-            where: { email: email.toLowerCase() },
-        });
+    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+    const { data } = await oauth2.userinfo.get();
+    const { id: googleId, email, name } = data;
 
-        let isNewUser = false;
-
-        if (!user) {
-            isNewUser = true;
-
-            user = await prisma.user.create({
-                data: {
-                    email: email.toLowerCase(),
-                    name,
-                    googleId: sub,
-                },
-            });
-        }
-
-        const token = jwt.sign(
-            { userId: user.id },
-            JWT_SECRET,
-            { expiresIn: "7d" }
-        );
-
-        return res.json({
-            message: isNewUser ? "Signup successful" : "Signin successful",
-            token,
-            name: user.name,
-        });
-
-    } catch (err) {
-        console.error(err);
-        return res.status(401).json({ message: "Google auth failed" });
+    if (!email) {
+      return res.status(401).json({ message: "No email from Google" });
     }
+
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await prisma.user.upsert({
+      where: { email: normalizedEmail },
+      update: {
+        googleId: googleId ?? undefined,
+        name: name ?? undefined,
+        ...(tokens.refresh_token && { googleRefreshToken: tokens.refresh_token }),
+      },
+      create: {
+        email: normalizedEmail,
+        name,
+        googleId,
+        googleRefreshToken: tokens.refresh_token,
+      },
+    });
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+
+    return res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}&name=${encodeURIComponent(user.name ?? "")}`);
+  } catch (err) {
+    console.error("Google auth failed:", err);
+    return res.redirect(`${FRONTEND_URL}/signin?error=google_auth_failed`);
+  }
 });
 
 export default GoogleRouter;

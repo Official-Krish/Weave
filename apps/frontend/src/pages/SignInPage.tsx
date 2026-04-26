@@ -2,9 +2,9 @@ import { useLogin, useGoogleAuth } from "../components/Authentication/useAuthMut
 import { ArrowRight, LoaderCircle, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { FeatureIcon, Field } from "@/components/Authentication/icons";
+import { FaGoogle } from "react-icons/fa";
 
 export function SignInPage() {
   const [email, setEmail] = useState("");
@@ -13,7 +13,7 @@ export function SignInPage() {
   const canSubmit = email.trim().length > 0 && password.trim().length > 0;
 
   const loginMutation = useLogin(setErrorMessage);
-  const googleSignupMutation = useGoogleAuth(setErrorMessage);
+  const { startGoogleLogin } = useGoogleAuth(setErrorMessage);
 
   return (
     <section className="relative min-h-[calc(100vh-76px)] overflow-hidden px-6 py-10 sm:px-8">
@@ -114,20 +114,16 @@ export function SignInPage() {
             </div>
 
             {/* Google OAuth */}
-            <GoogleLogin
-              theme="filled_black"
-              size="large"
-              shape="pill"
-              text="continue_with"
-              onSuccess={async (credentialResponse) => {
-                if (!credentialResponse.credential) {
-                  setErrorMessage("Google authentication failed. No credential received.");
-                  return;
-                }
-                googleSignupMutation.mutate(credentialResponse.credential);
+            <button
+              onClick={() => {
+                startGoogleLogin();
               }}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/8 bg-white/4 py-3 text-sm font-semibold text-[#fff5de] shadow-sm transition hover:bg-white/6 active:bg-white/10 cursor-pointer"
               onError={() => toast.error("Google authentication failed. Please try again.")}
-            />
+            >
+              <FaGoogle />
+              Continue with Google
+            </button>
 
             {errorMessage ? (
               <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">

@@ -18,6 +18,7 @@ import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, Suppo
 import ProfilePage from "@/pages/Profile";
 import NotificationsPage from "@/pages/Notification";
 import { ScheduleMeetingPage } from "@/pages/ScheduleMeetingPage";
+import { AuthCallbackPage } from "@/pages/GoogleAuthCallback";
 
 const router = createBrowserRouter([
   {
@@ -56,6 +57,10 @@ const router = createBrowserRouter([
       {
         path: "signup",
         element: <PublicAuth><SignUpPage /></PublicAuth>,
+      },
+      {
+        path: "auth/callback",
+        element: <AuthCallbackPage />,
       },
       {
         path: "pricing",

@@ -13,6 +13,7 @@ model User {
   email     String?   @unique
   password  String?   
   googleId  String?   @unique
+  googleRefreshToken String?
   avatarUrl String?
   timezone  String?   
   deletedAt DateTime? 
@@ -74,13 +75,15 @@ model MeetingSchedule {
 }
 
 model ScheduleParticipant {
-  id         String      @id @default(uuid())
-  scheduleId String
-  userId     String
-  role       MeetingRole @default(PARTICIPANT)
+  id            String      @id @default(uuid())
+  scheduleId    String
+  userId        String
+  googleRefreshToken String?
+  googleEventId String?
+  role          MeetingRole @default(PARTICIPANT)
 
-  schedule MeetingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule      MeetingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([scheduleId, userId])
   @@index([scheduleId])

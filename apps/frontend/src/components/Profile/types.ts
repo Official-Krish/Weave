@@ -1,10 +1,8 @@
 export type Meeting = {
   roomName: string;
   roomId: string;
-  startTime: string;
-  endTime: string;
   isHost: boolean;
-  joinedParticipants: string[];
+  participants: string[];
 };
 
 export type User = {
@@ -12,5 +10,5 @@ export type User = {
   email: string;
   createdAt: string;
   updatedAt: string;
-  meetings: Meeting[];
+  hostedMeetings: Meeting[];
 };
