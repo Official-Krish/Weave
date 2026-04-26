@@ -2,6 +2,7 @@ import { CalendarDays, Sparkles, Users, Video } from "lucide-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProfileDropdown } from "../Profile-dropdown";
+import { MdDashboard } from "react-icons/md";
 
 export function Sidebar({
     section,
@@ -30,7 +31,7 @@ export function Sidebar({
         </div>
 
         <p className="px-2 pb-1 pt-3 text-[9px] font-bold uppercase tracking-[0.2em] text-[#f5a623]/40">Workspace</p>
-        <SidebarItem icon={<Video />} label="Dashboard" active={section === "overview"} onClick={() => setSection("overview")} />
+        <SidebarItem icon={<MdDashboard />} label="Dashboard" active={section === "overview"} onClick={() => setSection("overview")} />
         <SidebarItem icon={<Video />} label="Meetings" active={section === "meetings"} badge={liveMeetings.length || undefined} onClick={() => setSection("meetings")} />
         <SidebarItem icon={<CalendarDays />} label="Upcoming meetings" active={section === "upcoming"} badge={upcomingMeetingsCount || undefined} onClick={() => setSection("upcoming")} />
         <SidebarItem icon={<Sparkles />} label="Recordings" active={section === "recordings"} onClick={() => setSection("recordings")} />

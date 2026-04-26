@@ -19,15 +19,40 @@ export const CreateMeetingSchema = z.object({
     passcode: z.string().min(4).optional(),
 });
 
-export const ScheduleMeetingSchema = z.object({
-    title: z.string().min(2),
-    description: z.string().optional(),
-    startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
-        message: "Invalid date format",
-    }),
-    isRecurring: z.boolean().optional(),
-    recurrenceRule: z.string().optional(),
-    invitedParticipants: z.array(z.string().email().includes("@")).optional(),
+const BaseSchema = z.object({
+  title: z.string().min(2),
+  description: z.string().optional(),
+  startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid date format",
+  }),
+  isRecurring: z.boolean().optional(),
+  recurrenceRule: z.string().optional(),
+  invitedParticipants: z.array(z.string().email()).optional(),
+});
+
+export const ScheduleMeetingSchema = BaseSchema.extend({
+  notificationType: z.enum(["GMAIL", "SLACK", "DISCORD"]).optional(),
+  slackBotToken: z.string().optional(),
+  slackUserId: z.string().optional(),
+  discordWebhookUrl: z.string().url().optional(),
+}).superRefine((data, ctx) => {
+  if (data.notificationType === "SLACK") {
+    if (!data.slackBotToken || !data.slackUserId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Slack credentials required",
+      });
+    }
+  }
+
+  if (data.notificationType === "DISCORD") {
+    if (!data.discordWebhookUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Discord webhook URL required",
+      });
+    }
+  }
 });
 
 export const putRecordingVisibilitySchema = z.object({

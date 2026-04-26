@@ -23,7 +23,7 @@ export const Overview = ({
             <div className={`rounded-[24px] border p-5 transition-colors shadow-[0_12px_40px_rgba(0,0,0,0.18)] ${ dark ? "border-white/8 bg-white/[0.03]" : "bg-white border-zinc-200"}`}>
                 <div className={`mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] ${dark ? "text-zinc-500" : "text-zinc-400"}`}>Recent Meetings</div>
                 <div className="space-y-2">
-                    {user.meetings.slice(0, 2).map((m) => (
+                    {user.hostedMeetings.slice(0, 2).map((m) => (
                         <MeetingRow key={m.roomId} meeting={m} dark={dark} />
                     ))}
                 </div>

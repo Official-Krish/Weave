@@ -28,6 +28,7 @@ scheduleRouter.post("/create/schedule", authMiddleware, async (req, res) => {
       isRecurring,
       recurrenceRule,
       invitedParticipants,
+      notificationType
     } = parsedData.data;
 
     const normalizedEmails = normalizeEmails(invitedParticipants || []);
@@ -78,42 +79,44 @@ scheduleRouter.post("/create/schedule", authMiddleware, async (req, res) => {
     });
 
     // send notifications
-    if (users.length > 0) {
-      await redisPublisher.lpush("MeetingReminders", JSON.stringify({
+    const allUsers = [user, ...users];
+    await redisPublisher.lpush("MeetingReminders", JSON.stringify({
+      scheduleId: schedule.id,
+      scheduledAt: schedule.startTime,
+      message: `You have been invited to join the scheduled meeting "${title}" by ${user.name}. at ${formatTime(schedule.startTime)}. You will be notified again when the meeting is about to start with the join link.`,
+      participants: allUsers.map((u) => ({
+        userId: u.id,
+      })),
+    }));
+
+    await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
+      googleRefreshTokens: allUsers
+        .filter(u => u.googleRefreshToken)
+        .map(u => ({ googleRefreshToken: u.googleRefreshToken, userId: u.id })),
+      eventDetails: {
         scheduleId: schedule.id,
-        scheduledAt: schedule.startTime,
-        message: `You have been invited to join the scheduled meeting "${title}" by ${user.name}. at ${formatTime(schedule.startTime)}. You will be notified again when the meeting is about to start with the join link.`,
-        participants: users.map((u) => ({
-          userId: u.id,
-        })),
-      }));
+        summary: title,
+        description: description ?? "",
+        startDateTime: new Date(startTime).toISOString(),
+        attendees: users.map(u => u.email),
+      },
+      type: "Create",
+    }));
 
-      await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
-        googleRefreshTokens: users
-          .filter(u => u.googleRefreshToken)
-          .map(u => ({ googleRefreshToken: u.googleRefreshToken, userId: u.id })),
+    if(notificationType != null) {
+      await redisPublisher.lpush("Notifications", JSON.stringify({
+        type: notificationType,
+        recipientEmails: users.map(u => u.email),
+        slackBotToken: parsedData.data.slackBotToken || "",
+        slackUserId: parsedData.data.slackUserId || "",
+        discordWebhookUrl: parsedData.data.discordWebhookUrl || "",
         eventDetails: {
-          scheduleId: schedule.id,
+          hostedby: user.name,
           summary: title,
           description: description ?? "",
           startDateTime: new Date(startTime).toISOString(),
           attendees: users.map(u => u.email),
-        },
-        type: "Create",
-      }));
-    }
-
-    if (user.googleRefreshToken) {
-      await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
-        googleRefreshTokens: [{ googleRefreshToken: user.googleRefreshToken, userId: user.id }],
-        eventDetails: {
-          scheduleId: schedule.id,
-          summary: title,
-          description: description ?? "",
-          startDateTime: new Date(startTime).toISOString(),
-          attendees: users.map(u => u.email),
-        },
-        type: "Create",
+        }
       }));
     }
 

@@ -1,11 +1,14 @@
 import { prisma } from "@repo/db/client";
 import { Redis } from "ioredis";
-import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "./googleCalendar";
+import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "../services/googleCalendar";
+import { sendGmailMessage } from "../services/gmail";
+import { sendSlackDirectMessage } from "../services/slack";
+import { sendDiscordNotification } from "../services/discord";
 
 export const redisSubscriber = new Redis({ host: process.env.REDIS_HOST, port: 6379 });
 export const redisPublisher  = new Redis({ host: process.env.REDIS_HOST, port: 6379 });
 
-const QUEUES = ["MeetingInvitations", "MeetingReminders", "SetupGoogleCalendarReminders"] as const;
+const QUEUES = ["MeetingInvitations", "MeetingReminders", "SetupGoogleCalendarReminders", "Notifications"] as const;
 
 function resolveParticipantUserId(participant: string | { userId?: string }) {
   return typeof participant === "string" ? participant : participant.userId;
@@ -111,6 +114,44 @@ export async function notificationWorker() {
               break;
 
             }
+          }
+          break;
+        
+        case "Notifications":
+          const { type } = parsed;
+          switch (type) {
+            case "Gmail":
+              const { recipientEmails, eventDetails } = parsed;
+              if (!recipientEmails || !eventDetails) break;
+              try {
+                await Promise.all(recipientEmails.map((email: string) => sendGmailMessage(email, eventDetails)));
+              } catch (err) {
+                console.error(`Failed to send Gmail notification to ${recipientEmails}`, err);
+              }
+              break;
+            
+            case "Slack":
+              const { slackBotToken, slackUserId, eventDetails: slackEventDetails } = parsed;
+              if (!slackBotToken || !slackUserId || !slackEventDetails) break;
+              try {
+                await sendSlackDirectMessage(slackBotToken, slackUserId, slackEventDetails);
+              } catch (err) {
+                console.error(`Failed to send Slack notification to user ${slackUserId}`, err);
+              }
+              break;
+            
+            case "Discord":
+              const { discordWebhookUrl, eventDetails: discordEventDetails } = parsed;
+              if (!discordWebhookUrl || !discordEventDetails) break;
+              try{
+                await sendDiscordNotification(discordWebhookUrl, discordEventDetails);
+              } catch (err) {
+                console.error(`Failed to send Discord notification to user ${discordWebhookUrl}`, err);
+              }
+              break;
+
+            default:
+              console.warn("Unknown notification type:", type);
           }
           break;
 

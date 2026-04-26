@@ -30,7 +30,7 @@ export default function ProfilePage() {
         email: "Error fetching email",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        meetings: [],
+        hostedMeetings: [],
     };
 
     const tabs = [
@@ -116,7 +116,7 @@ export default function ProfilePage() {
 
                         {activeTab === "meetings" && (
                             <Meetings
-                                meetings={user.meetings}
+                                meetings={user.hostedMeetings}
                                 dark={dark}
                             />
                         )}
