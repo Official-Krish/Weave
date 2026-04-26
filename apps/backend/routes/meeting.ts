@@ -232,7 +232,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, googleRefreshToken: true },
     });
 
     if (!user || !user.email) {
@@ -251,7 +251,7 @@ meetingRouter.post("/create", authMiddleware, async (req, res) => {
       where: {
         email: { in: normalizedEmails },
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, googleRefreshToken: true },
     });
 
     const meeting = await prisma.meeting.create({
@@ -452,7 +452,7 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, googleRefreshToken: true },
     });
 
     if (!user || !user.email) {
@@ -463,7 +463,7 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
       where: {
         email: { in: normalizedEmails },
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, googleRefreshToken: true },
     });
 
     const schedule = await prisma.meetingSchedule.create({
@@ -480,10 +480,12 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
             {
               userId,
               role: "HOST",
+              googleRefreshToken: user.googleRefreshToken,
             },
             // invited users
             ...users.map((u) => ({
               userId: u.id,
+              googleRefreshToken: u.googleRefreshToken,
             })),
           ],
         },
@@ -502,6 +504,34 @@ meetingRouter.post("/create/schedule", authMiddleware, async (req, res) => {
         participants: users.map((u) => ({
           userId: u.id,
         })),
+      }));
+
+      await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
+        googleRefreshTokens: users
+          .filter(u => u.googleRefreshToken)
+          .map(u => ({ googleRefreshToken: u.googleRefreshToken, userId: u.id })),
+        eventDetails: {
+          scheduleId: schedule.id,
+          summary: title,
+          description: description ?? "",
+          startDateTime: new Date(startTime).toISOString(),
+          attendees: users.map(u => u.email),
+        },
+        type: "Create",
+      }));
+    }
+
+    if(user.googleRefreshToken){
+      await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
+        googleRefreshTokens: [{ googleRefreshToken: user.googleRefreshToken , userId: user.id }],
+        eventDetails: {
+          scheduleId: schedule.id,
+          summary: title,
+          description: description ?? "",
+          startDateTime: new Date(startTime).toISOString(),
+          attendees: users.map(u => u.email),
+        },
+        type: "Create",
       }));
     }
 
@@ -537,6 +567,13 @@ meetingRouter.post("/cancel/schedule/:id", authMiddleware, async (req, res) => {
     if (schedule.hostId !== userId) {
       return res.status(403).json({ message: "Only the host can cancel the schedule" });
     }
+
+    await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
+      googleRefreshTokens: schedule.participants
+        .filter(p => p.googleRefreshToken)
+        .map(p => ({ googleRefreshToken: p.googleRefreshToken, eventId: p.googleEventId })),     
+      type: "Cancel"
+    }));
 
     await prisma.meetingSchedule.delete({
       where: { id: scheduleId }
@@ -597,6 +634,26 @@ meetingRouter.post("/reschedule/schedule/:id", authMiddleware, async (req, res) 
         .map((p) => ({
           userId: p.userId,
         })),
+    }));
+
+    const updatedUsers = await prisma.user.findMany({
+      where: {
+        id: { in: updatedSchedule.participants.map(p => p.userId) }
+      },
+      select: { id: true, email: true, googleRefreshToken: true },
+    });
+
+    await redisPublisher.lpush("SetupGoogleCalendarReminders", JSON.stringify({
+      googleRefreshTokens: updatedSchedule.participants
+        .filter(p => p.googleRefreshToken)
+        .map(p => ({ googleRefreshToken: p.googleRefreshToken, eventId: p.googleEventId })),
+      eventDetails: {
+        summary: updatedSchedule.title,
+        description: updatedSchedule.description ?? "",
+        startDateTime: new Date(updatedSchedule.startTime).toISOString(),
+        attendees: updatedUsers.map(u => u.email),
+      },    
+      type: "Update"
     }));
 
     return res.status(200).json({ message: "Schedule rescheduled successfully" });
