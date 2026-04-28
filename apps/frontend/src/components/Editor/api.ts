@@ -53,4 +53,22 @@ export const editorApi = {
     const response = await http.get<{ job: ExportJob }>(`/editor/exports/${jobId}`);
     return response.data.job;
   },
+
+  async uploadAsset(
+    projectId: string,
+    file: File,
+    durationMs?: number
+  ): Promise<{ id: string; assetType: "VIDEO" | "AUDIO"; url: string; durationMs: number | null }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (durationMs != null) {
+      formData.append("durationMs", String(durationMs));
+    }
+    const response = await http.post<{
+      asset: { id: string; assetType: "VIDEO" | "AUDIO"; url: string; durationMs: number | null };
+    }>(`/editor/projects/${projectId}/assets/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data.asset;
+  },
 };

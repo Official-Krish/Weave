@@ -56,10 +56,12 @@ export function getOrderedClips(tracks: Track[]) {
 /**
  * Split a clip at a given timeline time.
  * Returns [leftClip, rightClip] or null if the split point is outside the clip.
+ * Adds a small gap (500ms) between the split clips for visual separation.
  */
 export function splitClipAtTime(
   clip: Clip,
-  timelineTimeMs: number
+  timelineTimeMs: number,
+  gapMs: number = 200
 ): [Clip, Clip] | null {
   const clipStart = clip.timelineStartMs;
   const clipEnd = clipStart + clip.durationMs;
@@ -79,8 +81,8 @@ export function splitClipAtTime(
     ...clip,
     id: crypto.randomUUID(),
     sourceStartMs: clip.sourceStartMs + leftDuration,
-    timelineStartMs: timelineTimeMs,
-    durationMs: rightDuration,
+    timelineStartMs: timelineTimeMs + gapMs, // Gap is purely positional
+    durationMs: rightDuration, // Full remaining duration — no content loss
   };
 
   return [leftClip, rightClip];

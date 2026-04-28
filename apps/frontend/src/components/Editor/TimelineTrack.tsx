@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Track, Clip } from "./types";
-import { Trash2, Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type } from "lucide-react";
+import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X } from "lucide-react";
 import { getTrackColors } from "./helpers";
 
 interface TimelineTrackProps {
@@ -16,8 +16,9 @@ interface TimelineTrackProps {
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
   splitMode: boolean;
-  videoThumbnails: string[];
+  thumbnailsByAsset: Record<string, string[]>;
   waveformData: number[];
+  assetsById: Record<string, any>;
 }
 
 export function getTrackIcon(type: Track["type"]) {
@@ -28,7 +29,7 @@ export function getTrackIcon(type: Track["type"]) {
   }
 }
 
-
+type DragMode = "move" | "resize-left" | "resize-right";
 
 export function TimelineTrack({
   track,
@@ -43,14 +44,18 @@ export function TimelineTrack({
   onClick,
   onSplitClip,
   splitMode,
-  videoThumbnails,
+  thumbnailsByAsset,
   waveformData,
+  assetsById,
 }: TimelineTrackProps) {
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
-  const [draggingClip, setDraggingClip] = useState<{
+  const [dragging, setDragging] = useState<{
     clipId: string;
+    mode: DragMode;
     startX: number;
     startTimelineMs: number;
+    startDurationMs: number;
+    startSourceStartMs: number;
   } | null>(null);
   const colors = getTrackColors(track.type);
 
@@ -71,48 +76,100 @@ export function TimelineTrack({
     onDeleteClip(index, clipId);
   };
 
-  const handleClipMouseDown = (
-    e: React.MouseEvent<HTMLDivElement>,
-    clip: Clip
-  ) => {
+  const startDrag = (e: React.MouseEvent, clip: Clip, mode: DragMode) => {
     e.stopPropagation();
+    e.preventDefault();
     const clipId = clip.id ?? clip.sourceAssetId;
-    setDraggingClip({
+    setDragging({
       clipId,
+      mode,
       startX: e.clientX,
       startTimelineMs: clip.timelineStartMs,
+      startDurationMs: clip.durationMs,
+      startSourceStartMs: clip.sourceStartMs,
     });
   };
 
-  const handleTrackMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!draggingClip || durationMs <= 0) return;
-    const lane = e.currentTarget;
-    const laneWidth = lane.getBoundingClientRect().width;
-    if (laneWidth <= 0) return;
+  // Use window events for drag so it works outside the track lane
+  useEffect(() => {
+    if (!dragging) return;
 
-    const clip = track.clips.find((c) => (c.id ?? c.sourceAssetId) === draggingClip.clipId);
-    if (!clip) return;
+    const handleMove = (e: MouseEvent) => {
+      const lane = document.querySelector(`[data-track-lane="${track.id}"]`) as HTMLDivElement;
+      if (!lane || durationMs <= 0) return;
 
-    const deltaX = e.clientX - draggingClip.startX;
-    const deltaMs = (deltaX / laneWidth) * durationMs;
-    const nextStart = Math.max(0, Math.min(draggingClip.startTimelineMs + deltaMs, durationMs - clip.durationMs));
+      const laneWidth = lane.getBoundingClientRect().width;
+      if (laneWidth <= 0) return;
 
-    onUpdateClip(index, draggingClip.clipId, {
-      timelineStartMs: Math.round(nextStart),
-    });
-  };
+      const deltaX = e.clientX - dragging.startX;
+      const deltaMs = (deltaX / laneWidth) * durationMs;
 
-  const handleTrackMouseUp = () => {
-    if (draggingClip) setDraggingClip(null);
-  };
+      const clip = track.clips.find((c) => (c.id ?? c.sourceAssetId) === dragging.clipId);
+      if (!clip) return;
+
+      const asset = assetsById[clip.sourceAssetId];
+      const assetDurationMs = asset?.durationMs || Infinity;
+
+      if (dragging.mode === "move") {
+        const nextStart = Math.max(0, Math.min(dragging.startTimelineMs + deltaMs, durationMs - clip.durationMs));
+        onUpdateClip(index, dragging.clipId, {
+          timelineStartMs: Math.round(nextStart),
+        });
+        return;
+      }
+
+      if (dragging.mode === "resize-left") {
+        const MIN_DURATION = 200;
+        // Shift the left edge: changes timelineStartMs, sourceStartMs, and durationMs
+        const rawDelta = Math.max(
+          -dragging.startSourceStartMs, // Can't go before source start = 0
+          Math.min(deltaMs, dragging.startDurationMs - MIN_DURATION) // Can't shrink below min
+        );
+        onUpdateClip(index, dragging.clipId, {
+          timelineStartMs: Math.round(Math.max(0, dragging.startTimelineMs + rawDelta)),
+          sourceStartMs: Math.round(Math.max(0, dragging.startSourceStartMs + rawDelta)),
+          durationMs: Math.round(Math.max(MIN_DURATION, dragging.startDurationMs - rawDelta)),
+        });
+        return;
+      }
+
+      if (dragging.mode === "resize-right") {
+        const MIN_DURATION = 200;
+        // Extend/shrink from the right edge
+        const maxExtend = assetDurationMs - (dragging.startSourceStartMs + dragging.startDurationMs);
+        const rawDelta = Math.max(
+          -(dragging.startDurationMs - MIN_DURATION),
+          Math.min(deltaMs, maxExtend)
+        );
+        onUpdateClip(index, dragging.clipId, {
+          durationMs: Math.round(Math.max(MIN_DURATION, dragging.startDurationMs + rawDelta)),
+        });
+      }
+    };
+
+    const handleUp = () => setDragging(null);
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [dragging, durationMs, track, index, onUpdateClip, assetsById]);
 
   const activeClip = track.clips.find(
-  (clip) =>
-    currentTime >= clip.timelineStartMs &&
-    currentTime < clip.timelineStartMs + clip.durationMs
+    (clip) =>
+      currentTime >= clip.timelineStartMs &&
+      currentTime < clip.timelineStartMs + clip.durationMs
   );
 
-  const renderClipVisual = (clip: Clip, clipId: string, trackType: Track["type"]) => {
+  /**
+   * Render per-clip frame thumbnails.
+   * For VIDEO clips, we look up thumbnails by the clip's sourceAssetId and
+   * slice them based on the clip's sourceStartMs/durationMs range to show
+   * the correct frames for split segments.
+   */
+  const renderClipVisual = useCallback((clip: Clip, clipId: string, trackType: Track["type"]) => {
     if (trackType === "AUDIO") {
       if (!waveformData.length || durationMs <= 0) return null;
       const slice = waveformData;
@@ -137,27 +194,67 @@ export function TimelineTrack({
     }
 
     if (trackType === "VIDEO") {
-      if (!videoThumbnails.length || durationMs <= 0) return null;
-      const frames = Array.from({ length: 8 }, (_, i) => {
-        const idx = Math.max(0, Math.min(videoThumbnails.length - 1, Math.floor((i / 8) * videoThumbnails.length)));
-        return videoThumbnails[idx];
+      const assetThumbs = thumbnailsByAsset[clip.sourceAssetId];
+      if (!assetThumbs || assetThumbs.length === 0) {
+        // Placeholder shimmer when thumbnails are loading
+        return (
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div
+              className="h-full w-[200%] bg-gradient-to-r from-transparent via-white/5 to-transparent"
+              style={{ animation: "editor-slide-shimmer 1.5s ease-in-out infinite" }}
+            />
+          </div>
+        );
+      }
+
+      // Get the asset's total duration to map clip range to thumbnail indices
+      const asset = assetsById[clip.sourceAssetId];
+      const assetDurationMs = asset?.durationMs || durationMs;
+
+      // Calculate which portion of the source this clip represents
+      const sourceStartRatio = clip.sourceStartMs / assetDurationMs;
+      const sourceEndRatio = (clip.sourceStartMs + clip.durationMs) / assetDurationMs;
+
+      // Map to thumbnail indices
+      const startThumbIdx = Math.floor(sourceStartRatio * assetThumbs.length);
+      const endThumbIdx = Math.ceil(sourceEndRatio * assetThumbs.length);
+
+      // Get the slice of thumbnails for this clip's source range
+      const clipThumbs = assetThumbs.slice(
+        Math.max(0, startThumbIdx),
+        Math.min(assetThumbs.length, Math.max(startThumbIdx + 1, endThumbIdx))
+      );
+
+      // Determine how many frames to show based on clip width
+      const numFrames = Math.min(clipThumbs.length, Math.max(2, Math.floor(clip.durationMs / 800)));
+      const frames = Array.from({ length: numFrames }, (_, i) => {
+        const idx = Math.floor((i / Math.max(1, numFrames - 1)) * (clipThumbs.length - 1));
+        return clipThumbs[Math.min(clipThumbs.length - 1, Math.max(0, idx))];
       });
+
       return (
-        <div className="absolute inset-0 grid grid-cols-8 gap-px p-px pointer-events-none">
+        <div
+          className="absolute inset-0 flex pointer-events-none overflow-hidden"
+          style={{ borderRadius: "inherit" }}
+        >
           {frames.map((frame, i) => (
             <div
               key={`${clipId}-thumb-${i}`}
-              className="rounded-[2px] border border-white/10 bg-cover bg-center"
-              style={{ backgroundImage: `url("${frame}")` }}
+              className="flex-1 bg-cover bg-center min-w-0"
+              style={{
+                backgroundImage: `url("${frame}")`,
+                borderRight: i < frames.length - 1 ? "1px solid rgba(0,0,0,0.3)" : "none",
+              }}
             />
           ))}
+          {/* Subtle dark overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
         </div>
       );
     }
 
     return null;
-  };
-
+  }, [thumbnailsByAsset, assetsById, durationMs, waveformData]);
 
   return (
     <div className="group">
@@ -200,25 +297,21 @@ export function TimelineTrack({
 
         {/* Add Clip Button */}
         <button
-          className="ml-2 rounded bg-[#f5a623]/10 px-2 py-1 text-xs text-[#f5a623] hover:bg-[#f5a623]/20"
+          className="ml-2 rounded bg-[#f5a623]/10 px-2 py-1 text-xs text-[#f5a623] hover:bg-[#f5a623]/20 transition-colors"
           title="Add Clip"
-          onClick={() => {
-            onAddClip(index);
-          }}
+          onClick={() => onAddClip(index)}
         >
           + Clip
         </button>
-
-        <span className="ml-2 text-[11px] text-[#8d7850]">Zoom {zoom.toFixed(2)}x</span>
       </div>
 
       {/* Track Lane */}
       <div
-        className={`relative h-14 overflow-hidden rounded-xl border-2 ${colors.border} ${colors.bg} transition-all duration-200 hover:border-opacity-60 hover:bg-opacity-20 ${splitMode ? "cursor-crosshair" : "cursor-pointer"}`}
+        data-track-lane={track.id}
+        className={`relative overflow-hidden rounded-xl border-2 transition-all duration-200
+          ${track.type === "VIDEO" ? "h-[72px] border-[#eab308]/50 bg-[#1a1a16]/80" : `h-14 ${colors.border} ${colors.bg}`}
+          hover:border-opacity-60 ${splitMode ? "cursor-crosshair" : "cursor-pointer"}`}
         onClick={onClick}
-        onMouseMove={handleTrackMouseMove}
-        onMouseUp={handleTrackMouseUp}
-        onMouseLeave={handleTrackMouseUp}
       >
         {/* Playhead */}
         <div
@@ -236,44 +329,95 @@ export function TimelineTrack({
           const widthPercent = (clip.durationMs / durationMs) * 100;
           const clipId = clip.id ?? clip.sourceAssetId;
           const isSelected = selectedClip === clipId;
-          const isActive = activeClip ? 
-            (activeClip.id ?? activeClip.sourceAssetId) === clipId : false;
+          const isActive = activeClip
+            ? (activeClip.id ?? activeClip.sourceAssetId) === clipId
+            : false;
+
+          const isVideoTrack = track.type === "VIDEO";
 
           return (
             <div
               key={clip.id ?? clip.sourceAssetId}
-              onMouseDown={(e) => handleClipMouseDown(e, clip)}
-              onClick={(e) => handleClipClick(e, clip, clipId)}
-              className={`absolute top-1.5 bottom-1.5 overflow-hidden rounded-lg border transition-all duration-150 ${
-                isActive
-                ? "ring-2 ring-[#f5a623] shadow-[0_0_10px_rgba(245,166,35,0.6)]"
-                : isSelected
-                ? colors.clipSelected
-                : colors.clip
-              } 
-              group/clip hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)]`}
+              className={`absolute top-1 bottom-1 overflow-hidden rounded-lg transition-all duration-150
+                ${isVideoTrack
+                  ? `border-2 ${isActive
+                      ? "border-[#eab308] ring-2 ring-[#eab308]/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]"
+                      : isSelected
+                        ? "border-[#eab308] shadow-[0_0_8px_rgba(234,179,8,0.3)]"
+                        : "border-[#eab308]/60"
+                    }`
+                  : `border ${isActive
+                      ? "ring-2 ring-[#f5a623] shadow-[0_0_10px_rgba(245,166,35,0.6)]"
+                      : isSelected
+                        ? colors.clipSelected
+                        : colors.clip
+                    }`
+                }
+                group/clip hover:shadow-[0_2px_12px_rgba(234,179,8,0.3)]`}
               style={{
                 left: `calc(${leftPercent}% + 1px)`,
                 width: `calc(${Math.max(widthPercent, 0.5)}% - 2px)`,
-                minWidth: "4px",
+                minWidth: "24px",
               }}
             >
+              {/* Frame thumbnails / visual */}
               {renderClipVisual(clip, clipId, track.type)}
-              <div className="flex h-full items-center px-1.5">
-                <span className="truncate text-[10px] font-medium text-[#fff5de]/90">
-                  Clip {track.clips.indexOf(clip) + 1}
+
+              {/* Left resize handle */}
+              <div
+                className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize z-10
+                  bg-gradient-to-r from-[#eab308]/40 to-transparent
+                  hover:from-[#eab308]/80 transition-colors"
+                onMouseDown={(e) => startDrag(e, clip, "resize-left")}
+              >
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#eab308]/60 rounded-full" />
+              </div>
+
+              {/* Right resize handle */}
+              <div
+                className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize z-10
+                  bg-gradient-to-l from-[#eab308]/40 to-transparent
+                  hover:from-[#eab308]/80 transition-colors"
+                onMouseDown={(e) => startDrag(e, clip, "resize-right")}
+              >
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#eab308]/60 rounded-full" />
+              </div>
+
+              {/* Clip label (only visible at larger sizes) */}
+              <div
+                className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-0.5 z-10 pointer-events-none"
+                onClick={(e) => handleClipClick(e, clip, clipId)}
+              >
+                <span className="truncate text-[9px] font-medium text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  {clip.name || `Clip ${track.clips.indexOf(clip) + 1}`}
                 </span>
               </div>
+
+              {/* Clickable area for selecting / splitting */}
+              <div
+                className="absolute inset-0 z-[5]"
+                style={{ left: "6px", right: "6px" }} // Don't overlap resize handles
+                onClick={(e) => handleClipClick(e, clip, clipId)}
+                onMouseDown={(e) => {
+                  if (!splitMode) startDrag(e, clip, "move");
+                }}
+              />
+
+              {/* Transition fade indicator */}
               {clip.transitionOut === "fade" && (
-                <div className="absolute right-0 h-full w-3 bg-linear-to-r from-transparent to-black/60" />
+                <div className="absolute right-0 h-full w-3 bg-linear-to-r from-transparent to-black/60 z-[6] pointer-events-none" />
               )}
 
-              {/* Delete button */}
+              {/* Delete button — yellow ✕ in bottom-right, matching reference */}
               <button
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded bg-[#ef4444]/20 p-0.5 text-[#f87171] opacity-0 transition-all group-hover/clip:opacity-100 hover:bg-[#ef4444]/40"
+                className="absolute right-1.5 bottom-1.5 z-20 flex h-5 w-5 items-center justify-center rounded
+                  bg-[#eab308] text-black shadow-md
+                  opacity-0 transition-all group-hover/clip:opacity-100
+                  hover:bg-[#facc15] hover:scale-110"
                 onClick={(e) => handleDeleteClip(e, clip.id ?? clip.sourceAssetId)}
+                title="Delete clip"
               >
-                <Trash2 className="h-3 w-3" />
+                <X className="h-3 w-3" strokeWidth={3} />
               </button>
             </div>
           );

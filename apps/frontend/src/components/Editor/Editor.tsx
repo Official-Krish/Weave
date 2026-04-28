@@ -27,6 +27,11 @@ const EDITOR_CSS = `
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
   }
+
+  @keyframes editor-slide-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
 `;
 
 export function Editor() {
@@ -64,10 +69,9 @@ export function Editor() {
   const [editText, setEditText] = useState("");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
+  const [thumbnailsByAsset, setThumbnailsByAsset] = useState<Record<string, string[]>>({});
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const pendingTrackIndexRef = useRef<number | null>(null);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyRef = useRef<{ tracks: Track[]; overlays: Overlay[] }[]>([]);
@@ -110,7 +114,7 @@ export function Editor() {
 
   useEffect(() => {
     async function initProject() {
-      if (!meetingId){
+      if (!meetingId) {
         console.error("No meetingId provided in URL");
         setLoading(false);
         return;
@@ -142,17 +146,76 @@ export function Editor() {
           setActiveAssetId(videoAsset.id);
         }
 
-        if (!projectData.tracks?.length && projectData.assets?.length > 0) {
-          const defaultTrack: Track = {
+        // Check if any VIDEO track already has clips
+        const existingVideoTrack = (projectData.tracks || []).find((t) => t.type === "VIDEO");
+        const hasClips = (projectData.tracks || []).some(
+          (t) => t.type === "VIDEO" && t.clips && t.clips.length > 0
+        );
+
+        // Build clips for the video track if none exist yet (first time opening editor)
+        if (!hasClips && videoAsset?.url) {
+          // If the asset doesn't have durationMs, probe the actual video element
+          let assetDuration = videoAsset.durationMs || projectData.durationMs || 0;
+
+          if (assetDuration <= 0) {
+            try {
+              assetDuration = await new Promise<number>((resolve) => {
+                const probe = document.createElement("video");
+                probe.preload = "metadata";
+                probe.src = videoAsset.url;
+                probe.onloadedmetadata = () => {
+                  const dur = Math.round((probe.duration || 1) * 1000);
+                  resolve(dur);
+                };
+                probe.onerror = () => resolve(60000); // fallback 60s
+              });
+            } catch {
+              assetDuration = 60000;
+            }
+          }
+
+          const newClip = {
             id: crypto.randomUUID(),
-            type: "VIDEO",
-            order: 0,
-            visible: true,
-            muted: false,
-            volume: 100,
-            clips: [],
+            sourceAssetId: videoAsset.id,
+            sourceStartMs: 0,
+            timelineStartMs: 0,
+            durationMs: assetDuration,
+            name: "Recording",
           };
-          setTracks([defaultTrack]);
+
+          if (existingVideoTrack) {
+            // Track exists but has no clips — add a clip to it
+            const updatedTracks = (projectData.tracks || []).map((t) =>
+              t.id === existingVideoTrack.id
+                ? { ...t, clips: [newClip] }
+                : t
+            );
+            setTracks(updatedTracks);
+          } else {
+            // No VIDEO track at all — create one
+            const defaultTrack: Track = {
+              id: crypto.randomUUID(),
+              type: "VIDEO",
+              order: 0,
+              visible: true,
+              muted: false,
+              volume: 100,
+              clips: [newClip],
+            };
+            setTracks([...(projectData.tracks || []), defaultTrack]);
+          }
+
+          if (assetDuration > 0) setDurationMs(assetDuration);
+
+          // Trigger thumbnail extraction now that we know the duration
+          void extractThumbnailsForAsset(videoAsset.id, videoAsset.url, assetDuration);
+        } else if (videoAsset?.url) {
+          // Tracks with clips already exist — just extract thumbnails
+          void extractThumbnailsForAsset(
+            videoAsset.id,
+            videoAsset.url,
+            videoAsset.durationMs || projectData.durationMs || 0
+          );
         }
       } catch (error) {
         console.error("Failed to initialize project:", error);
@@ -164,101 +227,92 @@ export function Editor() {
     initProject();
   }, [meetingId]);
 
-  useEffect(() => {
-    if (!sourceUrl || durationMs <= 0) {
-      setVideoThumbnails([]);
-      setWaveformData([]);
-      return;
-    }
+  // Extract thumbnails per asset (so each clip/split shows its own frames)
+  const extractThumbnailsForAsset = useCallback(async (assetId: string, url: string, assetDurationMs: number) => {
+    try {
+      const video = document.createElement("video");
+      video.crossOrigin = "anonymous";
+      video.preload = "auto";
+      video.muted = true;
+      video.src = url;
 
+      await new Promise<void>((resolve, reject) => {
+        const onLoaded = () => { video.removeEventListener("loadedmetadata", onLoaded); video.removeEventListener("error", onError); resolve(); };
+        const onError = () => { video.removeEventListener("loadedmetadata", onLoaded); video.removeEventListener("error", onError); reject(new Error("failed to load video metadata")); };
+        video.addEventListener("loadedmetadata", onLoaded);
+        video.addEventListener("error", onError);
+      });
+
+      const durSec = (assetDurationMs > 0 ? assetDurationMs : video.duration * 1000) / 1000;
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = 90;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const count = Math.min(40, Math.max(10, Math.floor(durSec * 1000 / 1500)));
+      const thumbs: string[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const t = durSec * (i / Math.max(1, count - 1));
+        await new Promise<void>((resolve) => {
+          const onSeeked = () => { video.removeEventListener("seeked", onSeeked); resolve(); };
+          video.addEventListener("seeked", onSeeked, { once: true });
+          video.currentTime = Math.max(0, Math.min(t, durSec - 0.05));
+        });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        thumbs.push(canvas.toDataURL("image/jpeg", 0.62));
+      }
+      setThumbnailsByAsset((prev) => ({ ...prev, [assetId]: thumbs }));
+    } catch (error) {
+      console.warn(`Thumbnail extraction failed for asset ${assetId}`, error);
+    }
+  }, []);
+
+  // Extract thumbnails & waveform when assets change
+  useEffect(() => {
+    if (Object.keys(assetsById).length === 0) return;
     let cancelled = false;
 
-    const extractThumbnails = async () => {
-      try {
-        const video = document.createElement("video");
-        video.crossOrigin = "anonymous";
-        video.preload = "auto";
-        video.muted = true;
-        video.src = sourceUrl;
-
-        await new Promise<void>((resolve, reject) => {
-          const onLoaded = () => {
-            cleanup();
-            resolve();
-          };
-          const onError = () => {
-            cleanup();
-            reject(new Error("failed to load video metadata"));
-          };
-          const cleanup = () => {
-            video.removeEventListener("loadedmetadata", onLoaded);
-            video.removeEventListener("error", onError);
-          };
-          video.addEventListener("loadedmetadata", onLoaded);
-          video.addEventListener("error", onError);
-        });
-
-        const canvas = document.createElement("canvas");
-        canvas.width = 160;
-        canvas.height = 90;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const count = Math.min(36, Math.max(10, Math.floor(durationMs / 1500)));
-        const thumbs: string[] = [];
-        for (let i = 0; i < count; i += 1) {
-          if (cancelled) return;
-          const t = (durationMs / 1000) * (i / Math.max(1, count - 1));
-          await new Promise<void>((resolve) => {
-            const onSeeked = () => {
-              video.removeEventListener("seeked", onSeeked);
-              resolve();
-            };
-            video.addEventListener("seeked", onSeeked, { once: true });
-            video.currentTime = Math.max(0, Math.min(t, (durationMs / 1000) - 0.05));
-          });
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          thumbs.push(canvas.toDataURL("image/jpeg", 0.62));
+    // Extract thumbnails for each video asset that doesn't already have them
+    for (const asset of Object.values(assetsById)) {
+      if (asset.assetType === "VIDEO" && !thumbnailsByAsset[asset.id] && asset.url) {
+        if (!cancelled) {
+          void extractThumbnailsForAsset(asset.id, asset.url, asset.durationMs || durationMs);
         }
-        if (!cancelled) setVideoThumbnails(thumbs);
-      } catch (error) {
-        console.warn("Thumbnail extraction failed", error);
-        if (!cancelled) setVideoThumbnails([]);
       }
-    };
+    }
 
-    const extractWaveform = async () => {
-      try {
-        const response = await fetch(sourceUrl);
-        const data = await response.arrayBuffer();
-        const audioCtx = new AudioContext();
-        const audioBuffer = await audioCtx.decodeAudioData(data.slice(0));
-        const channelData = audioBuffer.getChannelData(0);
-        const bins = 240;
-        const blockSize = Math.max(1, Math.floor(channelData.length / bins));
-        const points = Array.from({ length: bins }, (_, i) => {
-          const start = i * blockSize;
-          const end = Math.min(channelData.length, start + blockSize);
-          let sum = 0;
-          for (let j = start; j < end; j += 1) sum += Math.abs(channelData[j]);
-          return sum / Math.max(1, end - start);
-        });
-        const max = Math.max(...points, 0.0001);
-        if (!cancelled) setWaveformData(points.map((p) => p / max));
-        void audioCtx.close();
-      } catch (error) {
-        console.warn("Waveform extraction failed", error);
-        if (!cancelled) setWaveformData([]);
-      }
-    };
+    // Extract waveform from the primary source
+    if (sourceUrl && durationMs > 0 && waveformData.length === 0) {
+      const extractWaveform = async () => {
+        try {
+          const response = await fetch(sourceUrl);
+          const data = await response.arrayBuffer();
+          const audioCtx = new AudioContext();
+          const audioBuffer = await audioCtx.decodeAudioData(data.slice(0));
+          const channelData = audioBuffer.getChannelData(0);
+          const bins = 240;
+          const blockSize = Math.max(1, Math.floor(channelData.length / bins));
+          const points = Array.from({ length: bins }, (_, i) => {
+            const start = i * blockSize;
+            const end = Math.min(channelData.length, start + blockSize);
+            let sum = 0;
+            for (let j = start; j < end; j += 1) sum += Math.abs(channelData[j]);
+            return sum / Math.max(1, end - start);
+          });
+          const max = Math.max(...points, 0.0001);
+          if (!cancelled) setWaveformData(points.map((p) => p / max));
+          void audioCtx.close();
+        } catch (error) {
+          console.warn("Waveform extraction failed", error);
+          if (!cancelled) setWaveformData([]);
+        }
+      };
+      void extractWaveform();
+    }
 
-    void extractThumbnails();
-    void extractWaveform();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sourceUrl, durationMs]);
+    return () => { cancelled = true; };
+  }, [assetsById, sourceUrl, durationMs, thumbnailsByAsset, waveformData.length, extractThumbnailsForAsset]);
 
   useEffect(() => {
     const nextSnapshot = snapshotState(tracks, overlays);
@@ -504,8 +558,7 @@ export function Editor() {
     return { x: snappedX, y: snappedY, guideX, guideY };
   }
 
-  const handleAddClip = useCallback((trackIndex: number) => {
-    pendingTrackIndexRef.current = trackIndex;
+  const handleAddClip = useCallback((_trackIndex?: number) => {
     fileInputRef.current?.click();
   }, []);
 
@@ -549,7 +602,7 @@ export function Editor() {
             updated.push(clip);
             continue;
           }
-          const split = splitClipAtTime({ ...clip, id }, splitAtMs);
+          const split = splitClipAtTime({ ...clip, id }, splitAtMs, 500);
           if (!split) {
             updated.push(clip);
             continue;
@@ -579,10 +632,10 @@ export function Editor() {
 
   const handleClipFilePicked = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    const trackIndex = pendingTrackIndexRef.current;
     e.currentTarget.value = "";
-    if (!file || trackIndex == null) return;
+    if (!file || !project) return;
 
+    // Probe the file for duration
     const objectUrl = URL.createObjectURL(file);
     const metaVideo = document.createElement("video");
     metaVideo.preload = "metadata";
@@ -593,37 +646,110 @@ export function Editor() {
       metaVideo.onerror = () => resolve(5000);
     });
 
-    const assetId = crypto.randomUUID();
+    const isAudio = file.type.startsWith("audio/");
+
+    // Upload file to backend so it gets a real DB asset ID
+    let assetId: string;
+    let assetUrl: string;
+    try {
+      const uploaded = await editorApi.uploadAsset(project.id, file, duration);
+      assetId = uploaded.id;
+      // Use the backend URL for persistence, but keep objectUrl for playback
+      assetUrl = uploaded.url;
+    } catch (error) {
+      console.error("Failed to upload asset to backend:", error);
+      // Fallback: use a local-only asset (save will fail for this clip)
+      assetId = crypto.randomUUID();
+      assetUrl = objectUrl;
+    }
+
     const newAsset: Asset = {
       id: assetId,
-      assetType: file.type.startsWith("audio/") ? "AUDIO" : "VIDEO",
-      url: objectUrl,
+      assetType: isAudio ? "AUDIO" : "VIDEO",
+      url: objectUrl, // Use blob URL for local playback
       durationMs: duration,
     };
     setAssetsById((prev) => ({ ...prev, [assetId]: newAsset }));
 
-    setTracks((prev) =>
-      prev.map((track, i) => {
-        if (i !== trackIndex) return track;
-        const lastClip = [...track.clips].sort((a, b) => a.timelineStartMs - b.timelineStartMs).at(-1);
-        const timelineStartMs = lastClip ? lastClip.timelineStartMs + lastClip.durationMs : 0;
-        const newClip: Clip = {
-          id: crypto.randomUUID(),
-          sourceAssetId: assetId,
-          sourceStartMs: 0,
-          timelineStartMs,
-          durationMs: duration,
-          name: file.name,
-        };
-        return { ...track, clips: [...track.clips, newClip] };
-      })
-    );
-    setDurationMs((prev) => Math.max(prev, duration));
+    // Extract thumbnails for the new video asset
+    if (!isAudio) {
+      void extractThumbnailsForAsset(assetId, objectUrl, duration);
+    }
+
+    const GAP_MS = 500; // Gap between clips
+
+    setTracks((prev) => {
+      const trackType = isAudio ? "AUDIO" : "VIDEO";
+      const existingTrack = prev.find((t) => t.type === trackType);
+
+      if (existingTrack) {
+        // Find the end of the last clip in this track
+        const lastClipEnd = existingTrack.clips.reduce(
+          (max, c) => Math.max(max, c.timelineStartMs + c.durationMs),
+          0
+        );
+        const newClipStart = lastClipEnd > 0 ? lastClipEnd + GAP_MS : 0;
+
+        return prev.map((track) => {
+          if (track.id !== existingTrack.id) return track;
+          return {
+            ...track,
+            clips: [
+              ...track.clips,
+              {
+                id: crypto.randomUUID(),
+                sourceAssetId: assetId,
+                sourceStartMs: 0,
+                timelineStartMs: newClipStart,
+                durationMs: duration,
+                name: file.name,
+              },
+            ],
+          };
+        });
+      }
+
+      // No track of this type exists — create one
+      const maxOrder = prev.length > 0 ? Math.max(...prev.map((t) => t.order)) : -1;
+      const newTrack: Track = {
+        id: crypto.randomUUID(),
+        type: trackType,
+        order: maxOrder + 1,
+        visible: true,
+        muted: false,
+        volume: 100,
+        clips: [
+          {
+            id: crypto.randomUUID(),
+            sourceAssetId: assetId,
+            sourceStartMs: 0,
+            timelineStartMs: 0,
+            durationMs: duration,
+            name: file.name,
+          },
+        ],
+      };
+      return [...prev, newTrack];
+    });
+
+    // Extend timeline duration to fit the new clip
+    setDurationMs((prev) => {
+      const allTracks = tracks;
+      let maxEnd = prev;
+      for (const t of allTracks) {
+        for (const c of t.clips) {
+          maxEnd = Math.max(maxEnd, c.timelineStartMs + c.durationMs);
+        }
+      }
+      return Math.max(maxEnd, duration) + 1000;
+    });
+
+    // Set as source only if no source exists yet
     if (!sourceUrl) {
       setSourceUrl(objectUrl);
       setActiveAssetId(assetId);
     }
-  }, [sourceUrl]);
+  }, [sourceUrl, tracks, extractThumbnailsForAsset, project]);
 
   const handleSeek = useCallback((timeMs: number) => {
     isSeekingRef.current = true;
@@ -657,6 +783,7 @@ export function Editor() {
     }
     setVideoTime(videoTimeMs);
 
+    // Find the current clip being played across ALL tracks
     const currentClip = tracks
       .flatMap((t) => t.clips)
       .find((clip) =>
@@ -664,9 +791,18 @@ export function Editor() {
         videoTimeMs >= clip.sourceStartMs &&
         videoTimeMs < clip.sourceStartMs + clip.durationMs
       );
+
+    // Always update timeline time - even if no clip found (for scrubbing outside clips)
+    if (currentClip) {
+      const timeline = currentClip.timelineStartMs + (videoTimeMs - currentClip.sourceStartMs);
+      setTimelineTime(timeline);
+    } else {
+      // Map video time to timeline time even when between clips
+      const mappedTimelineTime = mapTimelineToSourceTime(tracks, videoTimeMs);
+      setTimelineTime(mappedTimelineTime);
+    }
+
     if (!currentClip) return;
-    const timeline = currentClip.timelineStartMs + (videoTimeMs - currentClip.sourceStartMs);
-    setTimelineTime(timeline);
 
     const clipId = currentClip.id ?? currentClip.sourceAssetId;
 
@@ -827,7 +963,7 @@ export function Editor() {
                           .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
                           .map((overlay) => {
                             if (!overlay.id) return null;
-                            return(
+                            return (
                               <Text
                                 ref={(node) => {
                                   if (node) textRefs.current[overlay.id] = node;
@@ -927,37 +1063,37 @@ export function Editor() {
                               />
                             )
                           })}
-                          {guides.x !== undefined && (
-                            <Line
-                              points={[guides.x, 0, guides.x, stageHeight]}
-                              stroke="#f5a623"
-                              strokeWidth={1}
-                              dash={[4, 4]}
-                            />
-                          )}
-
-                          {guides.y !== undefined && (
-                            <Line
-                              points={[0, guides.y, stageWidth, guides.y]}
-                              stroke="#f5a623"
-                              strokeWidth={1}
-                              dash={[4, 4]}
-                            />
-                          )}
-                          <Transformer
-                            ref={transformerRef}
-                            rotateEnabled={false}
-                            enabledAnchors={[
-                              "top-left",
-                              "top-center",
-                              "top-right",
-                              "middle-left",
-                              "middle-right",
-                              "bottom-left",
-                              "bottom-center",
-                              "bottom-right",
-                            ]}
+                        {guides.x !== undefined && (
+                          <Line
+                            points={[guides.x, 0, guides.x, stageHeight]}
+                            stroke="#f5a623"
+                            strokeWidth={1}
+                            dash={[4, 4]}
                           />
+                        )}
+
+                        {guides.y !== undefined && (
+                          <Line
+                            points={[0, guides.y, stageWidth, guides.y]}
+                            stroke="#f5a623"
+                            strokeWidth={1}
+                            dash={[4, 4]}
+                          />
+                        )}
+                        <Transformer
+                          ref={transformerRef}
+                          rotateEnabled={false}
+                          enabledAnchors={[
+                            "top-left",
+                            "top-center",
+                            "top-right",
+                            "middle-left",
+                            "middle-right",
+                            "bottom-left",
+                            "bottom-center",
+                            "bottom-right",
+                          ]}
+                        />
                       </Layer>
                     </Stage>
                     {editingOverlayId && (() => {
@@ -1127,7 +1263,7 @@ export function Editor() {
               onSeek={handleSeek}
               saving={saving}
               tracks={tracks}
-              onAddTrack={() => {}}
+              onAddClip={() => fileInputRef.current?.click()}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
               onSplitModeToggle={() => setSplitMode((prev) => !prev)}
@@ -1136,6 +1272,10 @@ export function Editor() {
               onRedo={handleRedo}
               canUndo={canUndo}
               canRedo={canRedo}
+              timelineZoom={timelineZoom}
+              onZoomIn={() => setTimelineZoom((prev) => Math.min(8, +(prev + 0.25).toFixed(2)))}
+              onZoomOut={() => setTimelineZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
+              onZoomReset={() => setTimelineZoom(1)}
             />
 
             {/* Quick stats */}
@@ -1186,8 +1326,9 @@ export function Editor() {
           onSplitClip={handleSplitClip}
           splitMode={splitMode}
           currentTime={timelineTime}
-          videoThumbnails={videoThumbnails}
+          thumbnailsByAsset={thumbnailsByAsset}
           waveformData={waveformData}
+          assetsById={assetsById}
         />
 
         <input

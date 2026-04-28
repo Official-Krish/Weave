@@ -23,8 +23,9 @@ interface TimelineProps {
   onSeek: (timeMs: number) => void;
   onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
   splitMode: boolean;
-  videoThumbnails: string[];
+  thumbnailsByAsset: Record<string, string[]>;
   waveformData: number[];
+  assetsById: Record<string, any>;
 }
 
 export function Timeline({
@@ -45,17 +46,27 @@ export function Timeline({
   onUpdateOverlay,
   onDeleteOverlay,
   overlays,
-  videoThumbnails,
+  thumbnailsByAsset,
   waveformData,
+  assetsById,
 }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentWidthPct = useMemo(() => Math.max(100, zoom * 100), [zoom]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.2 : 0.2;
-    onZoomChange(Math.max(0.5, Math.min(8, +(zoom + delta).toFixed(2))));
+    // Zoom on Ctrl/Cmd + scroll
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.2 : 0.2;
+      onZoomChange(Math.max(0.5, Math.min(8, +(zoom + delta).toFixed(2))));
+      return;
+    }
+
+    // Horizontal scroll on normal scroll (no modifier)
+    if (scrollRef.current) {
+      e.preventDefault();
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
   };
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -136,8 +147,9 @@ export function Timeline({
                   onClick={handleTimelineClick}
                   onSplitClip={onSplitClip}
                   splitMode={splitMode}
-                  videoThumbnails={videoThumbnails}
+                  thumbnailsByAsset={thumbnailsByAsset}
                   waveformData={waveformData}
+                  assetsById={assetsById}
                 />
               ))}
 
