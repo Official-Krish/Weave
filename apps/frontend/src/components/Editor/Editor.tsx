@@ -914,32 +914,6 @@ export function Editor() {
     <>
       <style>{EDITOR_CSS}</style>
       <div className="editor-root space-y-4">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#f5a623]">
-              Video Editor
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#fff5de] sm:text-3xl">
-              Edit Your Recording
-            </h1>
-            <p className="mt-1 max-w-xl text-sm text-[#bfa873]">
-              Trim clips, add text overlays, and export your final video.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {saving && (
-              <span className="flex items-center gap-1.5 text-xs text-[#bfa873]">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#f5a623]/40"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#f5a623]"></span>
-                </span>
-                Saving...
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* Main editor area */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Video Preview */}
@@ -1181,30 +1155,6 @@ export function Editor() {
                 </div>
               )}
             </div>
-
-            {/* Overlays preview */}
-            {overlays.length > 0 && (
-              <div className="mt-3 rounded-xl border border-[#f5a623]/10 bg-[#0a0a08]/40 p-3">
-                <p className="text-xs font-medium text-[#bfa873]">Active Overlays</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {overlays.map((overlay) => (
-                    <div
-                      key={overlay.id}
-                      className="group flex items-center gap-2 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/8 px-2.5 py-1.5 pr-2 text-xs text-[#f5a623] transition-all hover:border-[#f5a623]/30 hover:bg-[#f5a623]/12"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      <span className="max-w-37.5 truncate">{overlay.content.text}</span>
-                      <button
-                        onClick={() => handleDeleteOverlay(overlay.id!)}
-                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Controls Panel */}
@@ -1227,10 +1177,6 @@ export function Editor() {
               onRedo={handleRedo}
               canUndo={canUndo}
               canRedo={canRedo}
-              timelineZoom={timelineZoom}
-              onZoomIn={() => setTimelineZoom((prev) => Math.min(8, +(prev + 0.25).toFixed(2)))}
-              onZoomOut={() => setTimelineZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
-              onZoomReset={() => setTimelineZoom(1)}
               canvasTransform={canvasTransform}
             />
 
@@ -1285,6 +1231,10 @@ export function Editor() {
           thumbnailsByAsset={thumbnailsByAsset}
           waveformData={waveformData}
           assetsById={assetsById}
+          timelineZoom={timelineZoom}
+          onZoomIn={() => setTimelineZoom((prev) => Math.min(8, +(prev + 0.25).toFixed(2)))}
+          onZoomOut={() => setTimelineZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
+          onZoomReset={() => setTimelineZoom(1)}
         />
 
         <input

@@ -2,8 +2,9 @@ import { useMemo, useRef } from "react";
 import type { Track, Overlay, Clip } from "./types";
 import { TimelineTrack } from "./TimelineTrack";
 import { TimelineRuler } from "./TimelineRuler";
-import { Plus } from "lucide-react";
+import { Plus, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { OverlayTrack } from "./OverlayTrack";
+import { Button } from "../ui/button";
 
 interface TimelineProps {
   tracks: Track[];
@@ -26,6 +27,10 @@ interface TimelineProps {
   thumbnailsByAsset: Record<string, string[]>;
   waveformData: number[];
   assetsById: Record<string, any>;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
+  timelineZoom: number;
 }
 
 export function Timeline({
@@ -49,6 +54,10 @@ export function Timeline({
   thumbnailsByAsset,
   waveformData,
   assetsById,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
+  timelineZoom
 }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentWidthPct = useMemo(() => Math.max(100, zoom * 100), [zoom]);
@@ -96,6 +105,39 @@ export function Timeline({
             Duration: <span className="font-mono font-medium text-[#bfa873]">{(durationMs / 1000).toFixed(1)}s</span>
           </label>
           <span className="ml-2 text-[11px] text-[#8d7850]">Zoom: {zoom.toFixed(2)}x (Ctrl/Cmd + wheel)</span>
+        </div>
+        {/* Zoom controls */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#8d7850]">Zoom:</span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onZoomOut}
+            className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 cursor-pointer"
+            title="Zoom Out"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </Button>
+          <span className="w-14 text-center text-xs font-mono text-[#bfa873]">{timelineZoom.toFixed(1)}x</span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onZoomIn}
+            className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 cursor-pointer"
+            title="Zoom In"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onZoomReset}
+            className="ml-auto border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30 cursor-pointer"
+            title="Reset Zoom to 1x"
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+            Reset
+          </Button>
         </div>
         <button
           onClick={() => onAddOverlay({

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Play, Pause, Download, Plus, Type, Scissors,
-  Undo2, Redo2, ZoomIn, ZoomOut, RotateCcw,
+  Undo2, Redo2, RotateCcw,
   ChevronDown, ChevronUp, Move, Maximize,
 } from "lucide-react";
 import { formatTime } from "./helpers";
@@ -38,10 +38,6 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  timelineZoom: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onZoomReset: () => void;
   canvasTransform?: CanvasTransform;
 }
 
@@ -63,10 +59,6 @@ export function Toolbar({
   onRedo,
   canUndo,
   canRedo,
-  timelineZoom,
-  onZoomIn,
-  onZoomOut,
-  onZoomReset,
   canvasTransform,
 }: ToolbarProps) {
   const [showTransform, setShowTransform] = useState(false);
@@ -318,47 +310,6 @@ export function Toolbar({
           )}
         </div>
       )}
-
-      {/* Zoom controls */}
-      <div className="mt-4 flex items-center gap-2 pt-4 border-t border-[#f5a623]/5">
-        <span className="text-xs text-[#8d7850]">Zoom:</span>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onZoomOut}
-          className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10"
-          title="Zoom Out"
-        >
-          <ZoomOut className="h-3.5 w-3.5" />
-        </Button>
-        <span className="w-14 text-center text-xs font-mono text-[#bfa873]">{timelineZoom.toFixed(1)}x</span>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onZoomIn}
-          className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10"
-          title="Zoom In"
-        >
-          <ZoomIn className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onZoomReset}
-          className="ml-auto border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
-          title="Reset Zoom to 1x"
-        >
-          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-          Reset
-        </Button>
-      </div>
-
-      {/* Keyboard shortcuts hint */}
-      <div className="mt-4 rounded-lg border border-[#f5a623]/5 bg-[#0a0a08]/30 p-2.5">
-        <p className="text-[10px] text-[#8d7850]">
-          <span className="font-medium text-[#bfa873]">Shortcuts:</span> Space (Play/Pause) · Arrow keys (Seek) · S (Split)
-        </p>
-      </div>
     </div>
   );
 }
