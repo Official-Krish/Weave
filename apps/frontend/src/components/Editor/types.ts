@@ -115,3 +115,15 @@ export interface Toast {
   message: string;
   type: "info" | "success" | "error";
 }
+
+export type TransformState = {
+  stretchX: number;
+  stretchY: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export type TrimState = {
+  start: number;
+  end: number;
+};

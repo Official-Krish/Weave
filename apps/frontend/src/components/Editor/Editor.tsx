@@ -6,10 +6,8 @@ import { Timeline } from "./Timeline";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "./ExportDialog";
 import { Loader2, Film, Pencil, X } from "lucide-react";
-import { Stage, Layer, Text, Transformer, Line } from "react-konva";
-import type Konva from "konva";
 import { getOrderedClips, mapTimelineToSourceTime, splitClipAtTime } from "./helpers";
-import { VideoPlayer } from "../custom-video-player/videoPlayer";
+import { CanvasPlayer, useCanvasVideo } from "./CanvasPlayer";
 
 
 const EDITOR_CSS = `
@@ -54,9 +52,8 @@ export function Editor() {
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [videoTime, setVideoTime] = useState<number>(0);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
-  const transformerRef = useRef<Konva.Transformer | null>(null);
-  const textRefs = useRef<Record<string, Konva.Text>>({});
-  const [guides, setGuides] = useState<{ x?: number; y?: number }>({});
+  // Overlay interaction state (HTML-based, positioned over canvas)
+  const overlayEditContainerRef = useRef<HTMLDivElement | null>(null);
   const stageWidth = project?.width || 1280;
   const stageHeight = project?.height || 720;
   const [transitionOpacity, setTransitionOpacity] = useState(1);
@@ -85,6 +82,27 @@ export function Editor() {
     []
   );
 
+  // Refs to hold callbacks (avoids TDZ since handleTimeUpdate/handlePlayStateChange
+  // are declared later in the component via useCallback)
+  const timeUpdateRef = useRef<((t: number) => void) | null>(null);
+  const playStateChangeRef = useRef<((p: boolean) => void) | null>(null);
+
+  // ─── Canvas-based video rendering ──────────────────────────────────
+  const {
+    videoRef,
+    canvasRef,
+    state: canvasState,
+    actions: canvasActions,
+    transform: canvasTransform,
+  } = useCanvasVideo(sourceUrl, {
+    currentTime: videoTime,
+    isPlaying,
+    onTimeUpdate: (t) => timeUpdateRef.current?.(t),
+    onPlayStateChange: (p) => playStateChangeRef.current?.(p),
+    overlays,
+    timelineTimeMs: timelineTime,
+  });
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -101,16 +119,7 @@ export function Editor() {
     return () => observer.disconnect();
   }, []);
 
-  // Attach transformer to selected overlay
-  useEffect(() => {
-    if (!transformerRef.current || !selectedOverlayId) return;
 
-    const node = textRefs.current[selectedOverlayId];
-    if (node) {
-      transformerRef.current.nodes([node]);
-      transformerRef.current.getLayer()!.batchDraw();
-    }
-  }, [selectedOverlayId]);
 
   useEffect(() => {
     async function initProject() {
@@ -531,32 +540,7 @@ export function Editor() {
     setCanRedo(redoRef.current.length > 0);
   }
 
-  const getSnapPosition = (x: number, y: number): {
-    x: number;
-    y: number;
-    guideX?: number;
-    guideY?: number;
-  } => {
-    const SNAP_THRESHOLD = 10;
 
-    let snappedX = x;
-    let snappedY = y;
-    let guideX: number | undefined;
-    let guideY: number | undefined;
-
-    // center snap
-    if (Math.abs(x - stageWidth / 2) < SNAP_THRESHOLD) {
-      snappedX = stageWidth / 2;
-      guideX = stageWidth / 2;
-    }
-
-    if (Math.abs(y - stageHeight / 2) < SNAP_THRESHOLD) {
-      snappedY = stageHeight / 2;
-      guideY = stageHeight / 2;
-    }
-
-    return { x: snappedX, y: snappedY, guideX, guideY };
-  }
 
   const handleAddClip = useCallback((_trackIndex?: number) => {
     fileInputRef.current?.click();
@@ -614,6 +598,36 @@ export function Editor() {
     );
     setSplitMode(false);
   }, []);
+
+  // Split at the current playhead position — finds the clip under the
+  // playhead and splits it into two clips (left: start→playhead, right: playhead→end)
+  const handleSplitAtPlayhead = useCallback(() => {
+    const currentMs = timelineTime;
+
+    // Find which track/clip the playhead is over
+    let foundTrackIndex = -1;
+    let foundClipId = "";
+
+    for (let i = 0; i < tracks.length; i++) {
+      for (const clip of tracks[i].clips) {
+        const start = clip.timelineStartMs;
+        const end = start + clip.durationMs;
+        if (currentMs > start && currentMs < end) {
+          foundTrackIndex = i;
+          foundClipId = clip.id ?? clip.sourceAssetId;
+          break;
+        }
+      }
+      if (foundTrackIndex >= 0) break;
+    }
+
+    if (foundTrackIndex < 0) return; // No clip under playhead
+
+    // Pause playback during split
+    setIsPlaying(false);
+
+    handleSplitClip(foundTrackIndex, foundClipId, currentMs);
+  }, [timelineTime, tracks, handleSplitClip]);
 
   const handleExport = async () => {
     if (!project) return;
@@ -733,15 +747,17 @@ export function Editor() {
     });
 
     // Extend timeline duration to fit the new clip
+    // Note: We compute the new clip's end directly instead of iterating
+    // tracks (which would read the stale pre-setTracks value from closure)
     setDurationMs((prev) => {
-      const allTracks = tracks;
-      let maxEnd = prev;
-      for (const t of allTracks) {
-        for (const c of t.clips) {
-          maxEnd = Math.max(maxEnd, c.timelineStartMs + c.durationMs);
-        }
-      }
-      return Math.max(maxEnd, duration) + 1000;
+      // The new clip was placed at newClipStart (or 0 for new tracks)
+      const existingTrack = tracks.find((t) => t.type === (isAudio ? "AUDIO" : "VIDEO"));
+      const lastClipEnd = existingTrack
+        ? existingTrack.clips.reduce((max, c) => Math.max(max, c.timelineStartMs + c.durationMs), 0)
+        : 0;
+      const newClipStart = lastClipEnd > 0 ? lastClipEnd + GAP_MS : 0;
+      const newClipEnd = newClipStart + duration;
+      return Math.max(prev, newClipEnd) + 2000; // 2s buffer for scrolling
     });
 
     // Set as source only if no source exists yet
@@ -854,6 +870,10 @@ export function Editor() {
     setIsPlaying(playing);
   }, []);
 
+  // Wire up the callback refs for the canvas hook
+  timeUpdateRef.current = handleTimeUpdate;
+  playStateChangeRef.current = handlePlayStateChange;
+
   const handleStartTextEdit = (overlay: Overlay) => {
     setEditingOverlayId(overlay.id!);
     setEditText(overlay.content.text);
@@ -926,176 +946,93 @@ export function Editor() {
           <div className="lg:col-span-2">
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">
               {sourceUrl ? (
-                <div className="relative w-full aspect-video bg-black rounded overflow-hidden">
-                  <VideoPlayer
-                    src={sourceUrl}
-                    className="w-full h-full"
-                    style={{ opacity: transitionOpacity }}
-
-                    currentTime={videoTime}
-                    onTimeUpdate={handleTimeUpdate}
-
-                    isPlaying={isPlaying}
-                    onPlayStateChange={handlePlayStateChange}
+                <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden" style={{ opacity: transitionOpacity }}>
+                  <CanvasPlayer
+                    canvasRef={canvasRef}
+                    videoRef={videoRef}
+                    isLoaded={canvasState.isLoaded}
+                    onClickToggle={handlePlayPause}
+                    onDoubleClickFullscreen={() => canvasRef.current?.requestFullscreen?.()}
                   />
 
-                  {/* Overlay Layer */}
-                  <div ref={containerRef} className="absolute inset-0">
-                    <Stage
-                      width={containerSize.width}
-                      height={containerSize.height}
-                      scaleX={containerSize.width / stageWidth}
-                      scaleY={containerSize.height / stageHeight}
-                      className="w-full h-full"
-                      onMouseDown={(e) => {
-                        if (e.target === e.target.getStage()) {
-                          setSelectedOverlayId(null);
-                        }
-                      }}
-                    >
-                      <Layer>
-                        {overlays
-                          .filter(
-                            (o) =>
-                              timelineTime >= o.timelineStartMs &&
-                              timelineTime <= o.timelineStartMs + o.durationMs
-                          )
-                          .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-                          .map((overlay) => {
-                            if (!overlay.id) return null;
-                            return (
-                              <Text
-                                ref={(node) => {
-                                  if (node) textRefs.current[overlay.id] = node;
-                                  else delete textRefs.current[overlay.id!];
-                                }}
-                                key={overlay.id}
-                                text={overlay.content.text}
-                                x={overlay.transform.x}
-                                y={overlay.transform.y}
-                                onDblClick={() => handleStartTextEdit(overlay)}
-                                fontSize={overlay.style?.fontSize || 24}
-                                fontFamily={overlay.style?.fontFamily || "Inter"}
-                                fontStyle={
-                                  overlay.style?.fontStyle === "italic"
-                                    ? overlay.style?.fontWeight === "bold"
-                                      ? "italic bold"
-                                      : "italic"
-                                    : overlay.style?.fontWeight === "bold"
-                                      ? "bold"
-                                      : "normal"
-                                }
-                                align={overlay.style?.textAlign || "left"}
-                                fill={overlay.style?.color || "#ffffff"}
-                                width={overlay.transform.width}
-                                height={overlay.transform.height}
-                                scaleX={overlay.transform.scaleX || 1}
-                                scaleY={overlay.transform.scaleY || 1}
-                                draggable
-                                stroke={selectedOverlayId === overlay.id ? "#f5a623" : undefined}
-                                strokeWidth={selectedOverlayId === overlay.id ? 1 : 0}
-                                onClick={() => {
-                                  setSelectedOverlayId(overlay.id!);
+                  {/* HTML Overlay Interaction Layer — positioned over the canvas */}
+                  <div ref={overlayEditContainerRef} className="absolute inset-0 pointer-events-none z-30">
+                    {/* Overlay position indicators (visible overlays as draggable chips) */}
+                    {overlays
+                      .filter(
+                        (o) =>
+                          timelineTime >= o.timelineStartMs &&
+                          timelineTime <= o.timelineStartMs + o.durationMs
+                      )
+                      .map((overlay) => {
+                        if (!overlay.id) return null;
+                        const scaleX = containerSize.width / stageWidth;
+                        const scaleY = containerSize.height / stageHeight;
+                        const isSelected = selectedOverlayId === overlay.id;
 
-                                  const node = textRefs.current[overlay.id!];
-                                  if (node && transformerRef.current) {
-                                    transformerRef.current.nodes([node]);
-                                    transformerRef.current.getLayer()!.batchDraw();
-                                  }
-                                }}
+                        return (
+                          <div
+                            key={overlay.id}
+                            className={`absolute pointer-events-auto cursor-move select-none transition-all duration-100
+                              ${isSelected
+                                ? "ring-2 ring-[#f5a623] ring-offset-1 ring-offset-transparent rounded"
+                                : "hover:ring-1 hover:ring-[#f5a623]/40 rounded"
+                              }`}
+                            style={{
+                              left: overlay.transform.x * scaleX,
+                              top: overlay.transform.y * scaleY,
+                              fontSize: (overlay.style?.fontSize || 24) * scaleX,
+                              fontFamily: overlay.style?.fontFamily || "Inter, system-ui, sans-serif",
+                              fontWeight: overlay.style?.fontWeight || "normal",
+                              fontStyle: overlay.style?.fontStyle || "normal",
+                              color: "transparent", // Text rendered on canvas; this is just a hit area
+                              minWidth: 40 * scaleX,
+                              minHeight: 20 * scaleY,
+                              padding: "2px 4px",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOverlayId(overlay.id!);
+                            }}
+                            onDoubleClick={() => handleStartTextEdit(overlay)}
+                            onMouseDown={(e) => {
+                              if (editingOverlayId) return;
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const origX = overlay.transform.x;
+                              const origY = overlay.transform.y;
 
-                                onDragMove={(e) => {
-                                  const { x, y } = e.target.position();
+                              const handleMove = (moveE: MouseEvent) => {
+                                const dx = (moveE.clientX - startX) / scaleX;
+                                const dy = (moveE.clientY - startY) / scaleY;
+                                handleUpdateOverlay(overlay.id!, {
+                                  transform: {
+                                    ...overlay.transform,
+                                    x: Math.max(0, origX + dx),
+                                    y: Math.max(0, origY + dy),
+                                  },
+                                });
+                              };
 
-                                  const snapped = getSnapPosition(x, y);
+                              const handleUp = () => {
+                                window.removeEventListener("mousemove", handleMove);
+                                window.removeEventListener("mouseup", handleUp);
+                              };
 
-                                  e.target.position({
-                                    x: snapped.x,
-                                    y: snapped.y,
-                                  });
+                              window.addEventListener("mousemove", handleMove);
+                              window.addEventListener("mouseup", handleUp);
+                            }}
+                          >
+                            {/* Invisible text for sizing the hit area */}
+                            <span style={{ visibility: "hidden", whiteSpace: "pre" }}>
+                              {overlay.content.text}
+                            </span>
+                          </div>
+                        );
+                      })}
 
-                                  setGuides({
-                                    x: snapped.guideX,
-                                    y: snapped.guideY,
-                                  });
-                                }}
-
-                                onDragEnd={(e) => {
-                                  const { x, y } = e.target.position();
-
-                                  handleUpdateOverlay(overlay.id!, {
-                                    transform: {
-                                      ...overlay.transform,
-                                      x,
-                                      y,
-                                    },
-                                  });
-
-                                  setGuides({});
-                                }}
-
-                                // RESIZE (via scale)
-                                onTransformEnd={(e) => {
-                                  const node = e.target;
-
-                                  const scaleX = node.scaleX();
-                                  const scaleY = node.scaleY();
-                                  const nextWidth = Math.max(40, node.width() * scaleX);
-                                  const nextHeight = Math.max(20, node.height() * scaleY);
-
-                                  node.scaleX(1);
-                                  node.scaleY(1);
-
-                                  handleUpdateOverlay(overlay.id!, {
-                                    transform: {
-                                      ...overlay.transform,
-                                      width: nextWidth,
-                                      height: nextHeight,
-                                      scaleX: 1,
-                                      scaleY: 1,
-                                    },
-                                    style: {
-                                      ...overlay.style,
-                                      fontSize: Math.max(12, (overlay.style?.fontSize || 24) * scaleY),
-                                    },
-                                  });
-                                }}
-                              />
-                            )
-                          })}
-                        {guides.x !== undefined && (
-                          <Line
-                            points={[guides.x, 0, guides.x, stageHeight]}
-                            stroke="#f5a623"
-                            strokeWidth={1}
-                            dash={[4, 4]}
-                          />
-                        )}
-
-                        {guides.y !== undefined && (
-                          <Line
-                            points={[0, guides.y, stageWidth, guides.y]}
-                            stroke="#f5a623"
-                            strokeWidth={1}
-                            dash={[4, 4]}
-                          />
-                        )}
-                        <Transformer
-                          ref={transformerRef}
-                          rotateEnabled={false}
-                          enabledAnchors={[
-                            "top-left",
-                            "top-center",
-                            "top-right",
-                            "middle-left",
-                            "middle-right",
-                            "bottom-left",
-                            "bottom-center",
-                            "bottom-right",
-                          ]}
-                        />
-                      </Layer>
-                    </Stage>
+                    {/* Inline text editing input */}
                     {editingOverlayId && (() => {
                       const overlay = overlays.find(o => o.id === editingOverlayId);
                       if (!overlay) return null;
@@ -1106,6 +1043,7 @@ export function Editor() {
                       return (
                         <input
                           autoFocus
+                          className="pointer-events-auto"
                           value={editText}
                           onChange={e => setEditText(e.target.value)}
                           onBlur={handleCommitTextEdit}
@@ -1119,36 +1057,40 @@ export function Editor() {
                             left: overlay.transform.x * scaleX,
                             top: overlay.transform.y * scaleY,
                             fontSize: (overlay.style?.fontSize || 24) * scaleX,
-                            color: "white",
-                            background: "rgba(0,0,0,0.5)",
-                            border: "1px solid #f5a623",
-                            borderRadius: 4,
-                            padding: "2px 6px",
+                            fontFamily: overlay.style?.fontFamily || "Inter, system-ui, sans-serif",
+                            color: overlay.style?.color || "#ffffff",
+                            background: "rgba(0,0,0,0.7)",
+                            border: "2px solid #f5a623",
+                            borderRadius: 6,
+                            padding: "4px 8px",
                             outline: "none",
-                            minWidth: 80,
-                            zIndex: 50,
+                            minWidth: 100,
+                            zIndex: 60,
+                            backdropFilter: "blur(8px)",
                           }}
                         />
                       );
                     })()}
+
+                    {/* Selected overlay style toolbar */}
                     {selectedOverlayId && !editingOverlayId && (() => {
                       const overlay = overlays.find(o => o.id === selectedOverlayId);
                       if (!overlay) return null;
                       const scaleX = containerSize.width / stageWidth;
                       const scaleY = containerSize.height / stageHeight;
                       const toolbarLeft = overlay.transform.x * scaleX;
-                      const toolbarTop = Math.max(8, overlay.transform.y * scaleY - 44);
+                      const toolbarTop = Math.max(8, overlay.transform.y * scaleY - 48);
 
                       return (
                         <div
-                          className="absolute z-50 flex items-center gap-2 rounded-md border border-[#f5a623]/30 bg-black/80 px-2 py-1 text-xs text-[#fff5de] shadow-lg backdrop-blur"
+                          className="absolute z-50 pointer-events-auto flex items-center gap-2 rounded-lg border border-[#f5a623]/30 bg-black/80 px-3 py-1.5 text-xs text-[#fff5de] shadow-xl backdrop-blur-md"
                           style={{
-                            left: Math.min(toolbarLeft, containerSize.width - 280),
+                            left: Math.min(toolbarLeft, containerSize.width - 300),
                             top: toolbarTop,
                           }}
                         >
                           <button
-                            className={`rounded px-2 py-0.5 ${overlay.style?.fontWeight === "bold" ? "bg-[#f5a623]/30" : "bg-[#f5a623]/10"}`}
+                            className={`rounded px-2 py-0.5 font-bold transition-colors ${overlay.style?.fontWeight === "bold" ? "bg-[#f5a623]/30 text-[#f5a623]" : "bg-[#f5a623]/10 hover:bg-[#f5a623]/20"}`}
                             onClick={() =>
                               handleUpdateOverlay(overlay.id, {
                                 style: {
@@ -1161,7 +1103,7 @@ export function Editor() {
                             B
                           </button>
                           <button
-                            className={`rounded px-2 py-0.5 ${overlay.style?.fontStyle === "italic" ? "bg-[#f5a623]/30" : "bg-[#f5a623]/10"}`}
+                            className={`rounded px-2 py-0.5 italic transition-colors ${overlay.style?.fontStyle === "italic" ? "bg-[#f5a623]/30 text-[#f5a623]" : "bg-[#f5a623]/10 hover:bg-[#f5a623]/20"}`}
                             onClick={() =>
                               handleUpdateOverlay(overlay.id, {
                                 style: {
@@ -1173,6 +1115,7 @@ export function Editor() {
                           >
                             I
                           </button>
+                          <div className="h-4 w-px bg-[#f5a623]/20" />
                           <input
                             type="color"
                             value={overlay.style?.color || "#ffffff"}
@@ -1181,9 +1124,10 @@ export function Editor() {
                                 style: { ...overlay.style, color: e.target.value },
                               })
                             }
-                            className="h-6 w-7 rounded border border-[#f5a623]/20 bg-transparent p-0"
+                            className="h-6 w-7 rounded border border-[#f5a623]/20 bg-transparent p-0 cursor-pointer"
                             title="Text color"
                           />
+                          <div className="h-4 w-px bg-[#f5a623]/20" />
                           <input
                             type="range"
                             min={12}
@@ -1197,6 +1141,8 @@ export function Editor() {
                             className="w-20 accent-[#f5a623]"
                             title="Font size"
                           />
+                          <span className="text-[10px] text-[#8d7850] w-6 text-center">{overlay.style?.fontSize || 24}</span>
+                          <div className="h-4 w-px bg-[#f5a623]/20" />
                           <select
                             value={overlay.style?.textAlign || "left"}
                             onChange={(e) =>
@@ -1207,12 +1153,20 @@ export function Editor() {
                                 },
                               })
                             }
-                            className="rounded border border-[#f5a623]/20 bg-black/60 px-1 py-0.5 text-[11px]"
+                            className="rounded border border-[#f5a623]/20 bg-black/60 px-1.5 py-0.5 text-[11px] cursor-pointer"
                           >
                             <option value="left">Left</option>
                             <option value="center">Center</option>
                             <option value="right">Right</option>
                           </select>
+                          <div className="h-4 w-px bg-[#f5a623]/20" />
+                          <button
+                            className="rounded px-1.5 py-0.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                            onClick={() => handleDeleteOverlay(overlay.id!)}
+                            title="Delete overlay"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
                       );
                     })()}
@@ -1267,6 +1221,7 @@ export function Editor() {
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
               onSplitModeToggle={() => setSplitMode((prev) => !prev)}
+              onSplitAtPlayhead={handleSplitAtPlayhead}
               splitMode={splitMode}
               onUndo={handleUndo}
               onRedo={handleRedo}
@@ -1276,6 +1231,7 @@ export function Editor() {
               onZoomIn={() => setTimelineZoom((prev) => Math.min(8, +(prev + 0.25).toFixed(2)))}
               onZoomOut={() => setTimelineZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
               onZoomReset={() => setTimelineZoom(1)}
+              canvasTransform={canvasTransform}
             />
 
             {/* Quick stats */}

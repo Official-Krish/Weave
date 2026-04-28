@@ -1,7 +1,24 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Download, Plus, Type, Scissors, Undo2, Redo2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import {
+  Play, Pause, Download, Plus, Type, Scissors,
+  Undo2, Redo2, ZoomIn, ZoomOut, RotateCcw,
+  ChevronDown, ChevronUp, Move, Maximize,
+} from "lucide-react";
 import { formatTime } from "./helpers";
+
+interface CanvasTransform {
+  stretchX: number;
+  stretchY: number;
+  offsetX: number;
+  offsetY: number;
+  setStretchX: (v: number) => void;
+  setStretchY: (v: number) => void;
+  setOffsetX: (v: number) => void;
+  setOffsetY: (v: number) => void;
+  reset: () => void;
+}
 
 interface ToolbarProps {
   onExport: () => void;
@@ -15,6 +32,7 @@ interface ToolbarProps {
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
   onSplitModeToggle: () => void;
+  onSplitAtPlayhead: () => void;
   splitMode: boolean;
   onUndo: () => void;
   onRedo: () => void;
@@ -24,6 +42,7 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  canvasTransform?: CanvasTransform;
 }
 
 export function Toolbar({
@@ -38,6 +57,7 @@ export function Toolbar({
   onAddOverlay,
   onPlayPause,
   onSplitModeToggle,
+  onSplitAtPlayhead,
   splitMode,
   onUndo,
   onRedo,
@@ -47,7 +67,10 @@ export function Toolbar({
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  canvasTransform,
 }: ToolbarProps) {
+  const [showTransform, setShowTransform] = useState(false);
+
   const handleSliderChange = (value: number[]) => {
     onSeek(value[0]);
   };
@@ -62,6 +85,13 @@ export function Toolbar({
       style: {},
     });
   };
+
+  const isTransformModified = canvasTransform
+    ? canvasTransform.stretchX !== 1 ||
+      canvasTransform.stretchY !== 1 ||
+      canvasTransform.offsetX !== 0 ||
+      canvasTransform.offsetY !== 0
+    : false;
 
   return (
     <div className="rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/60 p-5 shadow-lg backdrop-blur-sm">
@@ -159,13 +189,135 @@ export function Toolbar({
         <Button
           variant="outline"
           size="sm"
-          onClick={onSplitModeToggle}
-          className={`flex-1 border-[#f5a623]/20 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30 ${splitMode ? "bg-[#f5a623]/20" : "bg-[#f5a623]/5"}`}
+          onClick={onSplitAtPlayhead}
+          className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
+          title="Split clip at current playhead position"
         >
           <Scissors className="mr-2 h-4 w-4" />
-          {splitMode ? "Click Clip" : "Split"}
+          Split
         </Button>
       </div>
+
+      {/* Canvas Transform Controls */}
+      {canvasTransform && (
+        <div className="mt-4 pt-4 border-t border-[#f5a623]/5">
+          <button
+            onClick={() => setShowTransform(!showTransform)}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-medium text-[#bfa873] transition-colors hover:bg-[#f5a623]/5"
+          >
+            <div className="flex items-center gap-2">
+              <Maximize className="h-3.5 w-3.5 text-[#f5a623]" />
+              <span>Canvas Transform</span>
+              {isTransformModified && (
+                <span className="flex h-1.5 w-1.5 rounded-full bg-[#f5a623] animate-pulse" />
+              )}
+            </div>
+            {showTransform ? (
+              <ChevronUp className="h-3.5 w-3.5 text-[#8d7850]" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-[#8d7850]" />
+            )}
+          </button>
+
+          {showTransform && (
+            <div className="mt-3 space-y-3 rounded-xl border border-[#f5a623]/10 bg-[#060605]/60 p-3">
+              {/* Scale X */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#8d7850]">
+                    <Move className="h-3 w-3" />
+                    Scale X
+                  </label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.stretchX.toFixed(2)}×
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3"
+                  step="0.05"
+                  value={canvasTransform.stretchX}
+                  onChange={(e) => canvasTransform.setStretchX(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Scale Y */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#8d7850]">
+                    <Move className="h-3 w-3 rotate-90" />
+                    Scale Y
+                  </label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.stretchY.toFixed(2)}×
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3"
+                  step="0.05"
+                  value={canvasTransform.stretchY}
+                  onChange={(e) => canvasTransform.setStretchY(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Offset X */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] text-[#8d7850]">Offset X</label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.offsetX}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-500"
+                  max="500"
+                  step="5"
+                  value={canvasTransform.offsetX}
+                  onChange={(e) => canvasTransform.setOffsetX(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Offset Y */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] text-[#8d7850]">Offset Y</label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.offsetY}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-300"
+                  max="300"
+                  step="5"
+                  value={canvasTransform.offsetY}
+                  onChange={(e) => canvasTransform.setOffsetY(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Reset */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={canvasTransform.reset}
+                disabled={!isTransformModified}
+                className="w-full border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30 disabled:opacity-40"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                Reset Transform
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Zoom controls */}
       <div className="mt-4 flex items-center gap-2 pt-4 border-t border-[#f5a623]/5">
