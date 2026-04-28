@@ -1,5 +1,6 @@
 export type TrackType = "VIDEO" | "AUDIO" | "TEXT";
 export type OverlayType = "TEXT";
+export type ActiveTool = "select" | "split" | "text";
 
 export interface Clip {
   id?: string;
@@ -9,6 +10,7 @@ export interface Clip {
   durationMs: number;
   transitionIn?: "fade" | "cut";
   transitionOut?: "fade" | "cut";
+  name?: string;
 }
 
 export interface Track {
@@ -19,6 +21,19 @@ export interface Track {
   muted: boolean;
   volume: number;
   clips: Clip[];
+}
+
+export interface OverlayStyle {
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textAlign?: "left" | "center" | "right";
+  textShadow?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  letterSpacing?: number;
 }
 
 export interface Overlay {
@@ -33,8 +48,12 @@ export interface Overlay {
   transform: {
     x: number;
     y: number;
+    width?: number;
+    height?: number;
+    scaleX?: number;
+    scaleY?: number;
   };
-  style?: Record<string, any>;
+  style?: OverlayStyle;
 }
 
 export interface Asset {
@@ -70,6 +89,11 @@ export interface ExportJob {
   error?: string | null;
 }
 
+export interface HistoryEntry {
+  tracks: Track[];
+  overlays: Overlay[];
+}
+
 export interface EditorState {
   projectId: string | null;
   meetingId: string;
@@ -84,4 +108,10 @@ export interface EditorState {
   fps: number;
   width: number;
   height: number;
+}
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: "info" | "success" | "error";
 }

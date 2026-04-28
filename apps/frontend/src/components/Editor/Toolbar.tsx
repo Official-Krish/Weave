@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Download, Plus, Type, Scissors } from "lucide-react";
+import { Play, Pause, Download, Plus, Type, Scissors, Undo2, Redo2 } from "lucide-react";
 import { formatTime } from "./helpers";
 
 interface ToolbarProps {
@@ -14,6 +14,11 @@ interface ToolbarProps {
   onAddTrack: () => void;
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
+  onSplitAtPlayhead: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export function Toolbar({
@@ -27,6 +32,11 @@ export function Toolbar({
   onAddTrack,
   onAddOverlay,
   onPlayPause,
+  onSplitAtPlayhead,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: ToolbarProps) {
   const handleSliderChange = (value: number[]) => {
     onSeek(value[0]);
@@ -48,6 +58,28 @@ export function Toolbar({
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-[#fff5de]">Controls</h3>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 disabled:opacity-40"
+              title="Undo (Ctrl/Cmd + Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="h-8 w-8 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 disabled:opacity-40"
+              title="Redo (Ctrl/Cmd + Y)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
           {/* Track count */}
           <span className="text-xs text-[#8d7850]">Tracks: {tracks.length}</span>
           {/* Saving indicator */}
@@ -117,6 +149,7 @@ export function Toolbar({
         <Button
           variant="outline"
           size="sm"
+          onClick={onSplitAtPlayhead}
           className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
         >
           <Scissors className="mr-2 h-4 w-4" />

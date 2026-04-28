@@ -6,10 +6,10 @@ import { Timeline } from "./Timeline";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "./ExportDialog";
 import { Loader2, Film, Pencil, X } from "lucide-react";
-import { VideoPlayer } from "../videojsPlayer";
 import { Stage, Layer, Text, Transformer, Line } from "react-konva";
 import type Konva from "konva";
-import { findClipByVideoTime, getOrderedClips, mapSourceToTimelineTime, mapTimelineToSourceTime } from "./helpers";
+import { findClipByVideoTime, getOrderedClips, mapSourceToTimelineTime, mapTimelineToSourceTime, splitClipAtTime } from "./helpers";
+import { VideoPlayer } from "../custom-video-player/videoPlayer";
 
 
 const EDITOR_CSS = `
@@ -43,6 +43,7 @@ export function Editor() {
   const [saving, setSaving] = useState(false);
   const [sourceUrl, setSourceUrl] = useState<string>("");
   const [timelineTime, setTimelineTime] = useState(0);
+  const [timelineZoom, setTimelineZoom] = useState(1);
   const [videoTime, setVideoTime] = useState<number>(0);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
@@ -58,8 +59,22 @@ export function Editor() {
   const seekTargetRef = useRef<number | null>(null);
   const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
+  const [waveformData, setWaveformData] = useState<number[]>([]);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historyRef = useRef<{ tracks: Track[]; overlays: Overlay[] }[]>([]);
+  const redoRef = useRef<{ tracks: Track[]; overlays: Overlay[] }[]>([]);
+  const lastSnapshotRef = useRef<string>("");
+  const lastStateRef = useRef<{ tracks: Track[]; overlays: Overlay[] }>({ tracks: [], overlays: [] });
+  const isHistoryRestoreRef = useRef(false);
+
+  const snapshotState = useCallback(
+    (nextTracks: Track[], nextOverlays: Overlay[]) => JSON.stringify({ nextTracks, nextOverlays }),
+    []
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -104,6 +119,15 @@ export function Editor() {
         setTracks(projectData.tracks || []);
         setOverlays(projectData.overlays || []);
         setDurationMs(projectData.durationMs || 0);
+        historyRef.current = [];
+        redoRef.current = [];
+        lastSnapshotRef.current = snapshotState(projectData.tracks || [], projectData.overlays || []);
+        lastStateRef.current = {
+          tracks: JSON.parse(JSON.stringify(projectData.tracks || [])),
+          overlays: JSON.parse(JSON.stringify(projectData.overlays || [])),
+        };
+        setCanUndo(false);
+        setCanRedo(false);
 
         const videoAsset = projectData.assets?.find((a) => a.assetType === "VIDEO");
         if (videoAsset?.url) {
@@ -131,6 +155,128 @@ export function Editor() {
 
     initProject();
   }, [meetingId]);
+
+  useEffect(() => {
+    if (!sourceUrl || durationMs <= 0) {
+      setVideoThumbnails([]);
+      setWaveformData([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const extractThumbnails = async () => {
+      try {
+        const video = document.createElement("video");
+        video.crossOrigin = "anonymous";
+        video.preload = "auto";
+        video.muted = true;
+        video.src = sourceUrl;
+
+        await new Promise<void>((resolve, reject) => {
+          const onLoaded = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error("failed to load video metadata"));
+          };
+          const cleanup = () => {
+            video.removeEventListener("loadedmetadata", onLoaded);
+            video.removeEventListener("error", onError);
+          };
+          video.addEventListener("loadedmetadata", onLoaded);
+          video.addEventListener("error", onError);
+        });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 160;
+        canvas.height = 90;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const count = Math.min(36, Math.max(10, Math.floor(durationMs / 1500)));
+        const thumbs: string[] = [];
+        for (let i = 0; i < count; i += 1) {
+          if (cancelled) return;
+          const t = (durationMs / 1000) * (i / Math.max(1, count - 1));
+          await new Promise<void>((resolve) => {
+            const onSeeked = () => {
+              video.removeEventListener("seeked", onSeeked);
+              resolve();
+            };
+            video.addEventListener("seeked", onSeeked, { once: true });
+            video.currentTime = Math.max(0, Math.min(t, (durationMs / 1000) - 0.05));
+          });
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          thumbs.push(canvas.toDataURL("image/jpeg", 0.62));
+        }
+        if (!cancelled) setVideoThumbnails(thumbs);
+      } catch (error) {
+        console.warn("Thumbnail extraction failed", error);
+        if (!cancelled) setVideoThumbnails([]);
+      }
+    };
+
+    const extractWaveform = async () => {
+      try {
+        const response = await fetch(sourceUrl);
+        const data = await response.arrayBuffer();
+        const audioCtx = new AudioContext();
+        const audioBuffer = await audioCtx.decodeAudioData(data.slice(0));
+        const channelData = audioBuffer.getChannelData(0);
+        const bins = 240;
+        const blockSize = Math.max(1, Math.floor(channelData.length / bins));
+        const points = Array.from({ length: bins }, (_, i) => {
+          const start = i * blockSize;
+          const end = Math.min(channelData.length, start + blockSize);
+          let sum = 0;
+          for (let j = start; j < end; j += 1) sum += Math.abs(channelData[j]);
+          return sum / Math.max(1, end - start);
+        });
+        const max = Math.max(...points, 0.0001);
+        if (!cancelled) setWaveformData(points.map((p) => p / max));
+        void audioCtx.close();
+      } catch (error) {
+        console.warn("Waveform extraction failed", error);
+        if (!cancelled) setWaveformData([]);
+      }
+    };
+
+    void extractThumbnails();
+    void extractWaveform();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceUrl, durationMs]);
+
+  useEffect(() => {
+    const nextSnapshot = snapshotState(tracks, overlays);
+    if (!lastSnapshotRef.current) {
+      lastSnapshotRef.current = nextSnapshot;
+      return;
+    }
+    if (nextSnapshot === lastSnapshotRef.current) return;
+
+    if (!isHistoryRestoreRef.current) {
+      historyRef.current.push({
+        tracks: JSON.parse(JSON.stringify(lastStateRef.current.tracks)),
+        overlays: JSON.parse(JSON.stringify(lastStateRef.current.overlays)),
+      });
+      if (historyRef.current.length > 100) historyRef.current.shift();
+      redoRef.current = [];
+    }
+    isHistoryRestoreRef.current = false;
+    lastSnapshotRef.current = nextSnapshot;
+    lastStateRef.current = {
+      tracks: JSON.parse(JSON.stringify(tracks)),
+      overlays: JSON.parse(JSON.stringify(overlays)),
+    };
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(redoRef.current.length > 0);
+  }, [tracks, overlays, snapshotState]);
 
   // Auto-save on changes
   useEffect(() => {
@@ -183,6 +329,13 @@ export function Editor() {
   // Keyboard shortcuts for overlay manipulation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        !!target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (isTypingTarget || editingOverlayId) return;
       if (!selectedOverlayId) return;
 
       const overlay = overlays.find(o => o.id === selectedOverlayId);
@@ -192,6 +345,7 @@ export function Editor() {
 
       // DELETE
       if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
         handleDeleteOverlay(selectedOverlayId);
         return;
       }
@@ -236,10 +390,73 @@ export function Editor() {
   }, [
     selectedOverlayId,
     overlays,
+    editingOverlayId,
     handleDeleteOverlay,
     handleUpdateOverlay,
     handleAddOverlay,
   ]);
+
+  useEffect(() => {
+    const onZoomHotkeys = (e: KeyboardEvent) => {
+      const isMeta = e.ctrlKey || e.metaKey;
+      if (isMeta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if (isMeta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== "+" && e.key !== "=" && e.key !== "-" && e.key !== "_") return;
+      e.preventDefault();
+      setTimelineZoom((prev) => {
+        if (e.key === "+" || e.key === "=") return Math.min(6, +(prev + 0.25).toFixed(2));
+        return Math.max(0.5, +(prev - 0.25).toFixed(2));
+      });
+    };
+
+    window.addEventListener("keydown", onZoomHotkeys);
+    return () => window.removeEventListener("keydown", onZoomHotkeys);
+  }, [handleRedo, handleUndo]);
+
+  function handleUndo() {
+    const prev = historyRef.current.pop();
+    if (!prev) return;
+
+    redoRef.current.push({
+      tracks: JSON.parse(JSON.stringify(tracks)),
+      overlays: JSON.parse(JSON.stringify(overlays)),
+    });
+
+    isHistoryRestoreRef.current = true;
+    setTracks(prev.tracks);
+    setOverlays(prev.overlays);
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(redoRef.current.length > 0);
+  }
+
+  function handleRedo() {
+    const next = redoRef.current.pop();
+    if (!next) return;
+
+    historyRef.current.push({
+      tracks: JSON.parse(JSON.stringify(tracks)),
+      overlays: JSON.parse(JSON.stringify(overlays)),
+    });
+
+    isHistoryRestoreRef.current = true;
+    setTracks(next.tracks);
+    setOverlays(next.overlays);
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(redoRef.current.length > 0);
+  }
 
   const getSnapPosition = (x: number, y: number): {
     x: number;
@@ -318,6 +535,51 @@ export function Editor() {
       })
     );
   }, []);
+
+  const handleUpdateTrack = useCallback((trackIndex: number, updates: Partial<Track>) => {
+    setTracks((prev) =>
+      prev.map((track, i) => (i === trackIndex ? { ...track, ...updates } : track))
+    );
+  }, []);
+
+  const handleSplitAtPlayhead = useCallback(() => {
+    setTracks((prevTracks) =>
+      prevTracks.map((track) => {
+        const updatedClips: Clip[] = [];
+        let didSplit = false;
+
+        for (const clip of track.clips) {
+          const clipId = clip.id ?? clip.sourceAssetId;
+          if (didSplit) {
+            updatedClips.push(clip);
+            continue;
+          }
+          if (timelineTime <= clip.timelineStartMs || timelineTime >= clip.timelineStartMs + clip.durationMs) {
+            updatedClips.push(clip);
+            continue;
+          }
+
+          const splitResult = splitClipAtTime(
+            {
+              ...clip,
+              id: clipId,
+            },
+            timelineTime
+          );
+          if (!splitResult) {
+            updatedClips.push(clip);
+            continue;
+          }
+
+          const [leftClip, rightClip] = splitResult;
+          updatedClips.push(leftClip, rightClip);
+          didSplit = true;
+        }
+
+        return didSplit ? { ...track, clips: updatedClips } : track;
+      })
+    );
+  }, [timelineTime]);
 
   const handleExport = async () => {
     if (!project) return;
@@ -411,7 +673,7 @@ export function Editor() {
   };
 
   const handleCommitTextEdit = () => {
-    if (editingOverlayId && editText.trim()) {
+    if (editingOverlayId) {
       handleUpdateOverlay(editingOverlayId, {
         content: { text: editText },
       });
@@ -524,8 +786,23 @@ export function Editor() {
                                 x={overlay.transform.x}
                                 y={overlay.transform.y}
                                 onDblClick={() => handleStartTextEdit(overlay)}
-                                fontSize={24}
-                                fill="white"
+                                fontSize={overlay.style?.fontSize || 24}
+                                fontFamily={overlay.style?.fontFamily || "Inter"}
+                                fontStyle={
+                                  overlay.style?.fontStyle === "italic"
+                                    ? overlay.style?.fontWeight === "bold"
+                                      ? "italic bold"
+                                      : "italic"
+                                    : overlay.style?.fontWeight === "bold"
+                                      ? "bold"
+                                      : "normal"
+                                }
+                                align={overlay.style?.textAlign || "left"}
+                                fill={overlay.style?.color || "#ffffff"}
+                                width={overlay.transform.width}
+                                height={overlay.transform.height}
+                                scaleX={overlay.transform.scaleX || 1}
+                                scaleY={overlay.transform.scaleY || 1}
                                 draggable
                                 stroke={selectedOverlayId === overlay.id ? "#f5a623" : undefined}
                                 strokeWidth={selectedOverlayId === overlay.id ? 1 : 0}
@@ -559,7 +836,11 @@ export function Editor() {
                                   const { x, y } = e.target.position();
 
                                   handleUpdateOverlay(overlay.id!, {
-                                    transform: { x, y },
+                                    transform: {
+                                      ...overlay.transform,
+                                      x,
+                                      y,
+                                    },
                                   });
 
                                   setGuides({});
@@ -570,15 +851,24 @@ export function Editor() {
                                   const node = e.target;
 
                                   const scaleX = node.scaleX();
-                                  const newFontSize = Math.max(12, (overlay.style?.fontSize || 24) * scaleX);
+                                  const scaleY = node.scaleY();
+                                  const nextWidth = Math.max(40, node.width() * scaleX);
+                                  const nextHeight = Math.max(20, node.height() * scaleY);
 
                                   node.scaleX(1);
                                   node.scaleY(1);
 
                                   handleUpdateOverlay(overlay.id!, {
+                                    transform: {
+                                      ...overlay.transform,
+                                      width: nextWidth,
+                                      height: nextHeight,
+                                      scaleX: 1,
+                                      scaleY: 1,
+                                    },
                                     style: {
                                       ...overlay.style,
-                                      fontSize: newFontSize,
+                                      fontSize: Math.max(12, (overlay.style?.fontSize || 24) * scaleY),
                                     },
                                   });
                                 }}
@@ -605,7 +895,16 @@ export function Editor() {
                           <Transformer
                             ref={transformerRef}
                             rotateEnabled={false}
-                            enabledAnchors={["middle-left", "middle-right"]}
+                            enabledAnchors={[
+                              "top-left",
+                              "top-center",
+                              "top-right",
+                              "middle-left",
+                              "middle-right",
+                              "bottom-left",
+                              "bottom-center",
+                              "bottom-right",
+                            ]}
                           />
                       </Layer>
                     </Stage>
@@ -623,6 +922,7 @@ export function Editor() {
                           onChange={e => setEditText(e.target.value)}
                           onBlur={handleCommitTextEdit}
                           onKeyDown={e => {
+                            e.stopPropagation();
                             if (e.key === "Enter") handleCommitTextEdit();
                             if (e.key === "Escape") setEditingOverlayId(null);
                           }}
@@ -641,6 +941,91 @@ export function Editor() {
                             zIndex: 50,
                           }}
                         />
+                      );
+                    })()}
+                    {selectedOverlayId && !editingOverlayId && (() => {
+                      const overlay = overlays.find(o => o.id === selectedOverlayId);
+                      if (!overlay) return null;
+                      const scaleX = containerSize.width / stageWidth;
+                      const scaleY = containerSize.height / stageHeight;
+                      const toolbarLeft = overlay.transform.x * scaleX;
+                      const toolbarTop = Math.max(8, overlay.transform.y * scaleY - 44);
+
+                      return (
+                        <div
+                          className="absolute z-50 flex items-center gap-2 rounded-md border border-[#f5a623]/30 bg-black/80 px-2 py-1 text-xs text-[#fff5de] shadow-lg backdrop-blur"
+                          style={{
+                            left: Math.min(toolbarLeft, containerSize.width - 280),
+                            top: toolbarTop,
+                          }}
+                        >
+                          <button
+                            className={`rounded px-2 py-0.5 ${overlay.style?.fontWeight === "bold" ? "bg-[#f5a623]/30" : "bg-[#f5a623]/10"}`}
+                            onClick={() =>
+                              handleUpdateOverlay(overlay.id, {
+                                style: {
+                                  ...overlay.style,
+                                  fontWeight: overlay.style?.fontWeight === "bold" ? "normal" : "bold",
+                                },
+                              })
+                            }
+                          >
+                            B
+                          </button>
+                          <button
+                            className={`rounded px-2 py-0.5 ${overlay.style?.fontStyle === "italic" ? "bg-[#f5a623]/30" : "bg-[#f5a623]/10"}`}
+                            onClick={() =>
+                              handleUpdateOverlay(overlay.id, {
+                                style: {
+                                  ...overlay.style,
+                                  fontStyle: overlay.style?.fontStyle === "italic" ? "normal" : "italic",
+                                },
+                              })
+                            }
+                          >
+                            I
+                          </button>
+                          <input
+                            type="color"
+                            value={overlay.style?.color || "#ffffff"}
+                            onChange={(e) =>
+                              handleUpdateOverlay(overlay.id, {
+                                style: { ...overlay.style, color: e.target.value },
+                              })
+                            }
+                            className="h-6 w-7 rounded border border-[#f5a623]/20 bg-transparent p-0"
+                            title="Text color"
+                          />
+                          <input
+                            type="range"
+                            min={12}
+                            max={96}
+                            value={overlay.style?.fontSize || 24}
+                            onChange={(e) =>
+                              handleUpdateOverlay(overlay.id, {
+                                style: { ...overlay.style, fontSize: Number(e.target.value) },
+                              })
+                            }
+                            className="w-20 accent-[#f5a623]"
+                            title="Font size"
+                          />
+                          <select
+                            value={overlay.style?.textAlign || "left"}
+                            onChange={(e) =>
+                              handleUpdateOverlay(overlay.id, {
+                                style: {
+                                  ...overlay.style,
+                                  textAlign: e.target.value as "left" | "center" | "right",
+                                },
+                              })
+                            }
+                            className="rounded border border-[#f5a623]/20 bg-black/60 px-1 py-0.5 text-[11px]"
+                          >
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </div>
                       );
                     })()}
                   </div>
@@ -693,6 +1078,11 @@ export function Editor() {
               onAddTrack={() => {}}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
+              onSplitAtPlayhead={handleSplitAtPlayhead}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              canUndo={canUndo}
+              canRedo={canRedo}
             />
 
             {/* Quick stats */}
@@ -729,8 +1119,10 @@ export function Editor() {
           tracks={tracks}
           overlays={overlays}
           durationMs={durationMs}
-          zoom={1}
+          zoom={timelineZoom}
+          onZoomChange={setTimelineZoom}
           onAddClip={handleAddClip}
+          onUpdateTrack={handleUpdateTrack}
           onUpdateClip={handleUpdateClip}
           onDeleteClip={handleDeleteClip}
           onAddOverlay={handleAddOverlay}
@@ -739,6 +1131,8 @@ export function Editor() {
           onDurationChange={setDurationMs}
           onSeek={handleSeek}
           currentTime={timelineTime}
+          videoThumbnails={videoThumbnails}
+          waveformData={waveformData}
         />
 
         {/* Export Dialog */}

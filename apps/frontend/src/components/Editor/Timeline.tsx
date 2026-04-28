@@ -1,3 +1,4 @@
+import { useMemo, useRef } from "react";
 import type { Track, Overlay, Clip } from "./types";
 import { TimelineTrack } from "./TimelineTrack";
 import { TimelineRuler } from "./TimelineRuler";
@@ -10,14 +11,18 @@ interface TimelineProps {
   durationMs: number;
   currentTime: number;
   zoom: number;
+  onZoomChange: (zoom: number) => void;
   onAddClip: (trackIndex: number, clip: Clip) => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
   onDeleteClip: (trackIndex: number, clipId: string) => void;
+  onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
   onAddOverlay: (overlay: Overlay) => void;
   onUpdateOverlay: (overlayId: string, updates: Partial<Overlay>) => void;
   onDeleteOverlay: (overlayId: string) => void;
   onDurationChange: (durationMs: number) => void;
   onSeek: (timeMs: number) => void;
+  videoThumbnails: string[];
+  waveformData: number[];
 }
 
 export function Timeline({
@@ -25,7 +30,9 @@ export function Timeline({
   durationMs,
   currentTime,
   zoom,
+  onZoomChange,
   onAddClip,
+  onUpdateTrack,
   onUpdateClip,
   onDeleteClip,
   onDurationChange,
@@ -34,11 +41,21 @@ export function Timeline({
   onUpdateOverlay,
   onDeleteOverlay,
   overlays,
+  videoThumbnails,
+  waveformData,
 }: TimelineProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentWidthPct = useMemo(() => Math.max(100, zoom * 100), [zoom]);
+
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (durationMs === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickTimeMs = ((e.clientX - rect.left) / rect.width) * durationMs;
+    const lane = e.currentTarget;
+    const rect = lane.getBoundingClientRect();
+    const scrollContainer = scrollRef.current;
+    const scrollLeft = scrollContainer?.scrollLeft ?? 0;
+    const totalWidth = lane.scrollWidth || rect.width;
+    const clickX = e.clientX - rect.left + scrollLeft;
+    const clickTimeMs = (clickX / totalWidth) * durationMs;
     onSeek(Math.max(0, Math.min(clickTimeMs, durationMs)));
   };
 
@@ -56,6 +73,23 @@ export function Timeline({
           <label className="text-xs text-[#8d7850]">
             Duration: <span className="font-mono font-medium text-[#bfa873]">{(durationMs / 1000).toFixed(1)}s</span>
           </label>
+          <div className="ml-2 flex items-center gap-1 text-xs">
+            <button
+              onClick={() => onZoomChange(Math.max(0.5, zoom - 0.25))}
+              className="rounded bg-[#f5a623]/10 px-2 py-0.5 text-[#f5a623] hover:bg-[#f5a623]/20"
+              title="Zoom out"
+            >
+              -
+            </button>
+            <span className="w-11 text-center font-mono text-[#bfa873]">{zoom.toFixed(2)}x</span>
+            <button
+              onClick={() => onZoomChange(Math.min(6, zoom + 0.25))}
+              className="rounded bg-[#f5a623]/10 px-2 py-0.5 text-[#f5a623] hover:bg-[#f5a623]/20"
+              title="Zoom in"
+            >
+              +
+            </button>
+          </div>
         </div>
         <button
           onClick={() => onAddOverlay({
@@ -75,54 +109,64 @@ export function Timeline({
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Timeline Ruler */}
-        <TimelineRuler
-          durationMs={durationMs}
-          currentTime={currentTime}
-          zoom={zoom}
-          onClick={handleTimelineClick}
-          tracks={tracks}
-        />
-
-        {/* Tracks */}
-        <div className="space-y-2.5">
-          {tracks.map((track, index) => (
-            <TimelineTrack
-              key={track.id}
-              track={track}
-              index={index}
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto overflow-y-hidden rounded-lg border border-[#f5a623]/10 bg-[#060605]/40"
+        >
+          <div style={{ width: `${contentWidthPct}%`, minWidth: "100%" }} className="space-y-4 p-3">
+            {/* Timeline Ruler */}
+            <TimelineRuler
               durationMs={durationMs}
               currentTime={currentTime}
               zoom={zoom}
-              onAddClip={onAddClip}
-              onUpdateClip={onUpdateClip}
-              onDeleteClip={onDeleteClip}
-              onClick={handleTimelineClick}
+              onSeek={onSeek}
+              tracks={tracks}
             />
-          ))}
 
-          <OverlayTrack
-            overlays={overlays}
-            durationMs={durationMs}
-            currentTime={currentTime}
-            onUpdateOverlay={onUpdateOverlay}
-            onDeleteOverlay={onDeleteOverlay}
-          />
+            {/* Tracks */}
+            <div className="space-y-2.5">
+              {tracks.map((track, index) => (
+                <TimelineTrack
+                  key={track.id}
+                  track={track}
+                  index={index}
+                  durationMs={durationMs}
+                  currentTime={currentTime}
+                  zoom={zoom}
+                  onAddClip={onAddClip}
+                  onUpdateTrack={onUpdateTrack}
+                  onUpdateClip={onUpdateClip}
+                  onDeleteClip={onDeleteClip}
+                  onClick={handleTimelineClick}
+                  videoThumbnails={videoThumbnails}
+                  waveformData={waveformData}
+                />
+              ))}
 
-          {tracks.length === 0 && (
-            <div
-              onClick={handleTimelineClick}
-              className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-[#f5a623]/20 bg-[#f5a623]/5 py-12 transition-colors hover:border-[#f5a623]/30 hover:bg-[#f5a623]/8"
-            >
-              <div className="flex flex-col items-center gap-2 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5a623]/10">
-                  <Plus className="h-5 w-5 text-[#f5a623]" />
+              <OverlayTrack
+                overlays={overlays}
+                durationMs={durationMs}
+                currentTime={currentTime}
+                onUpdateOverlay={onUpdateOverlay}
+                onDeleteOverlay={onDeleteOverlay}
+              />
+
+              {tracks.length === 0 && (
+                <div
+                  onClick={handleTimelineClick}
+                  className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-[#f5a623]/20 bg-[#f5a623]/5 py-12 transition-colors hover:border-[#f5a623]/30 hover:bg-[#f5a623]/8"
+                >
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f5a623]/10">
+                      <Plus className="h-5 w-5 text-[#f5a623]" />
+                    </div>
+                    <p className="text-sm font-medium text-[#bfa873]">Click to add your first track</p>
+                    <p className="text-xs text-[#8d7850]">Or use the "Add Track" button above</p>
+                  </div>
                 </div>
-                <p className="text-sm font-medium text-[#bfa873]">Click to add your first track</p>
-                <p className="text-xs text-[#8d7850]">Or use the "Add Track" button above</p>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Duration slider */}
