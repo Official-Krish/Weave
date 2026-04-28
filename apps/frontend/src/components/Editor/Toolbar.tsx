@@ -14,7 +14,8 @@ interface ToolbarProps {
   onAddTrack: () => void;
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
-  onSplitAtPlayhead: () => void;
+  onSplitModeToggle: () => void;
+  splitMode: boolean;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -32,7 +33,8 @@ export function Toolbar({
   onAddTrack,
   onAddOverlay,
   onPlayPause,
-  onSplitAtPlayhead,
+  onSplitModeToggle,
+  splitMode,
   onUndo,
   onRedo,
   canUndo,
@@ -149,11 +151,11 @@ export function Toolbar({
         <Button
           variant="outline"
           size="sm"
-          onClick={onSplitAtPlayhead}
-          className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
+          onClick={onSplitModeToggle}
+          className={`flex-1 border-[#f5a623]/20 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30 ${splitMode ? "bg-[#f5a623]/20" : "bg-[#f5a623]/5"}`}
         >
           <Scissors className="mr-2 h-4 w-4" />
-          Split
+          {splitMode ? "Click Clip" : "Split"}
         </Button>
       </div>
 

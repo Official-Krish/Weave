@@ -9,11 +9,13 @@ interface TimelineTrackProps {
   durationMs: number;
   currentTime: number;
   zoom: number;
-  onAddClip: (trackIndex: number, clip: Clip) => void;
+  onAddClip: (trackIndex: number) => void;
   onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
   onDeleteClip: (trackIndex: number, clipId: string) => void;
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
+  splitMode: boolean;
   videoThumbnails: string[];
   waveformData: number[];
 }
@@ -39,6 +41,8 @@ export function TimelineTrack({
   onUpdateClip,
   onDeleteClip,
   onClick,
+  onSplitClip,
+  splitMode,
   videoThumbnails,
   waveformData,
 }: TimelineTrackProps) {
@@ -50,8 +54,15 @@ export function TimelineTrack({
   } | null>(null);
   const colors = getTrackColors(track.type);
 
-  const handleClipClick = (e: React.MouseEvent, clipId: string) => {
+  const handleClipClick = (e: React.MouseEvent, clip: Clip, clipId: string) => {
     e.stopPropagation();
+    if (splitMode && durationMs > 0) {
+      const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const splitTime = clip.timelineStartMs + clip.durationMs * ratio;
+      onSplitClip(index, clipId, Math.round(splitTime));
+      return;
+    }
     setSelectedClip(clipId);
   };
 
@@ -104,9 +115,7 @@ export function TimelineTrack({
   const renderClipVisual = (clip: Clip, clipId: string, trackType: Track["type"]) => {
     if (trackType === "AUDIO") {
       if (!waveformData.length || durationMs <= 0) return null;
-      const startIdx = Math.floor((clip.sourceStartMs / durationMs) * waveformData.length);
-      const endIdx = Math.max(startIdx + 1, Math.floor(((clip.sourceStartMs + clip.durationMs) / durationMs) * waveformData.length));
-      const slice = waveformData.slice(Math.max(0, startIdx), Math.min(waveformData.length, endIdx));
+      const slice = waveformData;
       if (!slice.length) return null;
       const bars = Array.from({ length: 28 }, (_, i) => {
         const idx = Math.floor((i / 28) * slice.length);
@@ -130,8 +139,7 @@ export function TimelineTrack({
     if (trackType === "VIDEO") {
       if (!videoThumbnails.length || durationMs <= 0) return null;
       const frames = Array.from({ length: 8 }, (_, i) => {
-        const t = clip.sourceStartMs + (clip.durationMs * (i / 8));
-        const idx = Math.max(0, Math.min(videoThumbnails.length - 1, Math.floor((t / durationMs) * videoThumbnails.length)));
+        const idx = Math.max(0, Math.min(videoThumbnails.length - 1, Math.floor((i / 8) * videoThumbnails.length)));
         return videoThumbnails[idx];
       });
       return (
@@ -195,16 +203,8 @@ export function TimelineTrack({
           className="ml-2 rounded bg-[#f5a623]/10 px-2 py-1 text-xs text-[#f5a623] hover:bg-[#f5a623]/20"
           title="Add Clip"
           onClick={() => {
-            const lastClip = track.clips.at(-1);
-            const timelineStartMs = lastClip 
-              ? lastClip.timelineStartMs + lastClip.durationMs 
-              : 0;
-            onAddClip(index, {
-            sourceAssetId: `clip-${Date.now()}`,
-            sourceStartMs: 0,
-            timelineStartMs: timelineStartMs,
-            durationMs: 1000,
-          })}}
+            onAddClip(index);
+          }}
         >
           + Clip
         </button>
@@ -214,7 +214,7 @@ export function TimelineTrack({
 
       {/* Track Lane */}
       <div
-        className={`relative h-14 overflow-hidden rounded-xl border-2 ${colors.border} ${colors.bg} transition-all duration-200 hover:border-opacity-60 hover:bg-opacity-20 cursor-pointer`}
+        className={`relative h-14 overflow-hidden rounded-xl border-2 ${colors.border} ${colors.bg} transition-all duration-200 hover:border-opacity-60 hover:bg-opacity-20 ${splitMode ? "cursor-crosshair" : "cursor-pointer"}`}
         onClick={onClick}
         onMouseMove={handleTrackMouseMove}
         onMouseUp={handleTrackMouseUp}
@@ -243,7 +243,7 @@ export function TimelineTrack({
             <div
               key={clip.id ?? clip.sourceAssetId}
               onMouseDown={(e) => handleClipMouseDown(e, clip)}
-              onClick={(e) => handleClipClick(e, clipId)}
+              onClick={(e) => handleClipClick(e, clip, clipId)}
               className={`absolute top-1.5 bottom-1.5 overflow-hidden rounded-lg border transition-all duration-150 ${
                 isActive
                 ? "ring-2 ring-[#f5a623] shadow-[0_0_10px_rgba(245,166,35,0.6)]"

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ChangeEvent } from "react";
 import { useParams } from "react-router-dom";
 import { editorApi } from "./api";
-import type { EditorProject, Track, Overlay, Clip, ExportJob } from "./types";
+import type { EditorProject, Track, Overlay, Clip, ExportJob, Asset } from "./types";
 import { Timeline } from "./Timeline";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "./ExportDialog";
 import { Loader2, Film, Pencil, X } from "lucide-react";
 import { Stage, Layer, Text, Transformer, Line } from "react-konva";
 import type Konva from "konva";
-import { findClipByVideoTime, getOrderedClips, mapSourceToTimelineTime, mapTimelineToSourceTime, splitClipAtTime } from "./helpers";
+import { getOrderedClips, mapTimelineToSourceTime, splitClipAtTime } from "./helpers";
 import { VideoPlayer } from "../custom-video-player/videoPlayer";
 
 
@@ -42,6 +42,9 @@ export function Editor() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sourceUrl, setSourceUrl] = useState<string>("");
+  const [assetsById, setAssetsById] = useState<Record<string, Asset>>({});
+  const [activeAssetId, setActiveAssetId] = useState<string | null>(null);
+  const [splitMode, setSplitMode] = useState(false);
   const [timelineTime, setTimelineTime] = useState(0);
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [videoTime, setVideoTime] = useState<number>(0);
@@ -63,6 +66,8 @@ export function Editor() {
   const [canRedo, setCanRedo] = useState(false);
   const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingTrackIndexRef = useRef<number | null>(null);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const historyRef = useRef<{ tracks: Track[]; overlays: Overlay[] }[]>([]);
@@ -119,6 +124,8 @@ export function Editor() {
         setTracks(projectData.tracks || []);
         setOverlays(projectData.overlays || []);
         setDurationMs(projectData.durationMs || 0);
+        const assetsMap = Object.fromEntries((projectData.assets || []).map((a) => [a.id, a]));
+        setAssetsById(assetsMap);
         historyRef.current = [];
         redoRef.current = [];
         lastSnapshotRef.current = snapshotState(projectData.tracks || [], projectData.overlays || []);
@@ -132,6 +139,7 @@ export function Editor() {
         const videoAsset = projectData.assets?.find((a) => a.assetType === "VIDEO");
         if (videoAsset?.url) {
           setSourceUrl(videoAsset.url);
+          setActiveAssetId(videoAsset.id);
         }
 
         if (!projectData.tracks?.length && projectData.assets?.length > 0) {
@@ -325,6 +333,17 @@ export function Editor() {
     setOverlays((prev) => [...prev, overlay]);
   }, []);
 
+  const findClipAtTimelineTime = useCallback((timeMs: number) => {
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        const start = clip.timelineStartMs;
+        const end = start + clip.durationMs;
+        if (timeMs >= start && timeMs < end) return clip;
+      }
+    }
+    return null;
+  }, [tracks]);
+
 
   // Keyboard shortcuts for overlay manipulation
   useEffect(() => {
@@ -485,33 +504,10 @@ export function Editor() {
     return { x: snappedX, y: snappedY, guideX, guideY };
   }
 
-  const handleAddClip = useCallback((trackIndex: number, clip: Clip) => {
-    setTracks((prev) =>
-      prev.map((track, i) => {
-        if (i !== trackIndex) return track;
-
-        const defaultAsset = project?.assets?.find(
-          (a) => a.assetType === "VIDEO"
-        );
-
-        if (!defaultAsset) {
-          console.error("No valid asset found for clip");
-          return track;
-        }
-
-        const newClip: Clip = {
-          ...clip,
-          id: clip.id ?? crypto.randomUUID(),
-          sourceAssetId: defaultAsset.id,
-        };
-
-        return {
-          ...track,
-          clips: [...track.clips, newClip],
-        };
-      })
-    );
-  }, [project]);
+  const handleAddClip = useCallback((trackIndex: number) => {
+    pendingTrackIndexRef.current = trackIndex;
+    fileInputRef.current?.click();
+  }, []);
 
   const handleUpdateClip = useCallback((trackIndex: number, clipId: string, updates: Partial<Clip>) => {
     setTracks((prev) =>
@@ -542,44 +538,29 @@ export function Editor() {
     );
   }, []);
 
-  const handleSplitAtPlayhead = useCallback(() => {
+  const handleSplitClip = useCallback((trackIndex: number, clipId: string, splitAtMs: number) => {
     setTracks((prevTracks) =>
-      prevTracks.map((track) => {
-        const updatedClips: Clip[] = [];
-        let didSplit = false;
-
+      prevTracks.map((track, i) => {
+        if (i !== trackIndex) return track;
+        const updated: Clip[] = [];
         for (const clip of track.clips) {
-          const clipId = clip.id ?? clip.sourceAssetId;
-          if (didSplit) {
-            updatedClips.push(clip);
+          const id = clip.id ?? clip.sourceAssetId;
+          if (id !== clipId) {
+            updated.push(clip);
             continue;
           }
-          if (timelineTime <= clip.timelineStartMs || timelineTime >= clip.timelineStartMs + clip.durationMs) {
-            updatedClips.push(clip);
+          const split = splitClipAtTime({ ...clip, id }, splitAtMs);
+          if (!split) {
+            updated.push(clip);
             continue;
           }
-
-          const splitResult = splitClipAtTime(
-            {
-              ...clip,
-              id: clipId,
-            },
-            timelineTime
-          );
-          if (!splitResult) {
-            updatedClips.push(clip);
-            continue;
-          }
-
-          const [leftClip, rightClip] = splitResult;
-          updatedClips.push(leftClip, rightClip);
-          didSplit = true;
+          updated.push(split[0], split[1]);
         }
-
-        return didSplit ? { ...track, clips: updatedClips } : track;
+        return { ...track, clips: updated };
       })
     );
-  }, [timelineTime]);
+    setSplitMode(false);
+  }, []);
 
   const handleExport = async () => {
     if (!project) return;
@@ -596,14 +577,75 @@ export function Editor() {
     setIsPlaying(prev => !prev);
   }, []);
 
+  const handleClipFilePicked = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const trackIndex = pendingTrackIndexRef.current;
+    e.currentTarget.value = "";
+    if (!file || trackIndex == null) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    const metaVideo = document.createElement("video");
+    metaVideo.preload = "metadata";
+    metaVideo.src = objectUrl;
+
+    const duration = await new Promise<number>((resolve) => {
+      metaVideo.onloadedmetadata = () => resolve(Math.round((metaVideo.duration || 1) * 1000));
+      metaVideo.onerror = () => resolve(5000);
+    });
+
+    const assetId = crypto.randomUUID();
+    const newAsset: Asset = {
+      id: assetId,
+      assetType: file.type.startsWith("audio/") ? "AUDIO" : "VIDEO",
+      url: objectUrl,
+      durationMs: duration,
+    };
+    setAssetsById((prev) => ({ ...prev, [assetId]: newAsset }));
+
+    setTracks((prev) =>
+      prev.map((track, i) => {
+        if (i !== trackIndex) return track;
+        const lastClip = [...track.clips].sort((a, b) => a.timelineStartMs - b.timelineStartMs).at(-1);
+        const timelineStartMs = lastClip ? lastClip.timelineStartMs + lastClip.durationMs : 0;
+        const newClip: Clip = {
+          id: crypto.randomUUID(),
+          sourceAssetId: assetId,
+          sourceStartMs: 0,
+          timelineStartMs,
+          durationMs: duration,
+          name: file.name,
+        };
+        return { ...track, clips: [...track.clips, newClip] };
+      })
+    );
+    setDurationMs((prev) => Math.max(prev, duration));
+    if (!sourceUrl) {
+      setSourceUrl(objectUrl);
+      setActiveAssetId(assetId);
+    }
+  }, [sourceUrl]);
+
   const handleSeek = useCallback((timeMs: number) => {
     isSeekingRef.current = true;
 
     setTimelineTime(timeMs);
+    const clip = findClipAtTimelineTime(timeMs);
+    if (clip) {
+      const offset = timeMs - clip.timelineStartMs;
+      const mapped = clip.sourceStartMs + offset;
+      seekTargetRef.current = mapped;
+      setVideoTime(mapped);
+      const clipAsset = assetsById[clip.sourceAssetId];
+      if (clipAsset?.url && clipAsset.id !== activeAssetId) {
+        setActiveAssetId(clipAsset.id);
+        setSourceUrl(clipAsset.url);
+      }
+      return;
+    }
     const mapped = mapTimelineToSourceTime(tracks, timeMs);
     seekTargetRef.current = mapped;
     setVideoTime(mapped);
-  }, [tracks]);
+  }, [tracks, findClipAtTimelineTime, assetsById, activeAssetId]);
 
   const handleTimeUpdate = useCallback((videoTimeMs: number) => {
     if (isSeekingRef.current) {
@@ -615,11 +657,16 @@ export function Editor() {
     }
     setVideoTime(videoTimeMs);
 
-    const timeline = mapSourceToTimelineTime(tracks, videoTimeMs);
-    setTimelineTime(timeline);
-
-    const currentClip = findClipByVideoTime(tracks, videoTimeMs);
+    const currentClip = tracks
+      .flatMap((t) => t.clips)
+      .find((clip) =>
+        clip.sourceAssetId === activeAssetId &&
+        videoTimeMs >= clip.sourceStartMs &&
+        videoTimeMs < clip.sourceStartMs + clip.durationMs
+      );
     if (!currentClip) return;
+    const timeline = currentClip.timelineStartMs + (videoTimeMs - currentClip.sourceStartMs);
+    setTimelineTime(timeline);
 
     const clipId = currentClip.id ?? currentClip.sourceAssetId;
 
@@ -654,13 +701,18 @@ export function Editor() {
       // prevent re-trigger
       lastClipIdRef.current = null;
       if (nextClip) {
+        const nextAsset = assetsById[nextClip.sourceAssetId];
+        if (nextAsset?.url) {
+          setActiveAssetId(nextAsset.id);
+          setSourceUrl(nextAsset.url);
+        }
         setVideoTime(nextClip.sourceStartMs);
         setTimelineTime(nextClip.timelineStartMs);
       } else {
         setIsPlaying(false);
       }
     }
-  }, [tracks]);
+  }, [tracks, activeAssetId, assetsById]);
 
   const handlePlayStateChange = useCallback((playing: boolean) => {
     setIsPlaying(playing);
@@ -1078,7 +1130,8 @@ export function Editor() {
               onAddTrack={() => {}}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
-              onSplitAtPlayhead={handleSplitAtPlayhead}
+              onSplitModeToggle={() => setSplitMode((prev) => !prev)}
+              splitMode={splitMode}
               onUndo={handleUndo}
               onRedo={handleRedo}
               canUndo={canUndo}
@@ -1130,9 +1183,19 @@ export function Editor() {
           onDeleteOverlay={handleDeleteOverlay}
           onDurationChange={setDurationMs}
           onSeek={handleSeek}
+          onSplitClip={handleSplitClip}
+          splitMode={splitMode}
           currentTime={timelineTime}
           videoThumbnails={videoThumbnails}
           waveformData={waveformData}
+        />
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*,audio/*"
+          className="hidden"
+          onChange={handleClipFilePicked}
         />
 
         {/* Export Dialog */}

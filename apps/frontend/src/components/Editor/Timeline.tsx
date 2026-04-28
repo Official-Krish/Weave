@@ -12,7 +12,7 @@ interface TimelineProps {
   currentTime: number;
   zoom: number;
   onZoomChange: (zoom: number) => void;
-  onAddClip: (trackIndex: number, clip: Clip) => void;
+  onAddClip: (trackIndex: number) => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
   onDeleteClip: (trackIndex: number, clipId: string) => void;
   onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
@@ -21,6 +21,8 @@ interface TimelineProps {
   onDeleteOverlay: (overlayId: string) => void;
   onDurationChange: (durationMs: number) => void;
   onSeek: (timeMs: number) => void;
+  onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
+  splitMode: boolean;
   videoThumbnails: string[];
   waveformData: number[];
 }
@@ -37,6 +39,8 @@ export function Timeline({
   onDeleteClip,
   onDurationChange,
   onSeek,
+  onSplitClip,
+  splitMode,
   onAddOverlay,
   onUpdateOverlay,
   onDeleteOverlay,
@@ -46,6 +50,13 @@ export function Timeline({
 }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentWidthPct = useMemo(() => Math.max(100, zoom * 100), [zoom]);
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.2 : 0.2;
+    onZoomChange(Math.max(0.5, Math.min(8, +(zoom + delta).toFixed(2))));
+  };
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (durationMs === 0) return;
@@ -73,23 +84,7 @@ export function Timeline({
           <label className="text-xs text-[#8d7850]">
             Duration: <span className="font-mono font-medium text-[#bfa873]">{(durationMs / 1000).toFixed(1)}s</span>
           </label>
-          <div className="ml-2 flex items-center gap-1 text-xs">
-            <button
-              onClick={() => onZoomChange(Math.max(0.5, zoom - 0.25))}
-              className="rounded bg-[#f5a623]/10 px-2 py-0.5 text-[#f5a623] hover:bg-[#f5a623]/20"
-              title="Zoom out"
-            >
-              -
-            </button>
-            <span className="w-11 text-center font-mono text-[#bfa873]">{zoom.toFixed(2)}x</span>
-            <button
-              onClick={() => onZoomChange(Math.min(6, zoom + 0.25))}
-              className="rounded bg-[#f5a623]/10 px-2 py-0.5 text-[#f5a623] hover:bg-[#f5a623]/20"
-              title="Zoom in"
-            >
-              +
-            </button>
-          </div>
+          <span className="ml-2 text-[11px] text-[#8d7850]">Zoom: {zoom.toFixed(2)}x (Ctrl/Cmd + wheel)</span>
         </div>
         <button
           onClick={() => onAddOverlay({
@@ -112,6 +107,7 @@ export function Timeline({
         <div
           ref={scrollRef}
           className="overflow-x-auto overflow-y-hidden rounded-lg border border-[#f5a623]/10 bg-[#060605]/40"
+          onWheel={handleWheel}
         >
           <div style={{ width: `${contentWidthPct}%`, minWidth: "100%" }} className="space-y-4 p-3">
             {/* Timeline Ruler */}
@@ -138,6 +134,8 @@ export function Timeline({
                   onUpdateClip={onUpdateClip}
                   onDeleteClip={onDeleteClip}
                   onClick={handleTimelineClick}
+                  onSplitClip={onSplitClip}
+                  splitMode={splitMode}
                   videoThumbnails={videoThumbnails}
                   waveformData={waveformData}
                 />
@@ -169,17 +167,8 @@ export function Timeline({
           </div>
         </div>
 
-        {/* Duration slider */}
-        <div className="pt-3 border-t border-[#f5a623]/10">
-          <input
-            type="range"
-            min="1000"
-            max="300000"
-            step="1000"
-            value={durationMs}
-            onChange={(e) => onDurationChange(Number(e.target.value))}
-            className="w-full accent-[#f5a623]"
-          />
+        <div className="pt-2 text-[11px] text-[#8d7850]">
+          Scroll horizontally to navigate timeline.
         </div>
       </div>
     </div>
