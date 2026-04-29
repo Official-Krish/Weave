@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { startRenderLoop, drawSingleFrame } from "../utils/RenderLoop";
 import type { RenderState, RenderOverlay } from "../utils/RenderLoop";
-import type { Overlay } from "../../types";
+import type { Overlay, ClipTransition } from "../../types";
+
+export interface ActiveTransitionInfo {
+  type: ClipTransition;
+  progress: number;
+  position?: "start" | "end";
+  sourceVideo?: HTMLVideoElement;
+  targetVideo?: HTMLVideoElement;
+}
 
 export interface UseCanvasVideoOptions {
   currentTime?: number; // ms — seek target from editor
@@ -11,6 +19,8 @@ export interface UseCanvasVideoOptions {
   overlays?: Overlay[];
   timelineTimeMs?: number;
   videoAlpha?: number;
+  /** Active transition state computed by useActiveTransition hook */
+  activeTransition?: ActiveTransitionInfo | null;
 }
 
 export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {}) {
@@ -22,6 +32,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     overlays = [],
     timelineTimeMs = 0,
     videoAlpha = 1,
+    activeTransition = null,
   } = options;
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -59,13 +70,27 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     videoAlpha: 1,
   });
 
+  const activeTransitionRef = useRef<ActiveTransitionInfo | null>(null);
+
   const overlaysRef = useRef<Overlay[]>([]);
   const timelineTimeMsRef = useRef(0);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
 
   // Update refs synchronously during render (no effects needed for refs)
-  transformRef.current = { stretchX, stretchY, offsetX, offsetY, trimStart, trimEnd, videoAlpha };
+  activeTransitionRef.current = activeTransition ?? null;
+  transformRef.current = {
+    stretchX, stretchY, offsetX, offsetY, trimStart, trimEnd, videoAlpha,
+    activeTransition: activeTransitionRef.current
+      ? {
+          type: activeTransitionRef.current.type,
+          progress: activeTransitionRef.current.progress,
+          position: activeTransitionRef.current.position,
+          sourceVideo: activeTransitionRef.current.sourceVideo,
+          targetVideo: activeTransitionRef.current.targetVideo,
+        }
+      : undefined,
+  };
   overlaysRef.current = overlays;
   timelineTimeMsRef.current = timelineTimeMs;
   onTimeUpdateRef.current = onTimeUpdate;

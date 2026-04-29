@@ -149,10 +149,18 @@ export const SaveEditorProjectSchema = z.object({
             volume: z.number(),
             clips: z.array(
                 z.object({
+                    id: z.string().optional(),
                     sourceAssetId: z.string(),
                     sourceStartMs: z.number(),
                     timelineStartMs: z.number(),
                     durationMs: z.number(),
+                    name: z.string().optional(),
+                    // Transition metadata stored as JSON
+                    transitionStart: z.any().optional(),
+                    transitionEnd: z.any().optional(),
+                    // Deprecated, kept for backwards compat
+                    transitionIn: z.enum(["fade", "cut"]).optional(),
+                    transitionOut: z.enum(["fade", "cut"]).optional(),
                 })
             ),
         })

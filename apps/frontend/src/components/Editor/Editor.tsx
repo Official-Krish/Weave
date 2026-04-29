@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import type { Track, Overlay, Asset } from "./types";
+import type { Track, Overlay, Asset, ClipTransition } from "./types";
+import type { TransitionType } from "./transitions/types";
 import { Timeline } from "./Timeline";
 import { Toolbar } from "./Toolbar";
 import { ExportDialog } from "./ExportDialog";
@@ -8,6 +9,12 @@ import { Loader2, Film } from "lucide-react";
 import { CanvasPlayer, useCanvasVideo } from "./CanvasPlayer";
 import { OverlayLayer } from "./OverlayLayer";
 import { ProjectStats } from "./ProjectStats";
+import { TimelineInfoBar } from "./TimelineInfoBar";
+import { TransitionPanel } from "./transitions/TransitionPanel";
+import { TransitionControls } from "./transitions/TransitionControls";
+import { useTransitions } from "./hooks/useTransitions";
+import { useActiveTransition } from "./hooks/useActiveTransition";
+import type { ActiveTransitionInfo } from "./CanvasPlayer/hooks/useCanvasVideo";
 import { useEditorHistory } from "./hooks/useEditorHistory";
 import { useMediaExtraction } from "./hooks/useMediaExtraction";
 import { useEditorShortcuts } from "./hooks/useEditorShortcuts";
@@ -61,8 +68,10 @@ export function Editor() {
   const [editingOverlayId, setEditingOverlayId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
-  const [transitionOpacity, setTransitionOpacity] = useState(1);
   const [containerSize, setContainerSize] = useState({ width: 1280, height: 720 });
+
+  // Transition state
+  const [showTransitionPanel, setShowTransitionPanel] = useState(false);
 
   // Automatically recalculate duration when clips/overlays are added, deleted, or split
   useEffect(() => {
@@ -101,8 +110,18 @@ export function Editor() {
 
   const { handleUpdateClip, handleDeleteClip, handleUpdateTrack, handleSplitClip } = useTrackOperations(setTracks, setSplitMode);
 
+  const {
+    selectedTransitionId,
+    selectedTransitionLocation,
+    setSelectedTransition,
+    clearSelectedTransition,
+    addTransition,
+    updateTransition,
+    removeTransition,
+  } = useTransitions(tracks, setTracks);
+
   const { handleSeek, handleTimeUpdate, handlePlayPause, handlePlayStateChange } = usePlaybackState(
-    tracks, assetsById, activeAssetId, setActiveAssetId, setSourceUrl, setTimelineTime, setVideoTime, setTransitionOpacity, setIsPlaying
+    tracks, assetsById, activeAssetId, setActiveAssetId, setSourceUrl, setTimelineTime, setVideoTime, setIsPlaying
   );
 
   const { handleClipFilePicked } = useMediaUpload(
@@ -124,6 +143,18 @@ export function Editor() {
   const stageWidth = project?.width || 1280;
   const stageHeight = project?.height || 720;
 
+  // Compute active transition based on current timeline position
+  const activeTransitionState = useActiveTransition(tracks, timelineTime);
+
+  // Convert to the format expected by useCanvasVideo
+  const activeTransitionInfo: ActiveTransitionInfo | null = activeTransitionState
+    ? {
+        type: activeTransitionState.type,
+        progress: activeTransitionState.progress,
+        position: activeTransitionState.position,
+      }
+    : null;
+
   const {
     videoRef,
     canvasRef,
@@ -136,7 +167,8 @@ export function Editor() {
     onPlayStateChange: (p) => playStateChangeRef.current?.(p),
     overlays,
     timelineTimeMs: timelineTime,
-    videoAlpha: transitionOpacity,
+    videoAlpha: 1, // Always use full opacity - transitions handled by TransitionRenderer
+    activeTransition: activeTransitionInfo,
   });
 
   useEffect(() => {
@@ -177,6 +209,39 @@ export function Editor() {
   const handleAddClip = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  const handleSelectTransition = useCallback((type: TransitionType) => {
+    if (selectedTransitionLocation) {
+      addTransition(
+        selectedTransitionLocation.trackIndex,
+        selectedTransitionLocation.clipId,
+        selectedTransitionLocation.position,
+        type
+      );
+    }
+  }, [selectedTransitionLocation, addTransition]);
+
+  const handleUpdateSelectedTransition = useCallback((updates: Partial<ClipTransition>) => {
+    if (selectedTransitionLocation) {
+      updateTransition(
+        selectedTransitionLocation.trackIndex,
+        selectedTransitionLocation.clipId,
+        selectedTransitionLocation.position,
+        updates
+      );
+    }
+  }, [selectedTransitionLocation, updateTransition]);
+
+  const handleDeleteSelectedTransition = useCallback(() => {
+    if (selectedTransitionLocation) {
+      removeTransition(
+        selectedTransitionLocation.trackIndex,
+        selectedTransitionLocation.clipId,
+        selectedTransitionLocation.position
+      );
+      clearSelectedTransition();
+    }
+  }, [selectedTransitionLocation, removeTransition, clearSelectedTransition]);
 
   const handleSplitAtPlayhead = useCallback(() => {
     const currentMs = timelineTime;
@@ -224,7 +289,53 @@ export function Editor() {
   return (
     <>
       <style>{EDITOR_CSS}</style>
-      <div className="editor-root space-y-4">
+      <div className="editor-root space-y-4 relative">
+        {/* Transition Panel - Left Side */}
+        {showTransitionPanel && (
+          <div className="absolute left-0 top-0 z-40 h-[calc(100vh-200px)] min-h-[400px] w-72 overflow-hidden rounded-xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-2xl">
+            <TransitionPanel
+              onSelectTransition={handleSelectTransition}
+              selectedTransition={selectedTransitionId ? (() => {
+                if (!selectedTransitionLocation) return null;
+                const track = tracks[selectedTransitionLocation.trackIndex];
+                if (!track) return null;
+                const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
+                if (!clip) return null;
+                const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
+                return trans?.type || null;
+              })() : null}
+              onClose={() => setShowTransitionPanel(false)}
+            />
+          </div>
+        )}
+
+        {/* Transition Controls - Right Side */}
+        {selectedTransitionId && selectedTransitionLocation && (
+          <div className="absolute right-0 top-0 z-40 h-[calc(100vh-200px)] min-h-[400px] w-80 overflow-hidden rounded-xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-2xl">
+            <TransitionControls
+              transition={(() => {
+                const track = tracks[selectedTransitionLocation.trackIndex];
+                if (!track) return null;
+                const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
+                if (!clip) return null;
+                const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
+                if (!trans) return null;
+                return {
+                  ...trans,
+                  id: selectedTransitionId,
+                  type: trans.type,
+                  category: "basic",
+                  name: trans.type,
+                  position: selectedTransitionLocation.position,
+                };
+              })()}
+              onUpdate={handleUpdateSelectedTransition}
+              onDelete={handleDeleteSelectedTransition}
+              onClose={clearSelectedTransition}
+            />
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2" ref={containerRef}>
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">
@@ -279,9 +390,7 @@ export function Editor() {
               onAddClip={handleAddClip}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
-              onSplitModeToggle={() => setSplitMode((prev) => !prev)}
               onSplitAtPlayhead={handleSplitAtPlayhead}
-              splitMode={splitMode}
               onUndo={handleUndo}
               onRedo={handleRedo}
               canUndo={canUndo}
@@ -293,10 +402,20 @@ export function Editor() {
           </div>
         </div>
 
+        {/* Timeline Info Bar - Shows all elements (transitions, overlays, effects) */}
+        <TimelineInfoBar
+          tracks={tracks}
+          overlays={overlays}
+          durationMs={durationMs}
+          currentTime={timelineTime}
+          onSeek={handleSeek}
+        />
+
         <Timeline
           tracks={tracks}
           overlays={overlays}
           durationMs={durationMs}
+          currentTime={timelineTime}
           zoom={timelineZoom}
           onZoomChange={setTimelineZoom}
           onAddClip={handleAddClip}
@@ -306,11 +425,9 @@ export function Editor() {
           onAddOverlay={handleAddOverlay}
           onUpdateOverlay={handleUpdateOverlay}
           onDeleteOverlay={handleDeleteOverlay}
-          onDurationChange={setDurationMs}
           onSeek={handleSeek}
           onSplitClip={handleSplitClip}
           splitMode={splitMode}
-          currentTime={timelineTime}
           thumbnailsByAsset={thumbnailsByAsset}
           waveformData={waveformData}
           assetsById={assetsById}
@@ -318,6 +435,10 @@ export function Editor() {
           onZoomIn={() => setTimelineZoom((prev) => Math.min(8, +(prev + 0.25).toFixed(2)))}
           onZoomOut={() => setTimelineZoom((prev) => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
           onZoomReset={() => setTimelineZoom(1)}
+          selectedTransitionId={selectedTransitionId}
+          onSelectTransition={setSelectedTransition}
+          onToggleTransitionPanel={() => setShowTransitionPanel((prev) => !prev)}
+          showTransitionPanel={showTransitionPanel}
         />
 
         <input

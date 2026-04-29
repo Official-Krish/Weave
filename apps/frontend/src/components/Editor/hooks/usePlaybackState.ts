@@ -10,7 +10,6 @@ export function usePlaybackState(
   setSourceUrl: (url: string) => void,
   setTimelineTime: (time: number) => void,
   setVideoTime: (time: number) => void,
-  setTransitionOpacity: (opacity: number) => void,
   setIsPlaying: (playing: boolean | ((prev: boolean) => boolean)) => void
 ) {
   const lastClipIdRef = useRef<string | null>(null);
@@ -85,18 +84,6 @@ export function usePlaybackState(
 
     const clipEnd = currentClip.sourceStartMs + currentClip.durationMs;
     const TRANSITION_BUFFER = 50;
-    const TRANSITION_DURATION = 300;
-
-    const remaining = clipEnd - videoTimeMs;
-    const elapsed = videoTimeMs - currentClip.sourceStartMs;
-
-    if (currentClip.transitionOut === "fade" && remaining < TRANSITION_DURATION) {
-      setTransitionOpacity(Math.max(0, remaining / TRANSITION_DURATION));
-    } else if (currentClip.transitionIn === "fade" && elapsed < TRANSITION_DURATION) {
-      setTransitionOpacity(Math.max(0, elapsed / TRANSITION_DURATION));
-    } else {
-      setTransitionOpacity(1);
-    }
 
     if (
       videoTimeMs >= clipEnd - TRANSITION_BUFFER &&
@@ -121,7 +108,7 @@ export function usePlaybackState(
         setIsPlaying(false);
       }
     }
-  }, [tracks, activeAssetId, assetsById, setVideoTime, setTimelineTime, setActiveAssetId, setSourceUrl, setTransitionOpacity, setIsPlaying]);
+  }, [tracks, activeAssetId, assetsById, setVideoTime, setTimelineTime, setActiveAssetId, setSourceUrl, setIsPlaying]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying((prev) => !prev);

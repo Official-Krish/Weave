@@ -8,7 +8,6 @@ interface TimelineTrackProps {
   index: number;
   durationMs: number;
   currentTime: number;
-  zoom: number;
   onAddClip: (trackIndex: number) => void;
   onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
@@ -19,6 +18,8 @@ interface TimelineTrackProps {
   thumbnailsByAsset: Record<string, string[]>;
   waveformData: number[];
   assetsById: Record<string, any>;
+  // Transition props
+  onSelectTransition: (trackIndex: number, clipId: string, position: "start" | "end") => void;
 }
 
 export function getTrackIcon(type: Track["type"]) {
@@ -36,7 +37,6 @@ export function TimelineTrack({
   index,
   durationMs,
   currentTime,
-  zoom,
   onAddClip,
   onUpdateTrack,
   onUpdateClip,
@@ -47,6 +47,7 @@ export function TimelineTrack({
   thumbnailsByAsset,
   waveformData,
   assetsById,
+  onSelectTransition,
 }: TimelineTrackProps) {
   const [selectedClip, setSelectedClip] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{
@@ -57,6 +58,7 @@ export function TimelineTrack({
     startDurationMs: number;
     startSourceStartMs: number;
   } | null>(null);
+  const [dragOverZone, setDragOverZone] = useState<{ clipId: string; position: "start" | "end" } | null>(null);
   const colors = getTrackColors(track.type);
 
   const handleClipClick = (e: React.MouseEvent, clip: Clip, clipId: string) => {
@@ -335,6 +337,9 @@ export function TimelineTrack({
 
           const isVideoTrack = track.type === "VIDEO";
 
+          const startTransWidthPercent = clip.transitionStart ? (clip.transitionStart.durationMs / clip.durationMs) * 100 : 0;
+          const endTransWidthPercent = clip.transitionEnd ? (clip.transitionEnd.durationMs / clip.durationMs) * 100 : 0;
+
           return (
             <div
               key={clip.id ?? clip.sourceAssetId}
@@ -401,44 +406,113 @@ export function TimelineTrack({
                 onMouseDown={(e) => {
                   if (!splitMode) startDrag(e, clip, "move");
                 }}
+                onDragOver={(e) => {
+                  // Only allow dropping transitions
+                  if (e.dataTransfer.types.includes("application/json")) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const isStart = (e.clientX - rect.left) < (rect.width / 2);
+                    setDragOverZone({ clipId, position: isStart ? "start" : "end" });
+                  }
+                }}
+                onDragLeave={() => setDragOverZone(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverZone(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData("application/json"));
+                    if (data.type === "transition") {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      // If dropped on the left half, it's a start transition; otherwise end
+                      const isStart = (e.clientX - rect.left) < (rect.width / 2);
+                      const clipIdToUse = clip.id ?? clip.sourceAssetId;
+                      onUpdateClip(index, clipIdToUse, {
+                        [isStart ? "transitionStart" : "transitionEnd"]: {
+                          type: data.transitionType,
+                          durationMs: 500, // Default duration
+                          easing: "ease-in-out",
+                        },
+                      });
+                    }
+                  } catch (err) {
+                    // Ignore JSON parse errors for other drag events
+                  }
+                }}
               />
 
-              {/* Transition fade out indicator */}
-              {clip.transitionOut === "fade" && (
-                <div className="absolute right-0 h-full w-4 bg-gradient-to-r from-transparent to-black/60 z-[6] pointer-events-none" />
+              {/* Transition indicators and controls */}
+              
+              {/* Drag Over Drop Zone Indicators */}
+              {dragOverZone?.clipId === clipId && dragOverZone.position === "start" && (
+                <div className="absolute left-0 top-0 bottom-0 w-1/4 max-w-[60px] bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-l-lg" />
               )}
-              {/* Transition fade in indicator */}
-              {clip.transitionIn === "fade" && (
-                <div className="absolute left-0 h-full w-4 bg-gradient-to-l from-transparent to-black/60 z-[6] pointer-events-none" />
+              {dragOverZone?.clipId === clipId && dragOverZone.position === "end" && (
+                <div className="absolute right-0 top-0 bottom-0 w-1/4 max-w-[60px] bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-r-lg" />
               )}
 
-              {/* Fade In Toggle */}
-              <button
-                className={`absolute left-1.5 top-1.5 z-20 flex h-4 w-4 items-center justify-center rounded text-[8px] shadow-md opacity-0 transition-all group-hover/clip:opacity-100 hover:scale-110 ${clip.transitionIn === "fade" ? "bg-[#f5a623] text-black" : "bg-black/50 text-white hover:bg-black/80"
-                  }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdateClip(index, clipId, { transitionIn: clip.transitionIn === "fade" ? "cut" : "fade" });
-                }}
-                title={clip.transitionIn === "fade" ? "Fade In: On" : "Fade In: Off"}
-              >
-                Blend
-                <Blend className="h-2.5 w-2.5" />
-              </button>
+              {/* Start Transition Block */}
+              {clip.transitionStart && (
+                <div
+                  className="absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center cursor-pointer group/trans overflow-hidden
+                    bg-[#06b6d4]/40 border-r border-[#06b6d4]/60 hover:bg-[#06b6d4]/60 transition-colors backdrop-blur-[1px]"
+                  style={{ width: `${Math.max(startTransWidthPercent, 2)}%`, minWidth: "16px" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectTransition(index, clipId, "start");
+                  }}
+                  title="Edit start transition"
+                >
+                  <Blend className="h-3 w-3 text-white opacity-80 group-hover/trans:opacity-100 group-hover/trans:scale-110 transition-all drop-shadow-md" />
+                </div>
+              )}
 
-              {/* Fade Out Toggle */}
-              <button
-                className={`absolute right-1.5 top-1.5 z-20 flex h-4 w-4 items-center justify-center rounded text-[8px] shadow-md opacity-0 transition-all group-hover/clip:opacity-100 hover:scale-110 ${clip.transitionOut === "fade" ? "bg-[#f5a623] text-black" : "bg-black/50 text-white hover:bg-black/80"
-                  }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdateClip(index, clipId, { transitionOut: clip.transitionOut === "fade" ? "cut" : "fade" });
-                }}
-                title={clip.transitionOut === "fade" ? "Fade Out: On" : "Fade Out: Off"}
-              >
-                <Blend className="h-2.5 w-2.5" />
-              </button>
+              {/* End Transition Block */}
+              {clip.transitionEnd && (
+                <div
+                  className="absolute right-0 top-0 bottom-0 z-20 flex items-center justify-center cursor-pointer group/trans overflow-hidden
+                    bg-[#06b6d4]/40 border-l border-[#06b6d4]/60 hover:bg-[#06b6d4]/60 transition-colors backdrop-blur-[1px]"
+                  style={{ width: `${Math.max(endTransWidthPercent, 2)}%`, minWidth: "16px" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectTransition(index, clipId, "end");
+                  }}
+                  title="Edit end transition"
+                >
+                  <Blend className="h-3 w-3 text-white opacity-80 group-hover/trans:opacity-100 group-hover/trans:scale-110 transition-all drop-shadow-md" />
+                </div>
+              )}
 
+              {/* Add Transition Hover Buttons (only when hovering empty edges) */}
+              {!clip.transitionStart && (
+                <button
+                  className="absolute left-0.5 top-0.5 z-20 flex h-5 w-5 items-center justify-center rounded text-[7px] shadow-md transition-all hover:scale-110 bg-black/50 text-[#8d7850] opacity-0 group-hover/clip:opacity-100 hover:bg-[#06b6d4]/80 hover:text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateClip(index, clipId, {
+                      transitionStart: { type: "cross-dissolve", durationMs: 500, easing: "ease-in-out" },
+                    });
+                  }}
+                  title="Add start transition"
+                >
+                  <Blend className="h-3 w-3" />
+                </button>
+              )}
+
+              {!clip.transitionEnd && (
+                <button
+                  className="absolute right-0.5 top-0.5 z-20 flex h-5 w-5 items-center justify-center rounded text-[7px] shadow-md transition-all hover:scale-110 bg-black/50 text-[#8d7850] opacity-0 group-hover/clip:opacity-100 hover:bg-[#06b6d4]/80 hover:text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateClip(index, clipId, {
+                      transitionEnd: { type: "cross-dissolve", durationMs: 500, easing: "ease-in-out" },
+                    });
+                  }}
+                  title="Add end transition"
+                >
+                  <Blend className="h-3 w-3" />
+                </button>
+              )}
               {/* Delete button — yellow ✕ in bottom-right, matching reference */}
               <button
                 className="absolute right-1.5 bottom-1.5 z-20 flex h-5 w-5 items-center justify-center rounded

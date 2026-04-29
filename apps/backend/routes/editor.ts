@@ -128,6 +128,25 @@ editorRouter.get("/projects/:id", authMiddleware, async (req, res) => {
         return res.status(200).json({
             project: {
                 ...project,
+                tracks: project.tracks.map((track) => ({
+                    ...track,
+                    clips: track.clips.map((clip) => {
+                        // Restore transitions from metadata JSON
+                        const meta = (clip.metadata ?? {}) as Record<string, unknown>;
+                        return {
+                            id: clip.id,
+                            sourceAssetId: clip.sourceAssetId,
+                            sourceStartMs: clip.sourceStartMs,
+                            timelineStartMs: clip.timelineStartMs,
+                            durationMs: clip.durationMs,
+                            name: clip.name ?? undefined,
+                            ...(meta.transitionStart ? { transitionStart: meta.transitionStart } : {}),
+                            ...(meta.transitionEnd ? { transitionEnd: meta.transitionEnd } : {}),
+                            ...(meta.transitionIn ? { transitionIn: meta.transitionIn } : {}),
+                            ...(meta.transitionOut ? { transitionOut: meta.transitionOut } : {}),
+                        };
+                    }),
+                })),
                 assets: project.assets.map((asset) => ({
                     ...asset,
                     url: toPublicRecordingLink(asset.url),
@@ -223,11 +242,20 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                     const validClips = track.clips
                         .filter((clip) => assetMap.has(clip.sourceAssetId))
                         .map((clip) => ({
+                            id: clip.id ?? crypto.randomUUID(),
                             trackId: createdTrack.id,
                             sourceAssetId: clip.sourceAssetId,
                             sourceStartMs: clip.sourceStartMs,
                             timelineStartMs: clip.timelineStartMs,
                             durationMs: clip.durationMs,
+                            name: clip.name ?? null,
+                            // Store transitions + deprecated fields as JSON metadata
+                            metadata: {
+                                ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
+                                ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
+                                ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
+                                ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
+                            },
                         }));
 
                     if (validClips.length !== track.clips.length) {

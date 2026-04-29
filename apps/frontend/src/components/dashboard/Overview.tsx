@@ -186,7 +186,6 @@ function MeetingRow({ meeting, index, onClick }: { meeting: MeetingDetails; inde
   const startedAt = meeting.startedAt ? new Date(meeting.startedAt) : null;
   const endedAt = meeting.endedAt ? new Date(meeting.endedAt) : null;
   const durationLabel = findDuration(startedAt ?? new Date(), endedAt ?? new Date());
-  console.log({ startedAt, endedAt, durationLabel });
 
   return (
     <motion.button

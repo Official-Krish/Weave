@@ -31,9 +31,7 @@ interface ToolbarProps {
   onAddClip: () => void;
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
-  onSplitModeToggle: () => void;
   onSplitAtPlayhead: () => void;
-  splitMode: boolean;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -52,9 +50,7 @@ export function Toolbar({
   onAddClip,
   onAddOverlay,
   onPlayPause,
-  onSplitModeToggle,
   onSplitAtPlayhead,
-  splitMode,
   onUndo,
   onRedo,
   canUndo,

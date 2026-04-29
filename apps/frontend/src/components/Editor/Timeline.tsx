@@ -20,17 +20,21 @@ interface TimelineProps {
   onAddOverlay: (overlay: Overlay) => void;
   onUpdateOverlay: (overlayId: string, updates: Partial<Overlay>) => void;
   onDeleteOverlay: (overlayId: string) => void;
-  onDurationChange: (durationMs: number) => void;
   onSeek: (timeMs: number) => void;
   onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
   splitMode: boolean;
   thumbnailsByAsset: Record<string, string[]>;
   waveformData: number[];
   assetsById: Record<string, any>;
+  timelineZoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
-  timelineZoom: number;
+  // Transition props
+  selectedTransitionId: string | null;
+  onSelectTransition: (trackIndex: number, clipId: string, position: "start" | "end") => void;
+  onToggleTransitionPanel: () => void;
+  showTransitionPanel: boolean;
 }
 
 export function Timeline({
@@ -43,7 +47,6 @@ export function Timeline({
   onUpdateTrack,
   onUpdateClip,
   onDeleteClip,
-  onDurationChange,
   onSeek,
   onSplitClip,
   splitMode,
@@ -54,10 +57,13 @@ export function Timeline({
   thumbnailsByAsset,
   waveformData,
   assetsById,
+  timelineZoom,
   onZoomIn,
   onZoomOut,
   onZoomReset,
-  timelineZoom
+  onToggleTransitionPanel,
+  showTransitionPanel,
+  onSelectTransition
 }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentWidthPct = useMemo(() => Math.max(100, zoom * 100), [zoom]);
@@ -99,6 +105,22 @@ export function Timeline({
           <span className="rounded-full border border-[#f5a623]/15 bg-[#f5a623]/8 px-2 py-0.5 text-[10px] font-medium text-[#f5a623]">
             {tracks.length} track{tracks.length !== 1 ? "s" : ""}
           </span>
+          {/* Transition button */}
+          <button
+            onClick={onToggleTransitionPanel}
+            className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+              showTransitionPanel
+                ? "border-[#06b6d4] bg-[#06b6d4]/10 text-[#22d3ee]"
+                : "border-[#f5a623]/15 bg-[#f5a623]/5 text-[#8d7850] hover:border-[#06b6d4]/30 hover:text-[#06b6d4]"
+            }`}
+            title="Open transition panel"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
+            </svg>
+            Transitions
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-[#8d7850]">
@@ -181,7 +203,6 @@ export function Timeline({
                   index={index}
                   durationMs={durationMs}
                   currentTime={currentTime}
-                  zoom={zoom}
                   onAddClip={onAddClip}
                   onUpdateTrack={onUpdateTrack}
                   onUpdateClip={onUpdateClip}
@@ -192,6 +213,7 @@ export function Timeline({
                   thumbnailsByAsset={thumbnailsByAsset}
                   waveformData={waveformData}
                   assetsById={assetsById}
+                  onSelectTransition={onSelectTransition}
                 />
               ))}
 

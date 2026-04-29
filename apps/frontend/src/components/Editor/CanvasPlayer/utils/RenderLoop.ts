@@ -1,4 +1,5 @@
-import type { Overlay } from "../../types";
+import type { Overlay, ClipTransition } from "../../types";
+import { TransitionRenderer } from "../../transitions/TransitionRenderer";
 
 export interface RenderState {
   stretchX: number;
@@ -8,12 +9,23 @@ export interface RenderState {
   trimStart: number; // seconds
   trimEnd: number; // seconds
   videoAlpha: number;
+  // Transition support
+  activeTransition?: {
+    type: ClipTransition;
+    progress: number; // 0-1
+    position?: "start" | "end"; // Whether this is a clip start or end transition
+    sourceVideo?: HTMLVideoElement;
+    targetVideo?: HTMLVideoElement;
+  };
 }
 
 export interface RenderOverlay {
   overlay: Overlay;
   timelineTimeMs: number;
 }
+
+// Global transition renderer (shared across frames)
+let transitionRenderer: TransitionRenderer | null = null;
 
 /**
  * Starts a requestAnimationFrame render loop that draws the video onto
@@ -32,9 +44,15 @@ export function startRenderLoop(
   let animId = 0;
   let running = true;
 
+  // Initialize transition renderer once
+  if (!transitionRenderer) {
+    transitionRenderer = new TransitionRenderer(canvas);
+  }
+
   function render() {
     if (!running) return;
 
+    const state = getState();
     const {
       stretchX,
       stretchY,
@@ -43,7 +61,8 @@ export function startRenderLoop(
       trimStart,
       trimEnd,
       videoAlpha,
-    } = getState();
+      activeTransition,
+    } = state;
 
     // Trim enforcement
     if (trimStart > 0 && video.currentTime < trimStart) {
@@ -56,16 +75,57 @@ export function startRenderLoop(
     // Clear
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw video with transforms
-    ctx.save();
-    ctx.globalAlpha = videoAlpha;
-    const drawW = canvas.width * stretchX;
-    const drawH = canvas.height * stretchY;
-    const drawX = (canvas.width - drawW) / 2 + offsetX;
-    const drawY = (canvas.height - drawH) / 2 + offsetY;
+    // Handle transition rendering
+    if (activeTransition && transitionRenderer) {
+      const { type, progress, sourceVideo, targetVideo } = activeTransition;
 
-    ctx.drawImage(video, drawX, drawY, drawW, drawH);
-    ctx.restore();
+      // Convert ClipTransition to Transition format for the renderer
+      const transition = {
+        id: "active",
+        type: type.type,
+        category: "basic" as const,
+        name: type.type,
+        durationMs: type.durationMs,
+        position: "between" as const,
+        easing: type.easing,
+        direction: type.direction,
+        borderWidth: type.borderWidth,
+        borderColor: type.borderColor,
+        reverse: type.reverse,
+      };
+
+      // For single-clip start transitions: fade from black to video
+      // For single-clip end transitions: fade from video to black
+      if (!sourceVideo && !targetVideo) {
+        // Single-clip transition — determine if video is source or target
+        if (activeTransition.position === "start") {
+          // Start transition: video is FADING IN → video is the target
+          transitionRenderer.render(null, video, transition, progress);
+        } else {
+          // End transition: video is FADING OUT → video is the source
+          transitionRenderer.render(video, null, transition, progress);
+        }
+      } else {
+        // Multi-clip transition with explicit source/target
+        transitionRenderer.render(
+          sourceVideo ?? video,
+          targetVideo ?? null,
+          transition,
+          progress
+        );
+      }
+    } else {
+      // Normal rendering without transition
+      ctx.save();
+      ctx.globalAlpha = videoAlpha;
+      const drawW = canvas.width * stretchX;
+      const drawH = canvas.height * stretchY;
+      const drawX = (canvas.width - drawW) / 2 + offsetX;
+      const drawY = (canvas.height - drawH) / 2 + offsetY;
+
+      ctx.drawImage(video, drawX, drawY, drawW, drawH);
+      ctx.restore();
+    }
 
     // Draw overlays
     if (getOverlays) {
@@ -99,17 +159,52 @@ export function drawSingleFrame(
   state: RenderState,
   overlays?: RenderOverlay[]
 ) {
-  const { stretchX, stretchY, offsetX, offsetY, videoAlpha } = state;
+  const { stretchX, stretchY, offsetX, offsetY, videoAlpha, activeTransition } = state;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.save();
-  ctx.globalAlpha = videoAlpha;
-  const drawW = canvas.width * stretchX;
-  const drawH = canvas.height * stretchY;
-  const drawX = (canvas.width - drawW) / 2 + offsetX;
-  const drawY = (canvas.height - drawH) / 2 + offsetY;
-  ctx.drawImage(video, drawX, drawY, drawW, drawH);
-  ctx.restore();
+  // Handle transition rendering
+  if (activeTransition && transitionRenderer) {
+    const { type, progress, sourceVideo, targetVideo } = activeTransition;
+
+    const transition = {
+      id: "active",
+      type: type.type,
+      category: "basic" as const,
+      name: type.type,
+      durationMs: type.durationMs,
+      position: "between" as const,
+      easing: type.easing,
+      direction: type.direction,
+      borderWidth: type.borderWidth,
+      borderColor: type.borderColor,
+      reverse: type.reverse,
+    };
+
+    if (!sourceVideo && !targetVideo) {
+      // Single-clip transition — determine if video is source or target
+      if (activeTransition.position === "start") {
+        transitionRenderer.render(null, video, transition, progress);
+      } else {
+        transitionRenderer.render(video, null, transition, progress);
+      }
+    } else {
+      transitionRenderer.render(
+        sourceVideo ?? video,
+        targetVideo ?? null,
+        transition,
+        progress
+      );
+    }
+  } else {
+    ctx.save();
+    ctx.globalAlpha = videoAlpha;
+    const drawW = canvas.width * stretchX;
+    const drawH = canvas.height * stretchY;
+    const drawX = (canvas.width - drawW) / 2 + offsetX;
+    const drawY = (canvas.height - drawH) / 2 + offsetY;
+    ctx.drawImage(video, drawX, drawY, drawW, drawH);
+    ctx.restore();
+  }
 
   if (overlays) {
     for (const item of overlays) {
