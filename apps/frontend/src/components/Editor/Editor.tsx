@@ -8,10 +8,10 @@ import { ExportDialog } from "./ExportDialog";
 import { Loader2, Film } from "lucide-react";
 import { CanvasPlayer, useCanvasVideo } from "./CanvasPlayer";
 import { OverlayLayer } from "./OverlayLayer";
-import { ProjectStats } from "./ProjectStats";
 import { TimelineInfoBar } from "./TimelineInfoBar";
 import { TransitionPanel } from "./transitions/TransitionPanel";
 import { TransitionControls } from "./transitions/TransitionControls";
+import { toast } from "sonner";
 import { useTransitions } from "./hooks/useTransitions";
 import { useActiveTransition } from "./hooks/useActiveTransition";
 import type { ActiveTransitionInfo } from "./CanvasPlayer/hooks/useCanvasVideo";
@@ -95,6 +95,16 @@ export function Editor() {
   const { canUndo, canRedo, handleUndo, handleRedo, resetHistory } = useEditorHistory(
     tracks, overlays, setTracks, setOverlays
   );
+
+  const handleUndoWithToast = useCallback(() => {
+    handleUndo();
+    toast.info("Undid previous action");
+  }, [handleUndo]);
+
+  const handleRedoWithToast = useCallback(() => {
+    handleRedo();
+    toast.info("Redid action");
+  }, [handleRedo]);
 
   const { thumbnailsByAsset, waveformData, extractThumbnailsForAsset } = useMediaExtraction(
     assetsById, sourceUrl, durationMs
@@ -290,52 +300,6 @@ export function Editor() {
     <>
       <style>{EDITOR_CSS}</style>
       <div className="editor-root space-y-4 relative">
-        {/* Transition Panel - Left Side */}
-        {showTransitionPanel && (
-          <div className="absolute left-0 top-0 z-40 h-[calc(100vh-200px)] min-h-[400px] w-72 overflow-hidden rounded-xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-2xl">
-            <TransitionPanel
-              onSelectTransition={handleSelectTransition}
-              selectedTransition={selectedTransitionId ? (() => {
-                if (!selectedTransitionLocation) return null;
-                const track = tracks[selectedTransitionLocation.trackIndex];
-                if (!track) return null;
-                const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
-                if (!clip) return null;
-                const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
-                return trans?.type || null;
-              })() : null}
-              onClose={() => setShowTransitionPanel(false)}
-            />
-          </div>
-        )}
-
-        {/* Transition Controls - Right Side */}
-        {selectedTransitionId && selectedTransitionLocation && (
-          <div className="absolute right-0 top-0 z-40 h-[calc(100vh-200px)] min-h-[400px] w-80 overflow-hidden rounded-xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-2xl">
-            <TransitionControls
-              transition={(() => {
-                const track = tracks[selectedTransitionLocation.trackIndex];
-                if (!track) return null;
-                const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
-                if (!clip) return null;
-                const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
-                if (!trans) return null;
-                return {
-                  ...trans,
-                  id: selectedTransitionId,
-                  type: trans.type,
-                  category: "basic",
-                  name: trans.type,
-                  position: selectedTransitionLocation.position,
-                };
-              })()}
-              onUpdate={handleUpdateSelectedTransition}
-              onDelete={handleDeleteSelectedTransition}
-              onClose={clearSelectedTransition}
-            />
-          </div>
-        )}
-
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2" ref={containerRef}>
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">
@@ -378,7 +342,7 @@ export function Editor() {
             </div>
           </div>
 
-          <div>
+          <div className="flex flex-col gap-4">
             <Toolbar
               onExport={handleExport}
               isPlaying={isPlaying}
@@ -391,14 +355,54 @@ export function Editor() {
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
               onSplitAtPlayhead={handleSplitAtPlayhead}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
+              onUndo={handleUndoWithToast}
+              onRedo={handleRedoWithToast}
               canUndo={canUndo}
               canRedo={canRedo}
               canvasTransform={canvasTransform}
             />
 
-            <ProjectStats tracks={tracks} overlays={overlays} durationMs={durationMs} />
+            {showTransitionPanel ? (
+              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+                <TransitionPanel
+                  onSelectTransition={handleSelectTransition}
+                  selectedTransition={selectedTransitionId ? (() => {
+                    if (!selectedTransitionLocation) return null;
+                    const track = tracks[selectedTransitionLocation.trackIndex];
+                    if (!track) return null;
+                    const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
+                    if (!clip) return null;
+                    const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
+                    return trans?.type || null;
+                  })() : null}
+                  onClose={() => setShowTransitionPanel(false)}
+                />
+              </div>
+            ) : selectedTransitionId && selectedTransitionLocation ? (
+              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+                <TransitionControls
+                  transition={(() => {
+                    const track = tracks[selectedTransitionLocation.trackIndex];
+                    if (!track) return null;
+                    const clip = track.clips.find(c => (c.id ?? c.sourceAssetId) === selectedTransitionLocation.clipId);
+                    if (!clip) return null;
+                    const trans = selectedTransitionLocation.position === "start" ? clip.transitionStart : clip.transitionEnd;
+                    if (!trans) return null;
+                    return {
+                      ...trans,
+                      id: selectedTransitionId,
+                      type: trans.type,
+                      category: "basic",
+                      name: trans.type,
+                      position: selectedTransitionLocation.position,
+                    };
+                  })()}
+                  onUpdate={handleUpdateSelectedTransition}
+                  onDelete={handleDeleteSelectedTransition}
+                  onClose={clearSelectedTransition}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 

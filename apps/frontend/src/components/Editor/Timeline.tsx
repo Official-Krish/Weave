@@ -93,7 +93,31 @@ export function Timeline({
     const totalWidth = lane.scrollWidth || rect.width;
     const clickX = e.clientX - rect.left + scrollLeft;
     const clickTimeMs = (clickX / totalWidth) * durationMs;
-    onSeek(Math.max(0, Math.min(clickTimeMs, durationMs)));
+    
+    // Snapping logic (snap to clip/overlay boundaries within 15px)
+    const snapThresholdMs = (15 / totalWidth) * durationMs;
+    let closestTimeMs = clickTimeMs;
+    let minDiff = snapThresholdMs;
+
+    const snapPoints = [0, durationMs];
+    tracks.forEach(t => t.clips.forEach(c => {
+      snapPoints.push(c.timelineStartMs);
+      snapPoints.push(c.timelineStartMs + c.durationMs);
+    }));
+    overlays.forEach(o => {
+      snapPoints.push(o.timelineStartMs);
+      snapPoints.push(o.timelineStartMs + o.durationMs);
+    });
+
+    snapPoints.forEach(time => {
+      const diff = Math.abs(time - clickTimeMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestTimeMs = time;
+      }
+    });
+
+    onSeek(Math.max(0, Math.min(closestTimeMs, durationMs)));
   };
 
   return (
@@ -140,7 +164,17 @@ export function Timeline({
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </Button>
-          <span className="w-14 text-center text-xs font-mono text-[#bfa873]">{timelineZoom.toFixed(1)}x</span>
+          <input 
+            type="range" 
+            min="0.5" 
+            max="8" 
+            step="0.25" 
+            value={timelineZoom} 
+            onChange={(e) => onZoomChange(Number(e.target.value))} 
+            className="w-24 h-1.5 accent-[#f5a623] cursor-pointer"
+            title="Drag to zoom or use Ctrl+Wheel"
+          />
+          <span className="w-10 text-right text-xs font-mono text-[#bfa873]">{timelineZoom.toFixed(1)}x</span>
           <Button
             variant="outline"
             size="icon"

@@ -181,7 +181,32 @@ export function TimelineInfoBar({
           if (!onSeek || durationMs === 0) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const ratio = (e.clientX - rect.left) / rect.width;
-          onSeek(Math.max(0, Math.min(ratio * durationMs, durationMs)));
+          const clickTimeMs = ratio * durationMs;
+
+          // Snapping logic (snap to boundaries within 15px)
+          const snapThresholdMs = (15 / rect.width) * durationMs;
+          let closestTimeMs = clickTimeMs;
+          let minDiff = snapThresholdMs;
+
+          const snapPoints = [0, durationMs];
+          tracks.forEach(t => t.clips.forEach(c => {
+            snapPoints.push(c.timelineStartMs);
+            snapPoints.push(c.timelineStartMs + c.durationMs);
+          }));
+          overlays.forEach(o => {
+            snapPoints.push(o.timelineStartMs);
+            snapPoints.push(o.timelineStartMs + o.durationMs);
+          });
+
+          snapPoints.forEach(time => {
+            const diff = Math.abs(time - clickTimeMs);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closestTimeMs = time;
+            }
+          });
+
+          onSeek(Math.max(0, Math.min(closestTimeMs, durationMs)));
         }}
       >
         {/* Playhead */}
