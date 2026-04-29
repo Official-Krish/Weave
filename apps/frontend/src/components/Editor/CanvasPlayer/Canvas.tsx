@@ -1,0 +1,130 @@
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Maximize2 } from "lucide-react";
+
+type Props = {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  isLoaded?: boolean;
+  onClickToggle?: () => void;
+  onDoubleClickFullscreen?: () => void;
+};
+
+export default function CanvasPlayer({
+  canvasRef,
+  videoRef,
+  isLoaded = true,
+  onClickToggle,
+  onDoubleClickFullscreen,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showControls, setShowControls] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-resize canvas to fill container while maintaining 16:9 aspect
+  useEffect(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+
+    const observer = new ResizeObserver(() => {
+      const rect = container.getBoundingClientRect();
+      const containerW = rect.width;
+      const containerH = rect.height;
+
+      // Fit 16:9 inside container
+      const aspectRatio = 16 / 9;
+      let w = containerW;
+      let h = containerW / aspectRatio;
+
+      if (h > containerH) {
+        h = containerH;
+        w = containerH * aspectRatio;
+      }
+
+      // Use device pixel ratio for sharp rendering
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = `${Math.round(w)}px`;
+      canvas.style.height = `${Math.round(h)}px`;
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [canvasRef]);
+
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setShowControls(false), 2500);
+  };
+
+  const handleMouseLeave = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setShowControls(false);
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full aspect-video bg-black rounded-lg overflow-hidden group"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Canvas — centered in container */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <canvas
+          ref={canvasRef}
+          className="block"
+          onClick={onClickToggle}
+          onDoubleClick={onDoubleClickFullscreen}
+          style={{ cursor: "pointer" }}
+        />
+      </div>
+
+      {/* Hidden video element — source for canvas rendering */}
+      <video
+        ref={videoRef}
+        playsInline
+        preload="auto"
+        crossOrigin="anonymous"
+        style={{ display: "none" }}
+      />
+
+      {/* Loading overlay */}
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-[#f5a623]" />
+            <span className="text-xs text-[#bfa873] font-medium tracking-wide">Loading video...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Vignette overlay for premium feel */}
+      <div
+        className="absolute inset-0 pointer-events-none z-[1]"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.15) 100%)",
+        }}
+      />
+
+      {/* Subtle top/bottom bars */}
+      <div className="absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/20 to-transparent pointer-events-none z-[1]" />
+      <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/30 to-transparent pointer-events-none z-[1]" />
+
+      {/* Fullscreen button (appears on hover) */}
+      <button
+        onClick={onDoubleClickFullscreen}
+        className={`absolute bottom-3 right-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg
+          bg-black/50 text-white/70 backdrop-blur-sm border border-white/10
+          transition-all duration-300 hover:bg-black/70 hover:text-white hover:scale-105
+          ${showControls ? "opacity-100" : "opacity-0"}`}
+        title="Fullscreen"
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}

@@ -150,8 +150,8 @@ export function Meetings({
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <Clock3 className="size-3" />
-                                {meeting.recordingStartedAt
-                                  ? new Date(meeting.recordingStartedAt).toLocaleTimeString([], {
+                                {meeting.startedAt
+                                  ? new Date(meeting.startedAt).toLocaleTimeString([], {
                                       hour: "2-digit",
                                       minute: "2-digit",
                                     })

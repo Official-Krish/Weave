@@ -229,6 +229,8 @@ model EditorClip {
   sourceStartMs   Int
   timelineStartMs Int
   durationMs      Int
+  name            String?
+  metadata        Json?       
 
   track           EditorTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
   asset           EditorAsset @relation(fields: [sourceAssetId], references: [id])

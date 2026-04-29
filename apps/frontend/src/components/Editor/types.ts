@@ -1,5 +1,23 @@
+import type { TransitionType, TransitionEasing, TransitionDirection } from "./transitions/types";
+
 export type TrackType = "VIDEO" | "AUDIO" | "TEXT";
 export type OverlayType = "TEXT";
+export type ActiveTool = "select" | "split" | "text" | "transition";
+
+/**
+ * Transition between two clips
+ * Can be at start (transitionIn), end (transitionOut), or between clips
+ */
+export interface ClipTransition {
+  type: TransitionType;
+  durationMs: number;
+  easing: TransitionEasing;
+  direction?: TransitionDirection;
+  // Visual options
+  borderWidth?: number;
+  borderColor?: string;
+  reverse?: boolean;
+}
 
 export interface Clip {
   id?: string;
@@ -7,8 +25,15 @@ export interface Clip {
   sourceStartMs: number;
   timelineStartMs: number;
   durationMs: number;
+  /** @deprecated Use transitionStart/transitionEnd instead */
   transitionIn?: "fade" | "cut";
+  /** @deprecated Use transitionStart/transitionEnd instead */
   transitionOut?: "fade" | "cut";
+  /** Transition at the start of the clip (fade in from previous or black) */
+  transitionStart?: ClipTransition;
+  /** Transition at the end of the clip (fade out to next or black) */
+  transitionEnd?: ClipTransition;
+  name?: string;
 }
 
 export interface Track {
@@ -19,6 +44,19 @@ export interface Track {
   muted: boolean;
   volume: number;
   clips: Clip[];
+}
+
+export interface OverlayStyle {
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textAlign?: "left" | "center" | "right";
+  textShadow?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  letterSpacing?: number;
 }
 
 export interface Overlay {
@@ -33,8 +71,34 @@ export interface Overlay {
   transform: {
     x: number;
     y: number;
+    width?: number;
+    height?: number;
+    scaleX?: number;
+    scaleY?: number;
   };
-  style?: Record<string, any>;
+  style?: OverlayStyle;
+  /** Animation for overlay appearance */
+  animation?: {
+    type: "fade-in" | "slide-in" | "typewriter" | "bounce" | "none";
+    durationMs: number;
+    delayMs?: number;
+  };
+}
+
+/**
+ * Timeline element for the info bar - shows what's at a given position
+ */
+export interface TimelineElement {
+  id: string;
+  type: "clip" | "overlay" | "transition" | "effect" | "audio";
+  name: string;
+  startMs: number;
+  endMs: number;
+  trackId?: string;
+  trackType?: TrackType;
+  icon?: string;
+  color?: string;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface Asset {
@@ -70,6 +134,11 @@ export interface ExportJob {
   error?: string | null;
 }
 
+export interface HistoryEntry {
+  tracks: Track[];
+  overlays: Overlay[];
+}
+
 export interface EditorState {
   projectId: string | null;
   meetingId: string;
@@ -85,3 +154,21 @@ export interface EditorState {
   width: number;
   height: number;
 }
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: "info" | "success" | "error";
+}
+
+export type TransformState = {
+  stretchX: number;
+  stretchY: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export type TrimState = {
+  start: number;
+  end: number;
+};

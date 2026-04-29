@@ -1,10 +1,15 @@
 import express from "express";
+import multer from "multer";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { CreateEditorProjectSchema, SaveEditorProjectSchema } from "@repo/types";
 import { redisPublisher } from "../utils/redis";
-import { toPublicRecordingLink } from "../utils/helpers";
+import { recordingsRoot, toPublicRecordingLink } from "../utils/helpers";
 import { EDITOR_RENDER_QUEUE, writeProjectSnapshot } from "../utils/editor.helpers";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB
 
 const editorRouter = express.Router();
 
@@ -123,6 +128,25 @@ editorRouter.get("/projects/:id", authMiddleware, async (req, res) => {
         return res.status(200).json({
             project: {
                 ...project,
+                tracks: project.tracks.map((track) => ({
+                    ...track,
+                    clips: track.clips.map((clip) => {
+                        // Restore transitions from metadata JSON
+                        const meta = (clip.metadata ?? {}) as Record<string, unknown>;
+                        return {
+                            id: clip.id,
+                            sourceAssetId: clip.sourceAssetId,
+                            sourceStartMs: clip.sourceStartMs,
+                            timelineStartMs: clip.timelineStartMs,
+                            durationMs: clip.durationMs,
+                            name: clip.name ?? undefined,
+                            ...(meta.transitionStart ? { transitionStart: meta.transitionStart } : {}),
+                            ...(meta.transitionEnd ? { transitionEnd: meta.transitionEnd } : {}),
+                            ...(meta.transitionIn ? { transitionIn: meta.transitionIn } : {}),
+                            ...(meta.transitionOut ? { transitionOut: meta.transitionOut } : {}),
+                        };
+                    }),
+                })),
                 assets: project.assets.map((asset) => ({
                     ...asset,
                     url: toPublicRecordingLink(asset.url),
@@ -218,11 +242,20 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                     const validClips = track.clips
                         .filter((clip) => assetMap.has(clip.sourceAssetId))
                         .map((clip) => ({
+                            id: clip.id ?? crypto.randomUUID(),
                             trackId: createdTrack.id,
                             sourceAssetId: clip.sourceAssetId,
                             sourceStartMs: clip.sourceStartMs,
                             timelineStartMs: clip.timelineStartMs,
                             durationMs: clip.durationMs,
+                            name: clip.name ?? null,
+                            // Store transitions + deprecated fields as JSON metadata
+                            metadata: {
+                                ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
+                                ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
+                                ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
+                                ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
+                            },
                         }));
 
                     if (validClips.length !== track.clips.length) {
@@ -292,6 +325,64 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
         return res.status(200).json({ message: "Project saved successfully" });
     } catch (error) {
         console.error("Error saving editor project:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// Upload an external media file and create an EditorAsset
+editorRouter.post("/projects/:id/assets/upload", authMiddleware, upload.single("file"), async (req, res) => {
+    const userId = req.userId;
+    const projectId = req.params.id;
+    const file = req.file;
+
+    if (!userId || !projectId || typeof projectId !== "string" || !file) {
+        return res.status(400).json({ message: "Missing fields or file" });
+    }
+
+    try {
+        const project = await prisma.editorProject.findFirst({
+            where: { id: projectId, ownerId: userId },
+            include: { meeting: { select: { roomId: true } } },
+        });
+
+        if (!project) {
+            return res.status(404).json({ message: "Project not found" });
+        }
+
+        // Save file to recordings/<roomId>/editor-assets/<uuid>.<ext>
+        const ext = path.extname(file.originalname || ".mp4") || ".mp4";
+        const fileId = crypto.randomUUID();
+        const assetDir = path.join(recordingsRoot, project.meeting.roomId, "editor-assets");
+        await fs.mkdir(assetDir, { recursive: true });
+        const filePath = path.join(assetDir, `${fileId}${ext}`);
+        await fs.writeFile(filePath, file.buffer);
+
+        const isAudio = file.mimetype?.startsWith("audio/");
+        const assetType = isAudio ? "AUDIO" : "VIDEO";
+
+        // Get duration from request body if provided
+        const durationMs = req.body?.durationMs ? parseInt(req.body.durationMs, 10) : null;
+
+        const asset = await prisma.editorAsset.create({
+            data: {
+                projectId,
+                meetingId: project.meetingId,
+                assetType,
+                url: filePath,
+                durationMs,
+            },
+        });
+
+        return res.status(201).json({
+            asset: {
+                id: asset.id,
+                assetType: asset.assetType,
+                url: toPublicRecordingLink(asset.url),
+                durationMs: asset.durationMs,
+            },
+        });
+    } catch (error) {
+        console.error("Error uploading editor asset:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 });

@@ -183,8 +183,8 @@ function MeetingRow({ meeting, index, onClick }: { meeting: MeetingDetails; inde
   const gradient = INITIAL_COLORS[index % INITIAL_COLORS.length];
   const textCol = TEXT_COLORS[index % TEXT_COLORS.length];
   const isLive = !meeting.isEnded;
-  const startedAt = meeting.recordingStartedAt ? new Date(meeting.recordingStartedAt) : null;
-  const endedAt = meeting.recordingStoppedAt ? new Date(meeting.recordingStoppedAt) : null;
+  const startedAt = meeting.startedAt ? new Date(meeting.startedAt) : null;
+  const endedAt = meeting.endedAt ? new Date(meeting.endedAt) : null;
   const durationLabel = findDuration(startedAt ?? new Date(), endedAt ?? new Date());
 
   return (

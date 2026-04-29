@@ -201,6 +201,8 @@ RecordingRouter.get("/page/:id", authMiddleware, async (req, res) => {
       userEmail,
       canViewRecording,
       visibleToEmails,
+      startedAt: meeting.recordingStartedAt,
+      endedAt: meeting.recordingStoppedAt,
       participants: meeting.participants.map((p) => ({
         email: p.user.email?.toLowerCase() || null,
         role: p.role,

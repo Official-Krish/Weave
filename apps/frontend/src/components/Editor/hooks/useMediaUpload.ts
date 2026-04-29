@@ -1,0 +1,138 @@
+import { useCallback, type ChangeEvent } from "react";
+import { editorApi } from "../api";
+import type { EditorProject, Track, Asset } from "../types";
+
+export function useMediaUpload(
+  project: EditorProject | null,
+  tracks: Track[],
+  setTracks: React.Dispatch<React.SetStateAction<Track[]>>,
+  setAssetsById: React.Dispatch<React.SetStateAction<Record<string, Asset>>>,
+  setDurationMs: React.Dispatch<React.SetStateAction<number>>,
+  sourceUrl: string,
+  setSourceUrl: (url: string) => void,
+  setActiveAssetId: (id: string | null) => void,
+  extractThumbnailsForAsset: (assetId: string, url: string, durationMs: number) => Promise<void>
+) {
+  const handleClipFilePicked = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = "";
+    if (!file || !project) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    const metaVideo = document.createElement("video");
+    metaVideo.preload = "metadata";
+    metaVideo.src = objectUrl;
+
+    const duration = await new Promise<number>((resolve) => {
+      metaVideo.onloadedmetadata = () => resolve(Math.round((metaVideo.duration || 1) * 1000));
+      metaVideo.onerror = () => resolve(5000);
+    });
+
+    const isAudio = file.type.startsWith("audio/");
+
+    let assetId: string;
+    let assetUrl: string;
+    try {
+      const uploaded = await editorApi.uploadAsset(project.id, file, duration);
+      assetId = uploaded.id;
+      assetUrl = uploaded.url;
+    } catch (error) {
+      console.error("Failed to upload asset to backend:", error);
+      assetId = crypto.randomUUID();
+      assetUrl = objectUrl;
+    }
+
+    const newAsset: Asset = {
+      id: assetId,
+      assetType: isAudio ? "AUDIO" : "VIDEO",
+      url: objectUrl,
+      durationMs: duration,
+    };
+    setAssetsById((prev) => ({ ...prev, [assetId]: newAsset }));
+
+    if (!isAudio) {
+      void extractThumbnailsForAsset(assetId, objectUrl, duration);
+    }
+
+    const GAP_MS = 500;
+
+    setTracks((prev) => {
+      const trackType = isAudio ? "AUDIO" : "VIDEO";
+      const existingTrack = prev.find((t) => t.type === trackType);
+
+      if (existingTrack) {
+        const lastClipEnd = existingTrack.clips.reduce(
+          (max, c) => Math.max(max, c.timelineStartMs + c.durationMs),
+          0
+        );
+        const newClipStart = lastClipEnd > 0 ? lastClipEnd + GAP_MS : 0;
+
+        return prev.map((track) => {
+          if (track.id !== existingTrack.id) return track;
+          return {
+            ...track,
+            clips: [
+              ...track.clips,
+              {
+                id: crypto.randomUUID(),
+                sourceAssetId: assetId,
+                sourceStartMs: 0,
+                timelineStartMs: newClipStart,
+                durationMs: duration,
+                name: file.name,
+              },
+            ],
+          };
+        });
+      }
+
+      const maxOrder = prev.length > 0 ? Math.max(...prev.map((t) => t.order)) : -1;
+      const newTrack: Track = {
+        id: crypto.randomUUID(),
+        type: trackType,
+        order: maxOrder + 1,
+        visible: true,
+        muted: false,
+        volume: 100,
+        clips: [
+          {
+            id: crypto.randomUUID(),
+            sourceAssetId: assetId,
+            sourceStartMs: 0,
+            timelineStartMs: 0,
+            durationMs: duration,
+            name: file.name,
+          },
+        ],
+      };
+      return [...prev, newTrack];
+    });
+
+    setDurationMs((prev) => {
+      const existingTrack = tracks.find((t) => t.type === (isAudio ? "AUDIO" : "VIDEO"));
+      const lastClipEnd = existingTrack
+        ? existingTrack.clips.reduce((max, c) => Math.max(max, c.timelineStartMs + c.durationMs), 0)
+        : 0;
+      const newClipStart = lastClipEnd > 0 ? lastClipEnd + GAP_MS : 0;
+      const newClipEnd = newClipStart + duration;
+      return Math.max(prev, newClipEnd) + 2000;
+    });
+
+    if (!sourceUrl) {
+      setSourceUrl(objectUrl);
+      setActiveAssetId(assetId);
+    }
+  }, [
+    sourceUrl,
+    tracks,
+    extractThumbnailsForAsset,
+    project,
+    setAssetsById,
+    setTracks,
+    setDurationMs,
+    setActiveAssetId,
+    setSourceUrl,
+  ]);
+
+  return { handleClipFilePicked };
+}

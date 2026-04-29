@@ -1,7 +1,24 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Play, Pause, Download, Plus, Type, Scissors } from "lucide-react";
+import {
+  Play, Pause, Download, Plus, Type, Scissors,
+  Undo2, Redo2, RotateCcw, Check,
+  ChevronDown, ChevronUp, Move, Maximize,
+} from "lucide-react";
 import { formatTime } from "./helpers";
+
+interface CanvasTransform {
+  stretchX: number;
+  stretchY: number;
+  offsetX: number;
+  offsetY: number;
+  setStretchX: (v: number) => void;
+  setStretchY: (v: number) => void;
+  setOffsetX: (v: number) => void;
+  setOffsetY: (v: number) => void;
+  reset: () => void;
+}
 
 interface ToolbarProps {
   onExport: () => void;
@@ -11,9 +28,15 @@ interface ToolbarProps {
   onSeek: (timeMs: number) => void;
   saving: boolean;
   tracks: any[];
-  onAddTrack: () => void;
+  onAddClip: () => void;
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
+  onSplitAtPlayhead: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  canvasTransform?: CanvasTransform;
 }
 
 export function Toolbar({
@@ -24,10 +47,18 @@ export function Toolbar({
   onSeek,
   saving,
   tracks,
-  onAddTrack,
+  onAddClip,
   onAddOverlay,
   onPlayPause,
+  onSplitAtPlayhead,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  canvasTransform,
 }: ToolbarProps) {
+  const [showTransform, setShowTransform] = useState(false);
+
   const handleSliderChange = (value: number[]) => {
     onSeek(value[0]);
   };
@@ -43,23 +74,72 @@ export function Toolbar({
     });
   };
 
+  const isTransformModified = canvasTransform
+    ? canvasTransform.stretchX !== 1 ||
+      canvasTransform.stretchY !== 1 ||
+      canvasTransform.offsetX !== 0 ||
+      canvasTransform.offsetY !== 0
+    : false;
+
   return (
     <div className="rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/60 p-5 shadow-lg backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-[#fff5de]">Controls</h3>
-        <div className="flex items-center gap-4">
-          {/* Track count */}
-          <span className="text-xs text-[#8d7850]">Tracks: {tracks.length}</span>
-          {/* Saving indicator */}
-          {saving && <span className="text-xs text-[#f5a623] animate-pulse ml-2">Saving...</span>}
-          <Button
-            onClick={onExport}
-            className="h-9 bg-[#f5a623]/10 text-[#f5a623] hover:bg-[#f5a623]/20 hover:text-[#f5a623]"
-            size="sm"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-[#fff5de] mr-2">Controls</h3>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="h-7 w-7 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 disabled:opacity-40"
+              title="Undo (Ctrl/Cmd + Z)"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="h-7 w-7 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 disabled:opacity-40"
+              title="Redo (Ctrl/Cmd + Y)"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Saving indicator */}
+            <div className="flex items-center justify-end">
+              {saving ? (
+                <span className="flex items-center gap-1.5 text-[10px] text-[#f5a623] animate-pulse">
+                  <RotateCcw className="h-3 w-3 animate-spin" /> Saving
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-[10px] text-[#4ade80]">
+                  <Check className="h-3 w-3" /> Saved
+                </span>
+              )}
+            </div>
+            <Button
+              onClick={onExport}
+              className="h-8 bg-[#f5a623]/10 text-[#f5a623] hover:bg-[#f5a623]/20 hover:text-[#f5a623]"
+              size="sm"
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Export
+            </Button>
+          </div>
+        </div>
+
+        {/* Project Stats Badge */}
+        <div className="flex items-center justify-center gap-4 px-3 py-1.5 bg-[#1a1a16]/50 rounded-md border border-[#f5a623]/10 text-[10px] text-[#8d7850]">
+          <span className="flex flex-col items-center"><strong className="text-[#bfa873]">{tracks.length}</strong> tracks</span>
+          <span className="w-px h-4 bg-[#f5a623]/20" />
+          <span className="flex flex-col items-center"><strong className="text-[#bfa873]">{tracks.reduce((acc, t) => acc + t.clips.length, 0)}</strong> clips</span>
+          <span className="w-px h-4 bg-[#f5a623]/20" />
+          <span className="flex flex-col items-center font-mono"><strong className="text-[#bfa873]">{formatTime(durationMs)}</strong> duration</span>
         </div>
       </div>
 
@@ -99,11 +179,11 @@ export function Toolbar({
         <Button
           variant="outline"
           size="sm"
-          onClick={onAddTrack}
+          onClick={onAddClip}
           className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Add Track
+          Add Clip
         </Button>
         <Button
           variant="outline"
@@ -117,19 +197,135 @@ export function Toolbar({
         <Button
           variant="outline"
           size="sm"
+          onClick={onSplitAtPlayhead}
           className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
+          title="Split clip at current playhead position"
         >
           <Scissors className="mr-2 h-4 w-4" />
           Split
         </Button>
       </div>
 
-      {/* Keyboard shortcuts hint */}
-      <div className="mt-4 rounded-lg border border-[#f5a623]/5 bg-[#0a0a08]/30 p-2.5">
-        <p className="text-[10px] text-[#8d7850]">
-          <span className="font-medium text-[#bfa873]">Shortcuts:</span> Space (Play/Pause) · Arrow keys (Seek) · S (Split)
-        </p>
-      </div>
+      {/* Canvas Transform Controls */}
+      {canvasTransform && (
+        <div className="mt-4 pt-4 border-t border-[#f5a623]/5">
+          <button
+            onClick={() => setShowTransform(!showTransform)}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-medium text-[#bfa873] transition-colors hover:bg-[#f5a623]/5"
+          >
+            <div className="flex items-center gap-2">
+              <Maximize className="h-3.5 w-3.5 text-[#f5a623]" />
+              <span>Canvas Transform</span>
+              {isTransformModified && (
+                <span className="flex h-1.5 w-1.5 rounded-full bg-[#f5a623] animate-pulse" />
+              )}
+            </div>
+            {showTransform ? (
+              <ChevronUp className="h-3.5 w-3.5 text-[#8d7850]" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-[#8d7850]" />
+            )}
+          </button>
+
+          {showTransform && (
+            <div className="mt-3 space-y-3 rounded-xl border border-[#f5a623]/10 bg-[#060605]/60 p-3">
+              {/* Scale X */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#8d7850]">
+                    <Move className="h-3 w-3" />
+                    Scale X
+                  </label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.stretchX.toFixed(2)}×
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3"
+                  step="0.05"
+                  value={canvasTransform.stretchX}
+                  onChange={(e) => canvasTransform.setStretchX(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Scale Y */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-[11px] text-[#8d7850]">
+                    <Move className="h-3 w-3 rotate-90" />
+                    Scale Y
+                  </label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.stretchY.toFixed(2)}×
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="3"
+                  step="0.05"
+                  value={canvasTransform.stretchY}
+                  onChange={(e) => canvasTransform.setStretchY(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Offset X */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] text-[#8d7850]">Offset X</label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.offsetX}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-500"
+                  max="500"
+                  step="5"
+                  value={canvasTransform.offsetX}
+                  onChange={(e) => canvasTransform.setOffsetX(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Offset Y */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] text-[#8d7850]">Offset Y</label>
+                  <span className="text-[11px] font-mono text-[#bfa873]">
+                    {canvasTransform.offsetY}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-300"
+                  max="300"
+                  step="5"
+                  value={canvasTransform.offsetY}
+                  onChange={(e) => canvasTransform.setOffsetY(Number(e.target.value))}
+                  className="w-full h-1.5 accent-[#f5a623] cursor-pointer"
+                />
+              </div>
+
+              {/* Reset */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={canvasTransform.reset}
+                disabled={!isTransformModified}
+                className="w-full border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30 disabled:opacity-40"
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                Reset Transform
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -19,21 +19,26 @@ export function OverlayTrack({
 }: OverlayTrackProps) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [dragging, setDragging] = useState<{
+        mode: "move" | "resize-start" | "resize-end";
         overlayId: string;
         startX: number;
         startMs: number;
+        startDurationMs: number;
     } | null>(null);
 
-    const handleMouseDown = (
+    const startDrag = (
         e: React.MouseEvent<HTMLDivElement>,
         overlay: Overlay,
+        mode: "move" | "resize-start" | "resize-end",
     ) => {
         e.stopPropagation();
             setSelectedId(overlay.id!);
             setDragging({
+            mode,
             overlayId: overlay.id!,
             startX: e.clientX,
             startMs: overlay.timelineStartMs,
+            startDurationMs: overlay.durationMs,
         });
     };
 
@@ -48,12 +53,31 @@ export function OverlayTrack({
         const overlay = overlays.find(o => o.id === dragging.overlayId);
         if (!overlay) return;
 
-        const newStart = Math.max(
-            0,
-            Math.min(dragging.startMs + deltaMs, durationMs - overlay.durationMs)
-        );
+        if (dragging.mode === "move") {
+            const newStart = Math.max(
+                0,
+                Math.min(dragging.startMs + deltaMs, durationMs - overlay.durationMs)
+            );
+            onUpdateOverlay(dragging.overlayId, { timelineStartMs: Math.round(newStart) });
+            return;
+        }
 
-        onUpdateOverlay(dragging.overlayId, { timelineStartMs: newStart });
+        if (dragging.mode === "resize-start") {
+            const minDuration = 250;
+            const nextStart = Math.max(0, Math.min(dragging.startMs + deltaMs, dragging.startMs + dragging.startDurationMs - minDuration));
+            const nextDuration = Math.max(minDuration, dragging.startDurationMs + (dragging.startMs - nextStart));
+            onUpdateOverlay(dragging.overlayId, {
+                timelineStartMs: Math.round(nextStart),
+                durationMs: Math.round(nextDuration),
+            });
+            return;
+        }
+
+        const minDuration = 250;
+        const nextDuration = Math.max(minDuration, Math.min(durationMs - dragging.startMs, dragging.startDurationMs + deltaMs));
+        onUpdateOverlay(dragging.overlayId, {
+            durationMs: Math.round(nextDuration),
+        });
     };
 
     const handleMouseUp = () => {
@@ -74,14 +98,29 @@ export function OverlayTrack({
             const overlay = overlays.find(o => o.id === dragging.overlayId);
             if (!overlay) return;
 
-            const newStart = Math.max(
-                0,
-                Math.min(dragging.startMs + deltaMs, durationMs - overlay.durationMs)
-            );
+            if (dragging.mode === "move") {
+                const newStart = Math.max(
+                    0,
+                    Math.min(dragging.startMs + deltaMs, durationMs - overlay.durationMs)
+                );
+                onUpdateOverlay(dragging.overlayId, { timelineStartMs: Math.round(newStart) });
+                return;
+            }
 
-            onUpdateOverlay(dragging.overlayId, {
-                timelineStartMs: newStart,
-            });
+            if (dragging.mode === "resize-start") {
+                const minDuration = 250;
+                const nextStart = Math.max(0, Math.min(dragging.startMs + deltaMs, dragging.startMs + dragging.startDurationMs - minDuration));
+                const nextDuration = Math.max(minDuration, dragging.startDurationMs + (dragging.startMs - nextStart));
+                onUpdateOverlay(dragging.overlayId, {
+                    timelineStartMs: Math.round(nextStart),
+                    durationMs: Math.round(nextDuration),
+                });
+                return;
+            }
+
+            const minDuration = 250;
+            const nextDuration = Math.max(minDuration, Math.min(durationMs - dragging.startMs, dragging.startDurationMs + deltaMs));
+            onUpdateOverlay(dragging.overlayId, { durationMs: Math.round(nextDuration) });
         };
 
         const handleUp = () => setDragging(null);
@@ -101,7 +140,7 @@ export function OverlayTrack({
         <div className="group">
             {/* Header */}
             <div className="mb-1.5 flex items-center gap-2">
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#f5a623]/10 bg-[#0a0a08]/60 px-2.5 py-1.5 bg-[#a855f7]/10 text-[#c084fc]">
+                <div className="flex items-center gap-1.5 rounded-lg border border-[#f5a623]/10 bg-[#a855f7]/10 px-2.5 py-1.5 text-[#c084fc]">
                     <Type className="h-3.5 w-3.5" />
                     <span className="text-xs font-medium">OVERLAYS</span>
                 </div>
@@ -131,7 +170,7 @@ export function OverlayTrack({
                     return (
                         <div
                             key={overlay.id}
-                            onMouseDown={(e) => handleMouseDown(e, overlay)}
+                            onMouseDown={(e) => startDrag(e, overlay, "move")}
                             className={`absolute top-1.5 bottom-1.5 rounded-lg border overflow-hidden
                                 transition-all duration-150 cursor-grab active:cursor-grabbing
                                 group/overlay
@@ -147,10 +186,18 @@ export function OverlayTrack({
                             }}
                         >
                             <div className="flex h-full items-center px-1.5 gap-1">
+                                <div
+                                    className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/20"
+                                    onMouseDown={(e) => startDrag(e, overlay, "resize-start")}
+                                />
                                 <Type className="h-3 w-3 text-[#c084fc] shrink-0" />
                                 <span className="truncate text-[10px] font-medium text-[#fff5de]/90">
                                     {overlay.content.text}
                                 </span>
+                                <div
+                                    className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/20"
+                                    onMouseDown={(e) => startDrag(e, overlay, "resize-end")}
+                                />
                             </div>
 
                             {/* Delete button */}
