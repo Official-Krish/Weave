@@ -8,8 +8,10 @@ export function useMediaExtraction(
 ) {
   const [thumbnailsByAsset, setThumbnailsByAsset] = useState<Record<string, string[]>>({});
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [extractingAssets, setExtractingAssets] = useState<Record<string, boolean>>({});
 
   const extractThumbnailsForAsset = useCallback(async (assetId: string, url: string, assetDurationMs: number) => {
+    setExtractingAssets(prev => ({ ...prev, [assetId]: true }));
     try {
       const video = document.createElement("video");
       video.crossOrigin = "anonymous";
@@ -31,7 +33,7 @@ export function useMediaExtraction(
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const count = Math.min(40, Math.max(10, Math.floor(durSec * 1000 / 1500)));
+      const count = Math.min(25, Math.max(5, Math.floor(durSec * 1000 / 2000)));
       const thumbs: string[] = [];
       for (let i = 0; i < count; i += 1) {
         const t = durSec * (i / Math.max(1, count - 1));
@@ -41,11 +43,20 @@ export function useMediaExtraction(
           video.currentTime = Math.max(0, Math.min(t, durSec - 0.05));
         });
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        thumbs.push(canvas.toDataURL("image/jpeg", 0.62));
+        thumbs.push(canvas.toDataURL("image/webp", 0.5));
+        
+        // Incrementally update state so frames appear progressively
+        if (i % 5 === 0 || i === count - 1) {
+          setThumbnailsByAsset((prev) => ({ ...prev, [assetId]: [...thumbs] }));
+        }
+        
+        // Yield to the main thread to prevent UI freezing
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
-      setThumbnailsByAsset((prev) => ({ ...prev, [assetId]: thumbs }));
     } catch (error) {
       console.warn(`Thumbnail extraction failed for asset ${assetId}`, error);
+    } finally {
+      setExtractingAssets(prev => ({ ...prev, [assetId]: false }));
     }
   }, []);
 
@@ -92,5 +103,5 @@ export function useMediaExtraction(
     return () => { cancelled = true; };
   }, [assetsById, sourceUrl, durationMs, thumbnailsByAsset, waveformData.length, extractThumbnailsForAsset]);
 
-  return { thumbnailsByAsset, waveformData, extractThumbnailsForAsset };
+  return { thumbnailsByAsset, waveformData, extractThumbnailsForAsset, extractingAssets };
 }

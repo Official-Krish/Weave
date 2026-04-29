@@ -24,6 +24,7 @@ interface TimelineProps {
   onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
   splitMode: boolean;
   thumbnailsByAsset: Record<string, string[]>;
+  extractingAssets: Record<string, boolean>;
   waveformData: number[];
   assetsById: Record<string, any>;
   timelineZoom: number;
@@ -55,6 +56,7 @@ export function Timeline({
   onDeleteOverlay,
   overlays,
   thumbnailsByAsset,
+  extractingAssets,
   waveformData,
   assetsById,
   timelineZoom,
@@ -245,6 +247,7 @@ export function Timeline({
                   onSplitClip={onSplitClip}
                   splitMode={splitMode}
                   thumbnailsByAsset={thumbnailsByAsset}
+                  extractingAssets={extractingAssets}
                   waveformData={waveformData}
                   assetsById={assetsById}
                   onSelectTransition={onSelectTransition}

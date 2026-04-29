@@ -106,7 +106,7 @@ export function Editor() {
     toast.info("Redid action");
   }, [handleRedo]);
 
-  const { thumbnailsByAsset, waveformData, extractThumbnailsForAsset } = useMediaExtraction(
+  const { thumbnailsByAsset, waveformData, extractThumbnailsForAsset, extractingAssets } = useMediaExtraction(
     assetsById, sourceUrl, durationMs
   );
 
@@ -433,6 +433,7 @@ export function Editor() {
           onSplitClip={handleSplitClip}
           splitMode={splitMode}
           thumbnailsByAsset={thumbnailsByAsset}
+          extractingAssets={extractingAssets}
           waveformData={waveformData}
           assetsById={assetsById}
           timelineZoom={timelineZoom}

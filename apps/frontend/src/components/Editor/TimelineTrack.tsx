@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Track, Clip } from "./types";
-import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X, Blend } from "lucide-react";
+import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X, Blend, Loader2 } from "lucide-react";
 import { getTrackColors } from "./helpers";
 
 interface TimelineTrackProps {
@@ -16,6 +16,7 @@ interface TimelineTrackProps {
   onSplitClip: (trackIndex: number, clipId: string, timelineMs: number) => void;
   splitMode: boolean;
   thumbnailsByAsset: Record<string, string[]>;
+  extractingAssets: Record<string, boolean>;
   waveformData: number[];
   assetsById: Record<string, any>;
   // Transition props
@@ -45,6 +46,7 @@ export function TimelineTrack({
   onSplitClip,
   splitMode,
   thumbnailsByAsset,
+  extractingAssets,
   waveformData,
   assetsById,
   onSelectTransition,
@@ -197,14 +199,17 @@ export function TimelineTrack({
 
     if (trackType === "VIDEO") {
       const assetThumbs = thumbnailsByAsset[clip.sourceAssetId];
+      const isExtracting = extractingAssets[clip.sourceAssetId];
+
       if (!assetThumbs || assetThumbs.length === 0) {
         // Placeholder shimmer when thumbnails are loading
         return (
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
             <div
-              className="h-full w-[200%] bg-gradient-to-r from-transparent via-white/5 to-transparent"
+              className="absolute inset-0 h-full w-[200%] bg-gradient-to-r from-transparent via-white/5 to-transparent"
               style={{ animation: "editor-slide-shimmer 1.5s ease-in-out infinite" }}
             />
+            {isExtracting && <Loader2 className="h-4 w-4 text-[#f5a623] animate-spin absolute" />}
           </div>
         );
       }
@@ -251,12 +256,19 @@ export function TimelineTrack({
           ))}
           {/* Subtle dark overlay for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+
+          {/* Spinner overlay if still extracting more frames */}
+          {isExtracting && (
+            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+              <Loader2 className="h-4 w-4 text-[#f5dc5f] animate-spin" />
+            </div>
+          )}
         </div>
       );
     }
 
     return null;
-  }, [thumbnailsByAsset, assetsById, durationMs, waveformData]);
+  }, [thumbnailsByAsset, extractingAssets, assetsById, durationMs, waveformData]);
 
   return (
     <div className="group">
@@ -442,7 +454,7 @@ export function TimelineTrack({
               />
 
               {/* Transition indicators and controls */}
-              
+
               {/* Drag Over Drop Zone Indicators */}
               {dragOverZone?.clipId === clipId && dragOverZone.position === "start" && (
                 <div className="absolute left-0 top-0 bottom-0 w-1/4 max-w-[60px] bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-l-lg" />
