@@ -202,7 +202,7 @@ export function RecordingsPage({
                             </span>
                             <span className="inline-flex items-center gap-1">
                               <Clock3 className="size-3" />
-                              {getDuration(meeting.recordingStartedAt, meeting.recordingStoppedAt)}
+                              {getDuration(meeting.startedAt, meeting.endedAt)}
                             </span>
                           </div>
                         </div>

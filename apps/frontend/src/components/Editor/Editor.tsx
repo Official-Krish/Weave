@@ -64,6 +64,20 @@ export function Editor() {
   const [transitionOpacity, setTransitionOpacity] = useState(1);
   const [containerSize, setContainerSize] = useState({ width: 1280, height: 720 });
 
+  // Automatically recalculate duration when clips/overlays are added, deleted, or split
+  useEffect(() => {
+    let maxMs = 0;
+    tracks.forEach((track) => {
+      track.clips.forEach((clip) => {
+        maxMs = Math.max(maxMs, clip.timelineStartMs + clip.durationMs);
+      });
+    });
+    overlays.forEach((overlay) => {
+      maxMs = Math.max(maxMs, overlay.timelineStartMs + overlay.durationMs);
+    });
+    setDurationMs(maxMs > 0 ? maxMs + 2000 : 0);
+  }, [tracks, overlays]);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timeUpdateRef = useRef<((t: number) => void) | null>(null);
@@ -122,6 +136,7 @@ export function Editor() {
     onPlayStateChange: (p) => playStateChangeRef.current?.(p),
     overlays,
     timelineTimeMs: timelineTime,
+    videoAlpha: transitionOpacity,
   });
 
   useEffect(() => {
@@ -214,12 +229,12 @@ export function Editor() {
           <div className="lg:col-span-2" ref={containerRef}>
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">
               {sourceUrl ? (
-                <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden" style={{ opacity: transitionOpacity }}>
+                <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
                   <CanvasPlayer
                     canvasRef={canvasRef}
                     videoRef={videoRef}
                     isLoaded={canvasState.isLoaded}
-                    onClickToggle={handlePlayPause}
+                    onClickToggle={() => setSelectedOverlayId(null)}
                     onDoubleClickFullscreen={() => canvasRef.current?.requestFullscreen?.()}
                   />
 

@@ -7,6 +7,7 @@ export interface RenderState {
   offsetY: number;
   trimStart: number; // seconds
   trimEnd: number; // seconds
+  videoAlpha: number;
 }
 
 export interface RenderOverlay {
@@ -41,6 +42,7 @@ export function startRenderLoop(
       offsetY,
       trimStart,
       trimEnd,
+      videoAlpha,
     } = getState();
 
     // Trim enforcement
@@ -56,6 +58,7 @@ export function startRenderLoop(
 
     // Draw video with transforms
     ctx.save();
+    ctx.globalAlpha = videoAlpha;
     const drawW = canvas.width * stretchX;
     const drawH = canvas.height * stretchY;
     const drawX = (canvas.width - drawW) / 2 + offsetX;
@@ -96,10 +99,11 @@ export function drawSingleFrame(
   state: RenderState,
   overlays?: RenderOverlay[]
 ) {
-  const { stretchX, stretchY, offsetX, offsetY } = state;
+  const { stretchX, stretchY, offsetX, offsetY, videoAlpha } = state;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
+  ctx.globalAlpha = videoAlpha;
   const drawW = canvas.width * stretchX;
   const drawH = canvas.height * stretchY;
   const drawX = (canvas.width - drawW) / 2 + offsetX;
@@ -120,12 +124,15 @@ export function drawSingleFrame(
 function drawTextOverlay(
   ctx: CanvasRenderingContext2D,
   overlay: Overlay,
-  _canvasW: number,
-  _canvasH: number
+  canvasW: number,
+  canvasH: number
 ) {
   const { content, transform, style } = overlay;
   const text = content.text;
   if (!text) return;
+
+  const scaleX = canvasW / 1280;
+  const scaleY = canvasH / 720;
 
   const fontSize = style?.fontSize || 24;
   const fontFamily = style?.fontFamily || "Inter, system-ui, sans-serif";
@@ -135,6 +142,7 @@ function drawTextOverlay(
   const textAlign = style?.textAlign || "left";
 
   ctx.save();
+  ctx.scale(scaleX, scaleY);
   ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
   ctx.fillStyle = color;
   ctx.textAlign = textAlign as CanvasTextAlign;

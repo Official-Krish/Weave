@@ -10,6 +10,7 @@ export interface UseCanvasVideoOptions {
   onPlayStateChange?: (playing: boolean) => void;
   overlays?: Overlay[];
   timelineTimeMs?: number;
+  videoAlpha?: number;
 }
 
 export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {}) {
@@ -20,6 +21,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     onPlayStateChange,
     overlays = [],
     timelineTimeMs = 0,
+    videoAlpha = 1,
   } = options;
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -54,6 +56,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     offsetY: 0,
     trimStart: 0,
     trimEnd: 0,
+    videoAlpha: 1,
   });
 
   const overlaysRef = useRef<Overlay[]>([]);
@@ -62,7 +65,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
   const onPlayStateChangeRef = useRef(onPlayStateChange);
 
   // Update refs synchronously during render (no effects needed for refs)
-  transformRef.current = { stretchX, stretchY, offsetX, offsetY, trimStart, trimEnd };
+  transformRef.current = { stretchX, stretchY, offsetX, offsetY, trimStart, trimEnd, videoAlpha };
   overlaysRef.current = overlays;
   timelineTimeMsRef.current = timelineTimeMs;
   onTimeUpdateRef.current = onTimeUpdate;
@@ -277,7 +280,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     const video = videoRef.current;
     if (!video || !video.paused || !isLoaded) return;
     drawCurrentFrame();
-  }, [stretchX, stretchY, offsetX, offsetY, drawCurrentFrame, isLoaded]);
+  }, [stretchX, stretchY, offsetX, offsetY, videoAlpha, drawCurrentFrame, isLoaded]);
 
   // ─── Redraw on overlay change (when paused) ───────────────────────
   useEffect(() => {

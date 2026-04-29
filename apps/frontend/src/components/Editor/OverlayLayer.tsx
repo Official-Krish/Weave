@@ -1,6 +1,6 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import type { Overlay } from "./types";
-import { X } from "lucide-react";
+import { X, Check } from "lucide-react";
 
 interface OverlayLayerProps {
   overlays: Overlay[];
@@ -125,34 +125,44 @@ export function OverlayLayer({
         const scaleY = containerSize.height / stageHeight;
 
         return (
-          <input
-            autoFocus
-            className="pointer-events-auto"
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            onBlur={handleCommitTextEdit}
-            onKeyDown={e => {
-              e.stopPropagation();
-              if (e.key === "Enter") handleCommitTextEdit();
-              if (e.key === "Escape") setEditingOverlayId(null);
-            }}
-            style={{
-              position: "absolute",
-              left: overlay.transform.x * scaleX,
-              top: overlay.transform.y * scaleY,
-              fontSize: (overlay.style?.fontSize || 24) * scaleX,
-              fontFamily: overlay.style?.fontFamily || "Inter, system-ui, sans-serif",
-              color: overlay.style?.color || "#ffffff",
-              background: "rgba(0,0,0,0.7)",
-              border: "2px solid #f5a623",
-              borderRadius: 6,
-              padding: "4px 8px",
-              outline: "none",
-              minWidth: 100,
-              zIndex: 60,
-              backdropFilter: "blur(8px)",
-            }}
-          />
+          <>
+            <div
+              className="fixed inset-0 z-50 pointer-events-auto"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleCommitTextEdit();
+              }}
+            />
+            <input
+              autoFocus
+              className="pointer-events-auto"
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onBlur={handleCommitTextEdit}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === "Enter") handleCommitTextEdit();
+                if (e.key === "Escape") setEditingOverlayId(null);
+              }}
+              style={{
+                position: "absolute",
+                left: overlay.transform.x * scaleX,
+                top: overlay.transform.y * scaleY,
+                fontSize: (overlay.style?.fontSize || 24) * scaleX,
+                fontFamily: overlay.style?.fontFamily || "Inter, system-ui, sans-serif",
+                color: overlay.style?.color || "#ffffff",
+                background: "rgba(0,0,0,0.7)",
+                border: "2px solid #f5a623",
+                borderRadius: 6,
+                padding: "4px 8px",
+                outline: "none",
+                minWidth: 100,
+                zIndex: 60,
+                backdropFilter: "blur(8px)",
+              }}
+            />
+          </>
         );
       })()}
 
@@ -244,6 +254,13 @@ export function OverlayLayer({
               <option value="right">Right</option>
             </select>
             <div className="h-4 w-px bg-[#f5a623]/20" />
+            <button
+              className="rounded px-1.5 py-0.5 bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors"
+              onClick={() => setSelectedOverlayId(null)}
+              title="Deselect overlay"
+            >
+              <Check className="h-3 w-3" />
+            </button>
             <button
               className="rounded px-1.5 py-0.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
               onClick={() => handleDeleteOverlay(overlay.id!)}

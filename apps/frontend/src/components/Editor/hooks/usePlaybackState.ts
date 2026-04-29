@@ -88,9 +88,12 @@ export function usePlaybackState(
     const TRANSITION_DURATION = 300;
 
     const remaining = clipEnd - videoTimeMs;
+    const elapsed = videoTimeMs - currentClip.sourceStartMs;
 
     if (currentClip.transitionOut === "fade" && remaining < TRANSITION_DURATION) {
       setTransitionOpacity(Math.max(0, remaining / TRANSITION_DURATION));
+    } else if (currentClip.transitionIn === "fade" && elapsed < TRANSITION_DURATION) {
+      setTransitionOpacity(Math.max(0, elapsed / TRANSITION_DURATION));
     } else {
       setTransitionOpacity(1);
     }

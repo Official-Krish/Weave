@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Track, Clip } from "./types";
-import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X } from "lucide-react";
+import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X, Blend } from "lucide-react";
 import { getTrackColors } from "./helpers";
 
 interface TimelineTrackProps {
@@ -341,17 +341,17 @@ export function TimelineTrack({
               className={`absolute top-1 bottom-1 overflow-hidden rounded-lg transition-all duration-150
                 ${isVideoTrack
                   ? `border-2 ${isActive
-                      ? "border-[#eab308] ring-2 ring-[#eab308]/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]"
-                      : isSelected
-                        ? "border-[#eab308] shadow-[0_0_8px_rgba(234,179,8,0.3)]"
-                        : "border-[#eab308]/60"
-                    }`
+                    ? "border-[#eab308] ring-2 ring-[#eab308]/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]"
+                    : isSelected
+                      ? "border-[#eab308] shadow-[0_0_8px_rgba(234,179,8,0.3)]"
+                      : "border-[#eab308]/60"
+                  }`
                   : `border ${isActive
-                      ? "ring-2 ring-[#f5a623] shadow-[0_0_10px_rgba(245,166,35,0.6)]"
-                      : isSelected
-                        ? colors.clipSelected
-                        : colors.clip
-                    }`
+                    ? "ring-2 ring-[#f5a623] shadow-[0_0_10px_rgba(245,166,35,0.6)]"
+                    : isSelected
+                      ? colors.clipSelected
+                      : colors.clip
+                  }`
                 }
                 group/clip hover:shadow-[0_2px_12px_rgba(234,179,8,0.3)]`}
               style={{
@@ -403,10 +403,41 @@ export function TimelineTrack({
                 }}
               />
 
-              {/* Transition fade indicator */}
+              {/* Transition fade out indicator */}
               {clip.transitionOut === "fade" && (
-                <div className="absolute right-0 h-full w-3 bg-linear-to-r from-transparent to-black/60 z-[6] pointer-events-none" />
+                <div className="absolute right-0 h-full w-4 bg-gradient-to-r from-transparent to-black/60 z-[6] pointer-events-none" />
               )}
+              {/* Transition fade in indicator */}
+              {clip.transitionIn === "fade" && (
+                <div className="absolute left-0 h-full w-4 bg-gradient-to-l from-transparent to-black/60 z-[6] pointer-events-none" />
+              )}
+
+              {/* Fade In Toggle */}
+              <button
+                className={`absolute left-1.5 top-1.5 z-20 flex h-4 w-4 items-center justify-center rounded text-[8px] shadow-md opacity-0 transition-all group-hover/clip:opacity-100 hover:scale-110 ${clip.transitionIn === "fade" ? "bg-[#f5a623] text-black" : "bg-black/50 text-white hover:bg-black/80"
+                  }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateClip(index, clipId, { transitionIn: clip.transitionIn === "fade" ? "cut" : "fade" });
+                }}
+                title={clip.transitionIn === "fade" ? "Fade In: On" : "Fade In: Off"}
+              >
+                Blend
+                <Blend className="h-2.5 w-2.5" />
+              </button>
+
+              {/* Fade Out Toggle */}
+              <button
+                className={`absolute right-1.5 top-1.5 z-20 flex h-4 w-4 items-center justify-center rounded text-[8px] shadow-md opacity-0 transition-all group-hover/clip:opacity-100 hover:scale-110 ${clip.transitionOut === "fade" ? "bg-[#f5a623] text-black" : "bg-black/50 text-white hover:bg-black/80"
+                  }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateClip(index, clipId, { transitionOut: clip.transitionOut === "fade" ? "cut" : "fade" });
+                }}
+                title={clip.transitionOut === "fade" ? "Fade Out: On" : "Fade Out: Off"}
+              >
+                <Blend className="h-2.5 w-2.5" />
+              </button>
 
               {/* Delete button — yellow ✕ in bottom-right, matching reference */}
               <button

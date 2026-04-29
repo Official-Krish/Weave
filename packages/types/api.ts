@@ -101,6 +101,8 @@ export type RecordingPageResponse = {
   userEmail?: string | null;
   canViewRecording: boolean;
   visibleToEmails: string[];
+  startedAt?: string | null;
+  endedAt?: string | null;
   participants: {
     email?: string | null;
     role: string;
@@ -114,6 +116,8 @@ export type MeetingDetails = {
   roomName: string | null;
   isEnded: boolean;
   createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
 
   isHost: boolean;
 
@@ -127,8 +131,6 @@ export type MeetingDetails = {
   }[];
 
   recordingState: "IDLE" | "RECORDING" | "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
-  recordingStartedAt: string | null;
-  recordingStoppedAt: string | null;
   processingStartedAt: string | null;
   processingEndedAt: string | null;
 

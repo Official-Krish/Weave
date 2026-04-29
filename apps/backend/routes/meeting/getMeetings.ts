@@ -84,6 +84,9 @@ getMeetingsRouter.get("/getAll", authMiddleware, async (req, res) => {
                 isEnded: meeting.isEnded,
                 recordingState: meeting.recordingState,
                 createdAt: meeting.createdAt,
+                startedAt: meeting.recordingStartedAt,
+                endedAt: meeting.recordingStoppedAt,
+
 
                 participants: meeting.participants.map(p => ({
                     id: p.user.id,
