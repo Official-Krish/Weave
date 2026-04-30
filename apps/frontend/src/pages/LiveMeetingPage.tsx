@@ -15,6 +15,7 @@ import { useMeetingRealtime } from "../hooks/useMeetingRealtime";
 import { useMeetingRecording } from "../hooks/useMeetingRecording";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
 import { http } from "../https";
+import { getParticipantMediaState } from "../lib/participantMediaState";
 import type { FocusedTiles, MeetingConnectionState, MeetingParticipantState, MeetingTile, RemoteAudioTrackItem } from "../types/meeting";
 
 export function LiveMeetingPage() {
@@ -24,6 +25,7 @@ export function LiveMeetingPage() {
   const [ending, setEnding] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const endingRef = useRef(false);
+  const initialRecordingStartedRef = useRef(false);
 
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
@@ -34,17 +36,6 @@ export function LiveMeetingPage() {
 
   useEffect(() => {
     endingRef.current = ending;
-    if(initialRecordingState) {
-      toast("This meeting is currently being recorded", {
-        description: "Please be aware that your audio and video may be recorded during this meeting.",
-        duration: 4000,
-      });
-      startRecordingMutation.mutate(undefined, {
-        onSuccess: () => {
-          sendRecordingState(true);
-        },
-      });
-    }
   }, [ending]);
 
   const {
@@ -76,6 +67,96 @@ export function LiveMeetingPage() {
     selectedMicId,
   });
 
+  const {
+    isUploadingChunks,
+    recordingError,
+    startRecordingMutation,
+    stopRecordingMutation,
+    isRecordingBusy,
+    recordingButtonLabel,
+    stopLocalChunkRecorder,
+    hasActiveRecorder,
+    isMeetingEnded,
+  } = useMeetingRecording({
+    meetingId,
+    roomName,
+    localParticipantId,
+    connectionState,
+    isRecording,
+    setIsRecording,
+    selectedMicId,
+  });
+
+  const {
+    chatMessages,
+    typingNames,
+    unreadCount,
+    sendChatMessage,
+    setTyping,
+    sendMeetingEnded,
+    sendRecordingState,
+    sendMediaState,
+    participantMediaStates,
+  } = useMeetingRealtime({
+    roomId: roomName,
+    displayName,
+    participantId: localParticipantId,
+    isHost,
+    enabled: Boolean(localParticipantId),
+    localMediaState: {
+      isMuted,
+      isVideoOff,
+    },
+    onRemoteRecordingState: setIsRecording,
+    onParticipantJoined: (participant) => {
+      toast.success(`${participant.displayName} joined the meeting`);
+    },
+    onParticipantLeft: (participant) => {
+      toast(`${participant.displayName} left the meeting`);
+    },
+    onMeetingEnded: ({ displayName: endedBy }) => {
+      if (isHost) {
+        return;
+      }
+
+      if (endingRef.current) {
+        return;
+      }
+
+      toast.error(`Meeting ended by ${endedBy}`);
+      void handleRemoteMeetingEnded();
+    },
+    isChatOpen,
+  });
+
+  useEffect(() => {
+    if (!localParticipantId) {
+      return;
+    }
+
+    sendMediaState({
+      isMuted,
+      isVideoOff,
+    });
+  }, [isMuted, isVideoOff, localParticipantId, sendMediaState]);
+
+  useEffect(() => {
+    if (!initialRecordingState || initialRecordingStartedRef.current) {
+      return;
+    }
+
+    initialRecordingStartedRef.current = true;
+    toast("This meeting is currently being recorded", {
+      description: "Please be aware that your audio and video may be recorded during this meeting.",
+      duration: 4000,
+    });
+    startRecordingMutation.mutate(undefined, {
+      onSuccess: () => {
+        sendRecordingState(true);
+      },
+    });
+  }, [initialRecordingState, sendRecordingState, startRecordingMutation]);
+
   const allTiles = useMemo<MeetingTile[]>(() => {
     const remoteTiles = participants.flatMap((participant) => {
       const cameraTrack =
@@ -86,9 +167,10 @@ export function LiveMeetingPage() {
         null;
 
       const participantName = participant.displayName || participant.id;
-      const audioTrack = participant.tracks.find((track) => track.getType?.() === "audio") || null;
-      const isParticipantMuted = Boolean(audioTrack?.isMuted?.());
-      const isParticipantVideoOff = !cameraTrack || Boolean(cameraTrack?.isMuted?.());
+      const mediaState = getParticipantMediaState(participantMediaStates, participant.id, {
+        isMuted: false,
+        isVideoOff: !cameraTrack,
+      });
 
       const tiles = [
         {
@@ -97,8 +179,8 @@ export function LiveMeetingPage() {
           subtitle: "Remote participant",
           track: cameraTrack,
           participantId: participant.id,
-          isMuted: isParticipantMuted,
-          isVideoOff: isParticipantVideoOff,
+          isMuted: mediaState.isMuted,
+          isVideoOff: mediaState.isVideoOff,
           isScreenSharing: Boolean(screenTrack),
         },
       ];
@@ -110,7 +192,7 @@ export function LiveMeetingPage() {
           subtitle: "Screen share",
           track: screenTrack,
           participantId: participant.id,
-          isMuted: isParticipantMuted,
+          isMuted: mediaState.isMuted,
           isVideoOff: false,
           isScreenSharing: true,
         });
@@ -149,33 +231,41 @@ export function LiveMeetingPage() {
       ...tiles,
       ...remoteTiles,
     ];
-  }, [displayName, localScreenTrack, localVideoTrack, participants]);
+  }, [displayName, isMuted, isScreenSharing, isVideoOff, localScreenTrack, localVideoTrack, participantMediaStates, participants]);
 
   const remoteAudioTracks = useMemo<RemoteAudioTrackItem[]>(
     () =>
       participants
-        .map((participant) => ({
-          id: participant.id,
-          track: participant.tracks.find((track) => track.getType?.() === "audio") || null,
-        }))
+        .map((participant) => {
+          const mediaState = getParticipantMediaState(participantMediaStates, participant.id);
+          return {
+            id: participant.id,
+            track: mediaState.isMuted
+              ? null
+              : participant.tracks.find((track) => track.getType?.() === "audio") || null,
+          };
+        })
         .filter((item) => item.track),
-    [participants]
+    [participantMediaStates, participants]
   );
 
   const participantList = useMemo<MeetingParticipantState[]>(
     () => {
       const remoteParticipants = participants.map((participant) => {
-        const audioTrack = participant.tracks.find((track) => track.getType?.() === "audio") || null;
         const cameraTrack =
           participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") || null;
         const screenTrack =
           participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") || null;
+        const mediaState = getParticipantMediaState(participantMediaStates, participant.id, {
+          isMuted: false,
+          isVideoOff: !cameraTrack,
+        });
 
         return {
           id: participant.id,
           name: participant.displayName || participant.id,
-          isMuted: Boolean(audioTrack?.isMuted?.()),
-          isVideoOff: !cameraTrack || Boolean(cameraTrack?.isMuted?.()),
+          isMuted: mediaState.isMuted,
+          isVideoOff: mediaState.isVideoOff,
           isScreenSharing: Boolean(screenTrack),
         };
       });
@@ -192,7 +282,7 @@ export function LiveMeetingPage() {
         ...remoteParticipants,
       ];
     },
-    [displayName, isMuted, isScreenSharing, isVideoOff, participants]
+    [displayName, isMuted, isScreenSharing, isVideoOff, participantMediaStates, participants]
   );
 
   const focusedTiles = useMemo<FocusedTiles | null>(() => {
@@ -210,61 +300,6 @@ export function LiveMeetingPage() {
       others: allTiles.filter((tile) => tile.id !== selectedParticipantId),
     };
   }, [activeLayout, allTiles, selectedParticipantId]);
-
-  const {
-    isUploadingChunks,
-    recordingError,
-    startRecordingMutation,
-    stopRecordingMutation,
-    isRecordingBusy,
-    recordingButtonLabel,
-    stopLocalChunkRecorder,
-    hasActiveRecorder,
-    isMeetingEnded,
-  } = useMeetingRecording({
-    meetingId,
-    roomName,
-    localParticipantId,
-    connectionState,
-    isRecording,
-    setIsRecording,
-    selectedMicId,
-  });
-
-  const {
-    chatMessages,
-    typingNames,
-    unreadCount,
-    sendChatMessage,
-    setTyping,
-    sendMeetingEnded,
-    sendRecordingState,
-  } = useMeetingRealtime({
-    roomId: roomName,
-    displayName,
-    participantId: localParticipantId,
-    isHost,
-    onRemoteRecordingState: setIsRecording,
-    onParticipantJoined: (participant) => {
-      toast.success(`${participant.displayName} joined the meeting`);
-    },
-    onParticipantLeft: (participant) => {
-      toast(`${participant.displayName} left the meeting`);
-    },
-    onMeetingEnded: ({ displayName: endedBy }) => {
-      if (isHost) {
-        return;
-      }
-
-      if (endingRef.current) {
-        return;
-      }
-
-      toast.error(`Meeting ended by ${endedBy}`);
-      void handleRemoteMeetingEnded();
-    },
-    isChatOpen,
-  });
 
   const endMeetingMutation = useMutation({
     mutationFn: async () => {
@@ -417,8 +452,28 @@ export function LiveMeetingPage() {
         canToggleRecording={connectionState === "connected"}
         unreadMessages={unreadCount}
         recordingButtonLabel={recordingButtonLabel}
-        onToggleAudio={toggleAudio}
-        onToggleVideo={toggleVideo}
+        onToggleAudio={async () => {
+          const nextMuted = await toggleAudio();
+          if (nextMuted === null) {
+            return;
+          }
+
+          sendMediaState({
+            isMuted: nextMuted,
+            isVideoOff,
+          });
+        }}
+        onToggleVideo={async () => {
+          const nextVideoOff = await toggleVideo();
+          if (nextVideoOff === null) {
+            return;
+          }
+
+          sendMediaState({
+            isMuted,
+            isVideoOff: nextVideoOff,
+          });
+        }}
         onToggleScreenShare={toggleScreenShare}
         onToggleSidebar={() => {
           setIsChatOpen(false);

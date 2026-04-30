@@ -23,6 +23,21 @@ export function upsertParticipant(roomId: string, participant: RoomParticipant) 
   roomParticipants.get(roomId)?.set(participant.participantId, participant);
 }
 
+export function updateParticipantMediaState(
+  roomId: string,
+  participantId: string,
+  mediaState: Pick<RoomParticipant, "isMuted" | "isVideoOff">
+) {
+  const participant = roomParticipants.get(roomId)?.get(participantId);
+  if (!participant) {
+    return null;
+  }
+
+  participant.isMuted = mediaState.isMuted;
+  participant.isVideoOff = mediaState.isVideoOff;
+  return participant;
+}
+
 export function addSocketToRoom(roomId: string, ws: RelayerSocket) {
   if (!roomSockets.has(roomId)) {
     roomSockets.set(roomId, new Set());

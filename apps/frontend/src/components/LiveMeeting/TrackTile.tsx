@@ -1,6 +1,11 @@
 import { Mic, MicOff, MonitorUp, User, Video, VideoOff } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+type VideoTrackLike = {
+  attach?: (element: HTMLVideoElement) => void;
+  detach?: (element: HTMLVideoElement) => void;
+};
+
 export function TrackTile({
   title,
   subtitle,
@@ -13,7 +18,7 @@ export function TrackTile({
 }: {
   title: string;
   subtitle?: string;
-  track: any | null;
+  track: VideoTrackLike | null;
   onClick?: () => void;
   isMuted?: boolean;
   isVideoOff?: boolean;
@@ -23,24 +28,25 @@ export function TrackTile({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (!track || !videoRef.current) {
+    const videoElement = videoRef.current;
+    if (!track || isVideoOff || !videoElement) {
       return;
     }
 
     try {
-      track.attach(videoRef.current);
+      track.attach?.(videoElement);
     } catch {
       // no-op
     }
 
     return () => {
       try {
-        track.detach(videoRef.current);
+        track.detach?.(videoElement);
       } catch {
         // no-op
       }
     };
-  }, [track]);
+  }, [isVideoOff, track]);
 
   return (
     <button
@@ -51,7 +57,7 @@ export function TrackTile({
         className ?? "",
       ].join(" ")}
     >
-      {track ? (
+      {track && !isVideoOff ? (
         <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-45 w-full object-cover" />
       ) : (
         <div className="flex min-h-45 w-full items-center justify-center bg-[#110d08] text-[#cfb07a]">

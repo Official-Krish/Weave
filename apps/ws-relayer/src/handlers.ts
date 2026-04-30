@@ -6,6 +6,7 @@ import {
   roomParticipants,
   roomRecordingStates,
   socketMetadata,
+  updateParticipantMediaState,
   upsertParticipant,
 } from "./state";
 import { broadcastToRoom, normalizeText, sendJson } from "./socket-utils";
@@ -120,6 +121,8 @@ function handleJoinRoom(ws: RelayerSocket, data: WsPayload, roomId: string) {
   const participantId =
     (typeof data.participantId === "string" && data.participantId.trim()) || crypto.randomUUID();
   const isHost = Boolean(data.isHost);
+  const isMuted = typeof data.isMuted === "boolean" ? data.isMuted : false;
+  const isVideoOff = typeof data.isVideoOff === "boolean" ? data.isVideoOff : false;
 
   if (isHost) {
     clearPendingHostDisconnect(roomId);
@@ -131,6 +134,8 @@ function handleJoinRoom(ws: RelayerSocket, data: WsPayload, roomId: string) {
     displayName,
     isTyping: false,
     isHost,
+    isMuted,
+    isVideoOff,
   });
 
   const metadata: SocketMetadata = {
@@ -160,6 +165,8 @@ function handleJoinRoom(ws: RelayerSocket, data: WsPayload, roomId: string) {
         displayName,
         isTyping: false,
         isHost,
+        isMuted,
+        isVideoOff,
       },
     },
     ws
@@ -256,6 +263,36 @@ export function handleSocketMessage(ws: RelayerSocket, data: WsPayload) {
       },
       ws
     );
+    return;
+  }
+
+  if (type === "media-state") {
+    if (typeof data.isMuted !== "boolean" || typeof data.isVideoOff !== "boolean") {
+      sendJson(ws, {
+        type: "error",
+        message: "isMuted and isVideoOff are required for media-state",
+      });
+      return;
+    }
+
+    const participant = updateParticipantMediaState(roomId, metadata.participantId, {
+      isMuted: data.isMuted,
+      isVideoOff: data.isVideoOff,
+    });
+
+    if (!participant) {
+      sendJson(ws, { type: "error", message: "Participant not found in room" });
+      return;
+    }
+
+    broadcastToRoom(roomId, {
+      type: "participant-media-state",
+      roomId,
+      participantId: metadata.participantId,
+      displayName: metadata.displayName,
+      isMuted: participant.isMuted,
+      isVideoOff: participant.isVideoOff,
+    });
     return;
   }
 
