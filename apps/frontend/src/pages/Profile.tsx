@@ -28,6 +28,8 @@ export default function ProfilePage() {
     const user: User = userQuery.data ?? {
         name: "Error fetching user",
         email: "Error fetching email",
+        googleId: null,
+        githubUsername: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         hostedMeetings: [],
@@ -126,7 +128,7 @@ export default function ProfilePage() {
                         )}
 
                         {activeTab === "integrations" && (
-                            <Integerations dark={dark} />
+                            <Integerations dark={dark} googleId={user.googleId} githubUsername={user.githubUsername} />
                         )}
                     </section>
                 </div>

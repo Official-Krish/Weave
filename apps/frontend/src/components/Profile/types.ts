@@ -8,6 +8,8 @@ export type Meeting = {
 export type User = {
   name: string;
   email: string;
+  googleId: string | null;
+  githubUsername: string | null;
   createdAt: string;
   updatedAt: string;
   hostedMeetings: Meeting[];
