@@ -1,5 +1,4 @@
 import { BACKEND_URL } from "@/lib/config";
-import { formatDate } from "./helpers";
 import type { Meeting } from "./types";
 import { useGoogleAuth } from "../Authentication/useAuthMutations";
 import { useAuth } from "@/hooks/useAuth";

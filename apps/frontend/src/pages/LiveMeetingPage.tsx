@@ -1,7 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { toast } from "sonner";
 import { AudioTrackSink } from "../components/LiveMeeting/AudioTrackSink";
 import { MeetingAlerts } from "../components/LiveMeeting/MeetingAlerts";
@@ -16,7 +21,13 @@ import { useMeetingRecording } from "../hooks/useMeetingRecording";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
 import { http } from "../https";
 import { getParticipantMediaState } from "../lib/participantMediaState";
-import type { FocusedTiles, MeetingConnectionState, MeetingParticipantState, MeetingTile, RemoteAudioTrackItem } from "../types/meeting";
+import type {
+  FocusedTiles,
+  MeetingConnectionState,
+  MeetingParticipantState,
+  MeetingTile,
+  RemoteAudioTrackItem,
+} from "../types/meeting";
 
 export function LiveMeetingPage() {
   const { meetingId = "" } = useParams();
@@ -147,7 +158,8 @@ export function LiveMeetingPage() {
 
     initialRecordingStartedRef.current = true;
     toast("This meeting is currently being recorded", {
-      description: "Please be aware that your audio and video may be recorded during this meeting.",
+      description:
+        "Please be aware that your audio and video may be recorded during this meeting.",
       duration: 4000,
     });
     startRecordingMutation.mutate(undefined, {
@@ -160,17 +172,27 @@ export function LiveMeetingPage() {
   const allTiles = useMemo<MeetingTile[]>(() => {
     const remoteTiles = participants.flatMap((participant) => {
       const cameraTrack =
-        participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") ||
-        null;
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() !== "desktop",
+        ) || null;
       const screenTrack =
-        participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") ||
-        null;
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() === "desktop",
+        ) || null;
 
       const participantName = participant.displayName || participant.id;
-      const mediaState = getParticipantMediaState(participantMediaStates, participant.id, {
-        isMuted: false,
-        isVideoOff: !cameraTrack,
-      });
+      const mediaState = getParticipantMediaState(
+        participantMediaStates,
+        participant.id,
+        {
+          isMuted: false,
+          isVideoOff: !cameraTrack,
+        },
+      );
 
       const tiles = [
         {
@@ -182,6 +204,7 @@ export function LiveMeetingPage() {
           isMuted: mediaState.isMuted,
           isVideoOff: mediaState.isVideoOff,
           isScreenSharing: Boolean(screenTrack),
+          isLocal: false,
         },
       ];
 
@@ -195,6 +218,7 @@ export function LiveMeetingPage() {
           isMuted: mediaState.isMuted,
           isVideoOff: false,
           isScreenSharing: true,
+          isLocal: false,
         });
       }
 
@@ -211,6 +235,7 @@ export function LiveMeetingPage() {
         isMuted,
         isVideoOff,
         isScreenSharing,
+        isLocal: true,
       },
     ];
 
@@ -224,66 +249,94 @@ export function LiveMeetingPage() {
         isMuted,
         isVideoOff: false,
         isScreenSharing: true,
+        isLocal: true,
       });
     }
 
-    return [
-      ...tiles,
-      ...remoteTiles,
-    ];
-  }, [displayName, isMuted, isScreenSharing, isVideoOff, localScreenTrack, localVideoTrack, participantMediaStates, participants]);
+    return [...tiles, ...remoteTiles];
+  }, [
+    displayName,
+    isMuted,
+    isScreenSharing,
+    isVideoOff,
+    localScreenTrack,
+    localVideoTrack,
+    participantMediaStates,
+    participants,
+  ]);
 
   const remoteAudioTracks = useMemo<RemoteAudioTrackItem[]>(
     () =>
       participants
         .map((participant) => {
-          const mediaState = getParticipantMediaState(participantMediaStates, participant.id);
+          const mediaState = getParticipantMediaState(
+            participantMediaStates,
+            participant.id,
+          );
           return {
             id: participant.id,
             track: mediaState.isMuted
               ? null
-              : participant.tracks.find((track) => track.getType?.() === "audio") || null,
+              : participant.tracks.find(
+                  (track) => track.getType?.() === "audio",
+                ) || null,
           };
         })
         .filter((item) => item.track),
-    [participantMediaStates, participants]
+    [participantMediaStates, participants],
   );
 
-  const participantList = useMemo<MeetingParticipantState[]>(
-    () => {
-      const remoteParticipants = participants.map((participant) => {
-        const cameraTrack =
-          participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") || null;
-        const screenTrack =
-          participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") || null;
-        const mediaState = getParticipantMediaState(participantMediaStates, participant.id, {
+  const participantList = useMemo<MeetingParticipantState[]>(() => {
+    const remoteParticipants = participants.map((participant) => {
+      const cameraTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() !== "desktop",
+        ) || null;
+      const screenTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() === "desktop",
+        ) || null;
+      const mediaState = getParticipantMediaState(
+        participantMediaStates,
+        participant.id,
+        {
           isMuted: false,
           isVideoOff: !cameraTrack,
-        });
-
-        return {
-          id: participant.id,
-          name: participant.displayName || participant.id,
-          isMuted: mediaState.isMuted,
-          isVideoOff: mediaState.isVideoOff,
-          isScreenSharing: Boolean(screenTrack),
-        };
-      });
-
-      return [
-        {
-          id: "local",
-          name: displayName,
-          isMuted,
-          isVideoOff,
-          isScreenSharing,
-          isLocal: true,
         },
-        ...remoteParticipants,
-      ];
-    },
-    [displayName, isMuted, isScreenSharing, isVideoOff, participantMediaStates, participants]
-  );
+      );
+
+      return {
+        id: participant.id,
+        name: participant.displayName || participant.id,
+        isMuted: mediaState.isMuted,
+        isVideoOff: mediaState.isVideoOff,
+        isScreenSharing: Boolean(screenTrack),
+      };
+    });
+
+    return [
+      {
+        id: "local",
+        name: displayName,
+        isMuted,
+        isVideoOff,
+        isScreenSharing,
+        isLocal: true,
+      },
+      ...remoteParticipants,
+    ];
+  }, [
+    displayName,
+    isMuted,
+    isScreenSharing,
+    isVideoOff,
+    participantMediaStates,
+    participants,
+  ]);
 
   const focusedTiles = useMemo<FocusedTiles | null>(() => {
     if (activeLayout !== "focus" || !selectedParticipantId) {
@@ -363,7 +416,14 @@ export function LiveMeetingPage() {
     setEnding(true);
     leaveRoom();
     navigate("/dashboard");
-  }, [ending, handleRemoteMeetingEnded, isHost, isMeetingEnded, leaveRoom, navigate]);
+  }, [
+    ending,
+    handleRemoteMeetingEnded,
+    isHost,
+    isMeetingEnded,
+    leaveRoom,
+    navigate,
+  ]);
 
   const handleEndForAll = async () => {
     if (!isHost || !meetingId || ending) {
@@ -417,7 +477,10 @@ export function LiveMeetingPage() {
 
       <RecordingIndicator isRecording={isRecording} />
 
-      <MeetingInfo meetingId={meetingId} participantCount={participantList.length} />
+      <MeetingInfo
+        meetingId={meetingId}
+        participantCount={participantList.length}
+      />
 
       <div className="absolute inset-0">
         <MeetingStage

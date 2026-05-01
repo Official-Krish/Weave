@@ -1,6 +1,10 @@
 import { LoaderCircle } from "lucide-react";
 import { TrackTile } from "./TrackTile";
-import type { FocusedTiles, MeetingConnectionState, MeetingTile } from "../../types/meeting";
+import type {
+  FocusedTiles,
+  MeetingConnectionState,
+  MeetingTile,
+} from "../../types/meeting";
 
 type MeetingStageProps = {
   connectionState: MeetingConnectionState;
@@ -41,6 +45,7 @@ export function MeetingStage({
             isMuted={selectedScreen.isMuted}
             isVideoOff={selectedScreen.isVideoOff}
             isScreenSharing={selectedScreen.isScreenSharing}
+            isLocal={selectedScreen.isLocal}
           />
         </div>
         <div className="h-full w-[25%] overflow-y-auto">
@@ -55,6 +60,7 @@ export function MeetingStage({
                   isMuted={tile.isMuted}
                   isVideoOff={tile.isVideoOff}
                   isScreenSharing={tile.isScreenSharing}
+                  isLocal={tile.isLocal}
                 />
               </div>
             ))}
@@ -75,6 +81,7 @@ export function MeetingStage({
             isMuted={focusedTiles.selected.isMuted}
             isVideoOff={focusedTiles.selected.isVideoOff}
             isScreenSharing={focusedTiles.selected.isScreenSharing}
+            isLocal={focusedTiles.selected.isLocal}
           />
         </div>
         <div className="h-full w-[25%] overflow-y-auto">
@@ -89,6 +96,7 @@ export function MeetingStage({
                   isMuted={tile.isMuted}
                   isVideoOff={tile.isVideoOff}
                   isScreenSharing={tile.isScreenSharing}
+                  isLocal={tile.isLocal}
                 />
               </div>
             ))}
@@ -99,7 +107,14 @@ export function MeetingStage({
   }
 
   const participantCount = allTiles.length;
-  const columns = participantCount <= 1 ? 1 : participantCount <= 4 ? 2 : participantCount <= 9 ? 3 : 4;
+  const columns =
+    participantCount <= 1
+      ? 1
+      : participantCount <= 4
+        ? 2
+        : participantCount <= 9
+          ? 3
+          : 4;
 
   return (
     <div
@@ -116,6 +131,7 @@ export function MeetingStage({
           isMuted={tile.isMuted}
           isVideoOff={tile.isVideoOff}
           isScreenSharing={tile.isScreenSharing}
+          isLocal={tile.isLocal}
         />
       ))}
     </div>

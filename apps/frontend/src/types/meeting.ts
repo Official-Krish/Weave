@@ -7,6 +7,7 @@ export type MeetingTile = {
   isMuted?: boolean;
   isVideoOff?: boolean;
   isScreenSharing?: boolean;
+  isLocal?: boolean;
 };
 
 export type FocusedTiles = {
@@ -33,4 +34,9 @@ export type MeetingParticipantState = {
   isLocal?: boolean;
 };
 
-export type MeetingConnectionState = "idle" | "loading-lib" | "connecting" | "connected" | "failed";
+export type MeetingConnectionState =
+  | "idle"
+  | "loading-lib"
+  | "connecting"
+  | "connected"
+  | "failed";
