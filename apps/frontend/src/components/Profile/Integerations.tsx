@@ -1,11 +1,10 @@
-import { ComingSoonCard } from "./icons"
+import { ComingSoonCard, IntegerationCard } from "./icons"
 import { motion } from "motion/react"
-import { SiGooglecalendar, SiZapier } from "react-icons/si";
-import { FaSlack, FaShareAlt } from "react-icons/fa";
+import { SiDiscord, SiGmail, SiGooglecalendar } from "react-icons/si";
+import { FaSlack, FaGithub } from "react-icons/fa";
 import { RiNotionFill } from "react-icons/ri";
-import { BiLogoZoom } from "react-icons/bi";
 
-export const Integerations = ({ dark }: { dark: boolean}) => {
+export const Integerations = ({ dark, googleId, githubUsername }: { dark: boolean, googleId: string | null, githubUsername: string | null }) => {
     return (
         <motion.div className="space-y-3"
             initial={{ opacity: 0 }}
@@ -14,41 +13,48 @@ export const Integerations = ({ dark }: { dark: boolean}) => {
             transition={{ duration: 0.3 }}
         >
             <div className="grid grid-cols-2 gap-3">
-                <ComingSoonCard
+                <IntegerationCard
+                    id="google-calendar-integration"
                     dark={dark}
                     icon={<SiGooglecalendar className="w-7 h-7" />}
                     title="Google Calendar"
                     description="Auto-schedule and join meetings from your calendar"
+                    connected={googleId !== null}
                 />
-                <ComingSoonCard
+                <IntegerationCard
+                    id="gmail-integration"
+                    dark={dark}
+                    icon={<SiGmail className="w-7 h-7" />}
+                    title="Gmail"
+                    description="Get Meeting invites and recording notifications right in your inbox"
+                />
+                <IntegerationCard
+                    id="slack-integration"
                     dark={dark}
                     icon={<FaSlack className="w-7 h-7" />}
                     title="Slack"
                     description="Get recording notifications and share instantly"
                 />
-                <ComingSoonCard
+                <IntegerationCard
+                    id="discord-integration"
                     dark={dark}
-                    icon={<SiZapier className="w-7 h-7" />}
-                    title="Zapier"
-                    description="Automate workflows with 5000+ apps"
+                    icon={<SiDiscord className="w-7 h-7" />}
+                    title="Discord"
+                    description="Get recording notifications and share instantly"
+                />
+                <IntegerationCard
+                    id="github-integration"
+                    dark={dark}
+                    icon={<FaGithub className="w-7 h-7" />}
+                    title="GitHub"
+                    description="Turn meeting discussions into GitHub issues instantly. Collaborate, assign, and track work without leaving your call."
+                    connected={githubUsername !== null}
                 />
                 <ComingSoonCard
                     dark={dark}
                     icon={<RiNotionFill className="w-7 h-7" />}
                     title="Notion"
-                    description="Save meeting notes and transcripts to Notion"
-                />
-                <ComingSoonCard
-                    dark={dark}
-                    icon={<BiLogoZoom className="w-7 h-7" />}
-                    title="Zoom Import"
-                    description="Import recordings from Zoom to Weave"
-                />
-                <ComingSoonCard
-                    dark={dark}
-                    icon={<FaShareAlt className="w-6 h-6" />}
-                    title="Webhooks"
-                    description="Get real-time events sent to your endpoints"
+                    description="Export meeting notes, action items, and summaries directly to Notion. Keep your team aligned and organized effortlessly."
                 />
             </div>
             <div className={`rounded-[24px] border p-5 text-center transition-colors shadow-[0_12px_40px_rgba(0,0,0,0.18)] ${ dark ? "border-white/8 bg-white/[0.03]" : "bg-zinc-50 border-zinc-200" }`}>

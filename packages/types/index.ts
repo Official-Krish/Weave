@@ -182,3 +182,50 @@ export const SaveEditorProjectSchema = z.object({
     width: z.number(), 
     height: z.number()
 });
+
+export const CreateGithubIssueSchema = z.object({
+    title: z.string().min(2),
+    body: z.string().optional(),
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    owner: z.string().min(2).optional(),
+});
+
+export const GetAllGithubIssuesSchema = z.object({
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    owner: z.string().min(2).optional(),
+});
+
+export const CreateGithubIssueCommentSchema = z.object({
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    issueNumber: z.number().int().positive(),
+    owner: z.string().min(2).optional(),
+    comment: z.string().min(1),
+});
+
+export const UpdateGithubIssueSchema = z.object({
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    issueNumber: z.number().int().positive(),
+    owner: z.string().min(2).optional(),
+    title: z.string().min(2).optional(),
+    body: z.string().optional(),
+    state: z.enum(["open", "closed"]).optional(),
+});
+
+export const AssignGithubIssueSchema = z.object({
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    issueNumber: z.number().int().positive(),
+    owner: z.string().min(2).optional(),
+    assignees: z.array(z.string().min(2)).min(1),
+});
+
+export const CreateGithubLabelSchema = z.object({
+    repo: z.string().regex(/^[\w-]+\/[\w-]+$/, "Invalid repository format"),
+    owner: z.string().min(2).optional(),
+    issueNumber: z.number().int().positive(),
+    labels: z.array(z.string().min(2)).min(1),
+});
+
+export const StoreGithubDataSchema = z.object({
+    access_token: z.string(),
+    githubUsername: z.string(),
+});

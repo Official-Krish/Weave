@@ -126,6 +126,8 @@ userRouter.get("/profile", authMiddleware, async (req, res) => {
             select: {
                 name: true,
                 email: true,
+                googleId: true,
+                githubUsername: true,
                 createdAt: true,
                 updatedAt: true,
                 hostedMeetings: {

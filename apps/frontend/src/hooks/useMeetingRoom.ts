@@ -264,30 +264,34 @@ export function useMeetingRoom({
   const toggleAudio = useCallback(async () => {
     const track = localAudioTrackRef.current;
     if (!track) {
-      return;
+      return null;
     }
 
     if (isMuted) {
       await track.unmute?.();
       setIsMuted(false);
+      return false;
     } else {
       await track.mute?.();
       setIsMuted(true);
+      return true;
     }
   }, [isMuted]);
 
   const toggleVideo = useCallback(async () => {
     const track = localVideoTrackRef.current;
     if (!track) {
-      return;
+      return null;
     }
 
     if (isVideoOff) {
       await track.unmute?.();
       setIsVideoOff(false);
+      return false;
     } else {
       await track.mute?.();
       setIsVideoOff(true);
+      return true;
     }
   }, [isVideoOff]);
 

@@ -12,6 +12,8 @@ export type RoomParticipant = {
   displayName: string;
   isTyping: boolean;
   isHost: boolean;
+  isMuted: boolean;
+  isVideoOff: boolean;
 };
 
 export type WsPayload = Record<string, unknown>;

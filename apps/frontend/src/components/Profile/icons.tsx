@@ -1,5 +1,7 @@
-import { formatDate } from "./helpers";
+import { BACKEND_URL } from "@/lib/config";
 import type { Meeting } from "./types";
+import { useGoogleAuth } from "../Authentication/useAuthMutations";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "host" | "guest" }) {
   const styles = {
@@ -33,9 +35,6 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
         </div>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="text-right hidden sm:block">
-          <div className={`text-xs font-medium ${dark ? "text-zinc-300" : "text-zinc-600"}`}>{formatDate(meeting.startTime)}</div>
-        </div>
         <div className={`flex items-center gap-1 text-xs ${dark ? "text-zinc-500" : "text-zinc-400"}`}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -43,7 +42,7 @@ export function MeetingRow({ meeting, dark }: { meeting: Meeting; dark: boolean 
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          {meeting.joinedParticipants.length} participants
+          {meeting.participants.length} participants
         </div>
         <Badge variant={meeting.isHost ? "host" : "guest"}>{meeting.isHost ? "Host" : "Guest"}</Badge>
       </div>
@@ -65,6 +64,47 @@ export function ComingSoonCard({ icon, title, description, dark }: { icon: React
           <span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] ${dark ? "bg-white/[0.05] text-zinc-500" : "bg-zinc-200 text-zinc-400"}`}>Soon</span>
         </div>
         <div className={`text-xs mt-0.5 ${dark ? "text-zinc-600" : "text-zinc-400"}`}>{description}</div>
+      </div>
+    </div>
+  );
+}
+
+export const IntegerationCard = ({ id, icon, title, description, dark, connected }: { id: string; icon: React.ReactNode; title: string; description: string; dark: boolean; connected?: boolean | null }) => {
+  const { token } = useAuth();
+  console.log("Auth token in IntegerationCard:", token);
+  const { startGoogleLogin } = useGoogleAuth(() => {});
+  return (
+    <div className={`flex gap-2 rounded-[22px] border p-5 transition-all ${
+      dark ? "border-white/8 bg-white/[0.03] hover:-translate-y-0.5 hover:border-white/12 hover:bg-white/[0.05]" : "border-zinc-200 bg-zinc-50 hover:border-zinc-300"
+    }`}>
+      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${dark ? "bg-white/[0.05] text-amber-200" : "bg-zinc-200 text-zinc-500"}`}>
+        {icon}
+      </div>
+      <div>
+        <div className={`text-sm font-semibold flex items-center gap-2 ${dark ? "text-zinc-300" : "text-zinc-700"}`}>
+          {title}
+          {(connected && connected != null) && (
+            <span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-[0.2em] ${dark ? "bg-green-500/20 text-green-400" : "bg-green-200 text-green-600"}`}>
+              Connected
+            </span>
+          )}
+        </div>
+        <div className={`text-xs mt-0.5 ${dark ? "text-zinc-600" : "text-zinc-400"}`}>{description}</div>
+        {(!connected && connected != null) && (
+          <button className={`mt-2 inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1 text-xs font-semibold transition-all ${
+            dark ? "border-amber-400/20 bg-amber-400/10 text-amber-100 hover:border-amber-300/30 hover:bg-amber-400/14" : "text-amber-600 hover:text-amber-500 "
+          }`}
+            onClick={() => {
+              if (id === "google-calendar-integration") {
+                startGoogleLogin();
+              } else if (id === "github-integration") {
+                window.location.href = `${BACKEND_URL}/github?token=${token}`;
+              }
+            }}
+          >
+            Connect
+          </button>
+        )}
       </div>
     </div>
   );

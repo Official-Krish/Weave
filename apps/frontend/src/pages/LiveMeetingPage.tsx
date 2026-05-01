@@ -1,7 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { toast } from "sonner";
 import { AudioTrackSink } from "../components/LiveMeeting/AudioTrackSink";
 import { MeetingAlerts } from "../components/LiveMeeting/MeetingAlerts";
@@ -15,7 +20,14 @@ import { useMeetingRealtime } from "../hooks/useMeetingRealtime";
 import { useMeetingRecording } from "../hooks/useMeetingRecording";
 import { useMeetingRoom } from "../hooks/useMeetingRoom";
 import { http } from "../https";
-import type { FocusedTiles, MeetingConnectionState, MeetingParticipantState, MeetingTile, RemoteAudioTrackItem } from "../types/meeting";
+import { getParticipantMediaState } from "../lib/participantMediaState";
+import type {
+  FocusedTiles,
+  MeetingConnectionState,
+  MeetingParticipantState,
+  MeetingTile,
+  RemoteAudioTrackItem,
+} from "../types/meeting";
 
 export function LiveMeetingPage() {
   const { meetingId = "" } = useParams();
@@ -24,6 +36,7 @@ export function LiveMeetingPage() {
   const [ending, setEnding] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const endingRef = useRef(false);
+  const initialRecordingStartedRef = useRef(false);
 
   const displayName = searchParams.get("name") || "Guest";
   const isHost = searchParams.get("role") === "host";
@@ -34,17 +47,6 @@ export function LiveMeetingPage() {
 
   useEffect(() => {
     endingRef.current = ending;
-    if(initialRecordingState) {
-      toast("This meeting is currently being recorded", {
-        description: "Please be aware that your audio and video may be recorded during this meeting.",
-        duration: 4000,
-      });
-      startRecordingMutation.mutate(undefined, {
-        onSuccess: () => {
-          sendRecordingState(true);
-        },
-      });
-    }
   }, [ending]);
 
   const {
@@ -76,141 +78,6 @@ export function LiveMeetingPage() {
     selectedMicId,
   });
 
-  const allTiles = useMemo<MeetingTile[]>(() => {
-    const remoteTiles = participants.flatMap((participant) => {
-      const cameraTrack =
-        participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") ||
-        null;
-      const screenTrack =
-        participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") ||
-        null;
-
-      const participantName = participant.displayName || participant.id;
-      const audioTrack = participant.tracks.find((track) => track.getType?.() === "audio") || null;
-      const isParticipantMuted = Boolean(audioTrack?.isMuted?.());
-      const isParticipantVideoOff = !cameraTrack || Boolean(cameraTrack?.isMuted?.());
-
-      const tiles = [
-        {
-          id: participant.id,
-          title: participantName,
-          subtitle: "Remote participant",
-          track: cameraTrack,
-          participantId: participant.id,
-          isMuted: isParticipantMuted,
-          isVideoOff: isParticipantVideoOff,
-          isScreenSharing: Boolean(screenTrack),
-        },
-      ];
-
-      if (screenTrack) {
-        tiles.push({
-          id: `${participant.id}-screen`,
-          title: `${participantName} screen`,
-          subtitle: "Screen share",
-          track: screenTrack,
-          participantId: participant.id,
-          isMuted: isParticipantMuted,
-          isVideoOff: false,
-          isScreenSharing: true,
-        });
-      }
-
-      return tiles;
-    });
-
-    const tiles = [
-      {
-        id: "local",
-        title: displayName,
-        subtitle: "You",
-        track: localVideoTrack,
-        participantId: "local",
-        isMuted,
-        isVideoOff,
-        isScreenSharing,
-      },
-    ];
-
-    if (localScreenTrack) {
-      tiles.push({
-        id: "local-screen",
-        title: `${displayName} screen`,
-        subtitle: "Your screen share",
-        track: localScreenTrack,
-        participantId: "local",
-        isMuted,
-        isVideoOff: false,
-        isScreenSharing: true,
-      });
-    }
-
-    return [
-      ...tiles,
-      ...remoteTiles,
-    ];
-  }, [displayName, localScreenTrack, localVideoTrack, participants]);
-
-  const remoteAudioTracks = useMemo<RemoteAudioTrackItem[]>(
-    () =>
-      participants
-        .map((participant) => ({
-          id: participant.id,
-          track: participant.tracks.find((track) => track.getType?.() === "audio") || null,
-        }))
-        .filter((item) => item.track),
-    [participants]
-  );
-
-  const participantList = useMemo<MeetingParticipantState[]>(
-    () => {
-      const remoteParticipants = participants.map((participant) => {
-        const audioTrack = participant.tracks.find((track) => track.getType?.() === "audio") || null;
-        const cameraTrack =
-          participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() !== "desktop") || null;
-        const screenTrack =
-          participant.tracks.find((track) => track.getType?.() === "video" && track.getVideoType?.() === "desktop") || null;
-
-        return {
-          id: participant.id,
-          name: participant.displayName || participant.id,
-          isMuted: Boolean(audioTrack?.isMuted?.()),
-          isVideoOff: !cameraTrack || Boolean(cameraTrack?.isMuted?.()),
-          isScreenSharing: Boolean(screenTrack),
-        };
-      });
-
-      return [
-        {
-          id: "local",
-          name: displayName,
-          isMuted,
-          isVideoOff,
-          isScreenSharing,
-          isLocal: true,
-        },
-        ...remoteParticipants,
-      ];
-    },
-    [displayName, isMuted, isScreenSharing, isVideoOff, participants]
-  );
-
-  const focusedTiles = useMemo<FocusedTiles | null>(() => {
-    if (activeLayout !== "focus" || !selectedParticipantId) {
-      return null;
-    }
-
-    const selected = allTiles.find((tile) => tile.id === selectedParticipantId);
-    if (!selected) {
-      return null;
-    }
-
-    return {
-      selected,
-      others: allTiles.filter((tile) => tile.id !== selectedParticipantId),
-    };
-  }, [activeLayout, allTiles, selectedParticipantId]);
-
   const {
     isUploadingChunks,
     recordingError,
@@ -239,11 +106,18 @@ export function LiveMeetingPage() {
     setTyping,
     sendMeetingEnded,
     sendRecordingState,
+    sendMediaState,
+    participantMediaStates,
   } = useMeetingRealtime({
     roomId: roomName,
     displayName,
     participantId: localParticipantId,
     isHost,
+    enabled: Boolean(localParticipantId),
+    localMediaState: {
+      isMuted,
+      isVideoOff,
+    },
     onRemoteRecordingState: setIsRecording,
     onParticipantJoined: (participant) => {
       toast.success(`${participant.displayName} joined the meeting`);
@@ -265,6 +139,220 @@ export function LiveMeetingPage() {
     },
     isChatOpen,
   });
+
+  useEffect(() => {
+    if (!localParticipantId) {
+      return;
+    }
+
+    sendMediaState({
+      isMuted,
+      isVideoOff,
+    });
+  }, [isMuted, isVideoOff, localParticipantId, sendMediaState]);
+
+  useEffect(() => {
+    if (!initialRecordingState || initialRecordingStartedRef.current) {
+      return;
+    }
+
+    initialRecordingStartedRef.current = true;
+    toast("This meeting is currently being recorded", {
+      description:
+        "Please be aware that your audio and video may be recorded during this meeting.",
+      duration: 4000,
+    });
+    startRecordingMutation.mutate(undefined, {
+      onSuccess: () => {
+        sendRecordingState(true);
+      },
+    });
+  }, [initialRecordingState, sendRecordingState, startRecordingMutation]);
+
+  const allTiles = useMemo<MeetingTile[]>(() => {
+    const remoteTiles = participants.flatMap((participant) => {
+      const cameraTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() !== "desktop",
+        ) || null;
+      const screenTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() === "desktop",
+        ) || null;
+
+      const participantName = participant.displayName || participant.id;
+      const mediaState = getParticipantMediaState(
+        participantMediaStates,
+        participant.id,
+        {
+          isMuted: false,
+          isVideoOff: !cameraTrack,
+        },
+      );
+
+      const tiles = [
+        {
+          id: participant.id,
+          title: participantName,
+          subtitle: "Remote participant",
+          track: cameraTrack,
+          participantId: participant.id,
+          isMuted: mediaState.isMuted,
+          isVideoOff: mediaState.isVideoOff,
+          isScreenSharing: Boolean(screenTrack),
+          isLocal: false,
+        },
+      ];
+
+      if (screenTrack) {
+        tiles.push({
+          id: `${participant.id}-screen`,
+          title: `${participantName} screen`,
+          subtitle: "Screen share",
+          track: screenTrack,
+          participantId: participant.id,
+          isMuted: mediaState.isMuted,
+          isVideoOff: false,
+          isScreenSharing: true,
+          isLocal: false,
+        });
+      }
+
+      return tiles;
+    });
+
+    const tiles = [
+      {
+        id: "local",
+        title: displayName,
+        subtitle: "You",
+        track: localVideoTrack,
+        participantId: "local",
+        isMuted,
+        isVideoOff,
+        isScreenSharing,
+        isLocal: true,
+      },
+    ];
+
+    if (localScreenTrack) {
+      tiles.push({
+        id: "local-screen",
+        title: `${displayName} screen`,
+        subtitle: "Your screen share",
+        track: localScreenTrack,
+        participantId: "local",
+        isMuted,
+        isVideoOff: false,
+        isScreenSharing: true,
+        isLocal: true,
+      });
+    }
+
+    return [...tiles, ...remoteTiles];
+  }, [
+    displayName,
+    isMuted,
+    isScreenSharing,
+    isVideoOff,
+    localScreenTrack,
+    localVideoTrack,
+    participantMediaStates,
+    participants,
+  ]);
+
+  const remoteAudioTracks = useMemo<RemoteAudioTrackItem[]>(
+    () =>
+      participants
+        .map((participant) => {
+          const mediaState = getParticipantMediaState(
+            participantMediaStates,
+            participant.id,
+          );
+          return {
+            id: participant.id,
+            track: mediaState.isMuted
+              ? null
+              : participant.tracks.find(
+                  (track) => track.getType?.() === "audio",
+                ) || null,
+          };
+        })
+        .filter((item) => item.track),
+    [participantMediaStates, participants],
+  );
+
+  const participantList = useMemo<MeetingParticipantState[]>(() => {
+    const remoteParticipants = participants.map((participant) => {
+      const cameraTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() !== "desktop",
+        ) || null;
+      const screenTrack =
+        participant.tracks.find(
+          (track) =>
+            track.getType?.() === "video" &&
+            track.getVideoType?.() === "desktop",
+        ) || null;
+      const mediaState = getParticipantMediaState(
+        participantMediaStates,
+        participant.id,
+        {
+          isMuted: false,
+          isVideoOff: !cameraTrack,
+        },
+      );
+
+      return {
+        id: participant.id,
+        name: participant.displayName || participant.id,
+        isMuted: mediaState.isMuted,
+        isVideoOff: mediaState.isVideoOff,
+        isScreenSharing: Boolean(screenTrack),
+      };
+    });
+
+    return [
+      {
+        id: "local",
+        name: displayName,
+        isMuted,
+        isVideoOff,
+        isScreenSharing,
+        isLocal: true,
+      },
+      ...remoteParticipants,
+    ];
+  }, [
+    displayName,
+    isMuted,
+    isScreenSharing,
+    isVideoOff,
+    participantMediaStates,
+    participants,
+  ]);
+
+  const focusedTiles = useMemo<FocusedTiles | null>(() => {
+    if (activeLayout !== "focus" || !selectedParticipantId) {
+      return null;
+    }
+
+    const selected = allTiles.find((tile) => tile.id === selectedParticipantId);
+    if (!selected) {
+      return null;
+    }
+
+    return {
+      selected,
+      others: allTiles.filter((tile) => tile.id !== selectedParticipantId),
+    };
+  }, [activeLayout, allTiles, selectedParticipantId]);
 
   const endMeetingMutation = useMutation({
     mutationFn: async () => {
@@ -328,7 +416,14 @@ export function LiveMeetingPage() {
     setEnding(true);
     leaveRoom();
     navigate("/dashboard");
-  }, [ending, handleRemoteMeetingEnded, isHost, isMeetingEnded, leaveRoom, navigate]);
+  }, [
+    ending,
+    handleRemoteMeetingEnded,
+    isHost,
+    isMeetingEnded,
+    leaveRoom,
+    navigate,
+  ]);
 
   const handleEndForAll = async () => {
     if (!isHost || !meetingId || ending) {
@@ -382,7 +477,10 @@ export function LiveMeetingPage() {
 
       <RecordingIndicator isRecording={isRecording} />
 
-      <MeetingInfo meetingId={meetingId} participantCount={participantList.length} />
+      <MeetingInfo
+        meetingId={meetingId}
+        participantCount={participantList.length}
+      />
 
       <div className="absolute inset-0">
         <MeetingStage
@@ -417,8 +515,28 @@ export function LiveMeetingPage() {
         canToggleRecording={connectionState === "connected"}
         unreadMessages={unreadCount}
         recordingButtonLabel={recordingButtonLabel}
-        onToggleAudio={toggleAudio}
-        onToggleVideo={toggleVideo}
+        onToggleAudio={async () => {
+          const nextMuted = await toggleAudio();
+          if (nextMuted === null) {
+            return;
+          }
+
+          sendMediaState({
+            isMuted: nextMuted,
+            isVideoOff,
+          });
+        }}
+        onToggleVideo={async () => {
+          const nextVideoOff = await toggleVideo();
+          if (nextVideoOff === null) {
+            return;
+          }
+
+          sendMediaState({
+            isMuted,
+            isVideoOff: nextVideoOff,
+          });
+        }}
         onToggleScreenShare={toggleScreenShare}
         onToggleSidebar={() => {
           setIsChatOpen(false);
