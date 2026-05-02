@@ -180,8 +180,11 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
       return;
     }
 
+    // Only change audio src if it's different (avoid redundant load() calls)
     if (audio.src !== activeAudioClip.url) {
       audio.src = activeAudioClip.url;
+      // Note: Use srcObject instead of src+load() when possible for better memory efficiency
+      // audio.load() is only called here when URL changes
       audio.load();
     }
 

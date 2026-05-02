@@ -87,6 +87,46 @@ export function Editor() {
     setDurationMs(maxMs > 0 ? maxMs + 2000 : 0);
   }, [tracks, overlays]);
 
+  // Cleanup: revoke blob URLs for assets that are no longer referenced in tracks
+  // This prevents memory bloat from accumulated blob:// URLs
+  useEffect(() => {
+    const usedAssetIds = new Set<string>();
+    tracks.forEach((track) => {
+      track.clips.forEach((clip) => {
+        usedAssetIds.add(clip.sourceAssetId);
+      });
+    });
+
+    // Find and revoke unused blob URLs
+    const toDelete: string[] = [];
+    Object.entries(assetsById).forEach(([assetId, asset]) => {
+      if (!usedAssetIds.has(assetId) && asset.url?.startsWith("blob:")) {
+        URL.revokeObjectURL(asset.url);
+        toDelete.push(assetId);
+      }
+    });
+
+    // Batch the deletion to avoid multiple state updates
+    if (toDelete.length > 0) {
+      setAssetsById((prev) => {
+        const updated = { ...prev };
+        toDelete.forEach((id) => delete updated[id]);
+        return updated;
+      });
+    }
+  }, [tracks]);
+
+  // Cleanup on unmount: revoke all remaining blob URLs
+  useEffect(() => {
+    return () => {
+      Object.values(assetsById).forEach((asset) => {
+        if (asset.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(asset.url);
+        }
+      });
+    };
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);

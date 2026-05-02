@@ -27,8 +27,22 @@ export function useMediaUpload(
     metaElement.src = objectUrl;
 
     const duration = await new Promise<number>((resolve) => {
-      metaElement.onloadedmetadata = () => resolve(Math.round((metaElement.duration || 1) * 1000));
-      metaElement.onerror = () => resolve(5000);
+      const handleLoaded = () => {
+        resolve(Math.round((metaElement.duration || 1) * 1000));
+        cleanup();
+      };
+      const handleError = () => {
+        resolve(5000);
+        cleanup();
+      };
+      const cleanup = () => {
+        metaElement.removeEventListener("loadedmetadata", handleLoaded);
+        metaElement.removeEventListener("error", handleError);
+        metaElement.src = "";
+        metaElement.remove();
+      };
+      metaElement.addEventListener("loadedmetadata", handleLoaded);
+      metaElement.addEventListener("error", handleError);
     });
 
     let assetId: string;

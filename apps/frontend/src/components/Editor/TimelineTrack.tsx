@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import React from "react";
 import type { Track, Clip } from "./types";
 import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X, Blend, Loader2 } from "lucide-react";
 import { getTrackColors } from "./helpers";
@@ -34,7 +35,7 @@ export function getTrackIcon(type: Track["type"]) {
 
 type DragMode = "move" | "resize-left" | "resize-right";
 
-export function TimelineTrack({
+function TimelineTrackComponent({
   track,
   index,
   durationMs,
@@ -235,7 +236,7 @@ export function TimelineTrack({
       );
 
       // Determine how many frames to show based on clip width
-      const numFrames = Math.min(clipThumbs.length, Math.max(2, Math.floor(clip.durationMs / 800)));
+      const numFrames = Math.min(4, clipThumbs.length);
       const frames = Array.from({ length: numFrames }, (_, i) => {
         const idx = Math.floor((i / Math.max(1, numFrames - 1)) * (clipThumbs.length - 1));
         return clipThumbs[Math.min(clipThumbs.length - 1, Math.max(0, idx))];
@@ -564,3 +565,6 @@ export function TimelineTrack({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent re-renders but props haven't changed
+export const TimelineTrack = React.memo(TimelineTrackComponent);

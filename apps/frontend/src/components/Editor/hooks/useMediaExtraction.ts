@@ -64,12 +64,41 @@ export function useMediaExtraction(
     if (Object.keys(assetsById).length === 0) return;
     let cancelled = false;
 
-    for (const asset of Object.values(assetsById)) {
-      if (asset.assetType === "VIDEO" && !thumbnailsByAsset[asset.id] && asset.url) {
-        if (!cancelled) {
-          void extractThumbnailsForAsset(asset.id, asset.url, asset.durationMs || durationMs);
-        }
+    // OPTIMIZATION: Only extract the primary/active video immediately
+    // Defer extracting other videos until user scrolls/interacts with them
+    const primaryAsset = Object.values(assetsById).find(a => a.id === sourceUrl?.slice(-36)); // rough match
+    const videoAssets = Object.values(assetsById).filter(a => a.assetType === "VIDEO" && a.url && !thumbnailsByAsset[a.id]);
+    
+    // Extract primary video immediately
+    if (primaryAsset?.assetType === "VIDEO" && primaryAsset.url && !thumbnailsByAsset[primaryAsset.id]) {
+      if (!cancelled) {
+        void extractThumbnailsForAsset(primaryAsset.id, primaryAsset.url, primaryAsset.durationMs || durationMs);
       }
+    }
+    
+    // Defer other video extractions to prioritize UI responsiveness
+    // Queue them with throttling to avoid excessive parallel decoding
+    const queue = videoAssets.filter(a => a.id !== primaryAsset?.id);
+    if (queue.length > 0) {
+      const timer = setTimeout(() => {
+        let index = 0;
+        const processNext = () => {
+          if (index < queue.length && !cancelled) {
+            const asset = queue[index];
+            void extractThumbnailsForAsset(asset.id, asset.url, asset.durationMs || durationMs).then(() => {
+              index++;
+              // Space out extractions to avoid UI lag
+              setTimeout(processNext, 300);
+            });
+          }
+        };
+        processNext();
+      }, 500); // Start after initial render completes
+      
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
 
     if (sourceUrl && durationMs > 0 && waveformData.length === 0) {
