@@ -151,6 +151,12 @@ export function Editor() {
     assetsById, sourceUrl, durationMs
   );
 
+  // Global editor busy flag: true while thumbnails or waveform are being extracted
+  const isEditorBusy = Boolean(
+    Object.values(extractingAssets).some((v) => v) ||
+    (sourceUrl && durationMs > 0 && waveformData.length === 0)
+  );
+
   const { project, loading, saving } = useEditorProject(
     meetingId, tracks, overlays, durationMs, setTracks, setOverlays, setDurationMs, setAssetsById, setSourceUrl, setActiveAssetId, resetHistory, extractThumbnailsForAsset
   );
@@ -369,6 +375,15 @@ export function Editor() {
     <>
       <style>{EDITOR_CSS}</style>
       <div className="editor-root space-y-4 relative">
+        {/* Global busy overlay while we prepare thumbnails/waveforms */}
+        {isEditorBusy && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-10 w-10 animate-spin text-[#f5a623]" />
+              <p className="text-sm text-[#f5a623]">Preparing editor assets...</p>
+            </div>
+          </div>
+        )}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2" ref={containerRef}>
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">

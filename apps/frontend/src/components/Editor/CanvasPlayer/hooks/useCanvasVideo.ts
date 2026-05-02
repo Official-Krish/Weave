@@ -169,46 +169,73 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     const audio = audioRef.current;
     if (!video || !audio) return;
 
+    const isActuallyPlaying = !video.paused; // Source of truth from DOM
     const activeAudioClip = getActiveAudioClip(timelineTimeMsRef.current);
     const shouldReplaceSourceAudio = Boolean(activeAudioClip && (activeAudioClip.audioMode ?? "replace") === "replace");
 
-    if (!activeAudioClip || !isPlaying) {
+    if (!activeAudioClip || !isActuallyPlaying) {
       audio.pause();
-      if (!shouldReplaceSourceAudio) {
-        video.muted = muted;
-      }
+      video.muted = shouldReplaceSourceAudio ? true : muted;
       return;
     }
 
     // Only change audio src if it's different (avoid redundant load() calls)
-    if (audio.src !== activeAudioClip.url) {
-      audio.src = activeAudioClip.url;
-      // Note: Use srcObject instead of src+load() when possible for better memory efficiency
-      // audio.load() is only called here when URL changes
-      audio.load();
-    }
-
     const timelineOffsetMs = timelineTimeMsRef.current - activeAudioClip.timelineStartMs;
     const nextAudioTime = Math.max(0, (activeAudioClip.sourceStartMs + timelineOffsetMs) / 1000);
-    if (Number.isFinite(nextAudioTime) && Math.abs(audio.currentTime - nextAudioTime) > 0.15) {
-      audio.currentTime = nextAudioTime;
-    }
 
-    audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
-    audio.muted = Boolean(activeAudioClip.muted);
+    // If URL changed, set up a one-time loadeddata handler before attempting to seek/play.
+    if (audio.src !== activeAudioClip.url) {
+      // Pause and reset to avoid artifacts while loading new source
+      try { audio.pause(); } catch {}
+      audio.src = activeAudioClip.url;
+
+      const handleLoaded = () => {
+        audio.removeEventListener("loadeddata", handleLoaded);
+        // Only seek if the target time differs meaningfully
+        if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+          try { audio.currentTime = nextAudioTime; } catch {}
+        }
+        audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+        audio.muted = Boolean(activeAudioClip.muted);
+        // Attempt to play; if blocked, user gesture will resume
+        void audio.play().catch(() => {});
+      };
+
+      audio.addEventListener("loadeddata", handleLoaded, { once: true });
+      // Trigger load by setting src; some browsers auto-load with src assignment
+      try { audio.load(); } catch {}
+    } else {
+      // Same URL: only adjust playback time if audio is ready
+      if (audio.readyState >= 2) {
+        if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+          try { audio.currentTime = nextAudioTime; } catch {}
+        }
+        audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+        audio.muted = Boolean(activeAudioClip.muted);
+        try { await audio.play(); } catch {}
+      } else {
+        // Not ready yet: wait for loadeddata then continue in handler to avoid seeks that cause crackle
+        const onReady = () => {
+          audio.removeEventListener("loadeddata", onReady);
+          try {
+            if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+              audio.currentTime = nextAudioTime;
+            }
+            audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+            audio.muted = Boolean(activeAudioClip.muted);
+            void audio.play();
+          } catch {}
+        };
+        audio.addEventListener("loadeddata", onReady, { once: true });
+      }
+    }
 
     if (shouldReplaceSourceAudio) {
       video.muted = true;
     } else {
       video.muted = muted;
     }
-
-    try {
-      await audio.play();
-    } catch {
-      // best effort: if autoplay is blocked, the video still renders and the next user gesture will resume audio
-    }
-  }, [getActiveAudioClip, isPlaying, muted]);
+  }, [getActiveAudioClip, muted]);
 
   // ─── Source switching + Event listeners (merged to avoid mount-order issues) ───
   // This effect re-runs whenever `src` changes. It sets the video source,
@@ -280,6 +307,8 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     const handlePlay = () => {
       onPlayStateChangeRef.current?.(true);
       startLoop();
+      // Let DOM settle to ensure video.paused has flipped to false before syncExternalAudio reads it
+      setTimeout(() => void syncExternalAudio(), 0);
     };
 
     const handlePause = () => {
@@ -363,7 +392,9 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
 
   useEffect(() => {
     void syncExternalAudio();
-  }, [syncExternalAudio, timelineTimeMs, isPlaying, audioClips]);
+    // Only sync on audioClips changes — not on every timelineTimeMs tick (60fps)
+    // to avoid constant audio restarts during playback
+  }, [syncExternalAudio, audioClips]);
 
   // ─── Sync play/pause from editor ──────────────────────────────────
   useEffect(() => {
