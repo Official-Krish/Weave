@@ -118,6 +118,7 @@ export type MeetingDetails = {
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
+  recordingStartedAt: string | null;
 
   isHost: boolean;
 

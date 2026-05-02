@@ -8,6 +8,7 @@ import type { MeetingDetails, MeetingSchedule } from "@repo/types/api";
 import { findDuration } from "@/lib/utils";
 import { UpcomingMeetings } from "./UpcomingMeetings";
 import { getMeetingDate, getMeetingParticipantCount } from "./types";
+import { toast } from "sonner";
 
 export function Overview({
   meetings,
@@ -53,7 +54,13 @@ export function Overview({
             </p>
           ) : (
             paginatedRecentMeetings.map((meeting, index) => (
-              <MeetingRow key={meeting.id} meeting={meeting} index={index} onClick={() => navigate(`/recordings/${meeting.id}`)} />
+              <MeetingRow key={meeting.id} meeting={meeting} index={index} onClick={() => {
+                if(meeting.recordingStartedAt === null) {
+                  toast.info("This meeting has no recording, so it cannot be viewed.")
+                  return;
+                }
+                navigate(`/recordings/${meeting.id}`)
+              }} />
             ))
           )}
 

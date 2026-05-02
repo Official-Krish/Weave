@@ -155,7 +155,9 @@ export function Meetings({
                                       hour: "2-digit",
                                       minute: "2-digit",
                                     })
-                                  : "Not started"}
+                                  : (
+                                    meeting.isEnded ? "Ended" : "Not started"
+                                  )}
                               </span>
                             </div>
                           </div>
@@ -171,14 +173,16 @@ export function Meetings({
                                 <ChevronRight className="size-3.5" />
                               </button>
                             ) : null}
-                            <button
-                              type="button"
-                              onClick={() => onOpenRecording(meeting.id)}
-                              className="inline-flex items-center gap-2 rounded-full cursor-pointer border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
-                            >
-                              Details
-                              <ChevronRight className="size-3.5" />
-                            </button>
+                            {meeting.recordingStartedAt != null && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenRecording(meeting.id)}
+                                className="inline-flex items-center gap-2 rounded-full cursor-pointer border border-white/8 bg-white/4 px-4 py-2 text-[12px] font-semibold text-[#fff5de]/78 transition hover:border-[#f5a623]/18 hover:text-[#fff5de]"
+                              >
+                                Details
+                                <ChevronRight className="size-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </motion.div>
