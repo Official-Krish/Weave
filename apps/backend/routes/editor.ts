@@ -140,6 +140,7 @@ editorRouter.get("/projects/:id", authMiddleware, async (req, res) => {
                             timelineStartMs: clip.timelineStartMs,
                             durationMs: clip.durationMs,
                             name: clip.name ?? undefined,
+                            ...(meta.audioMode ? { audioMode: meta.audioMode } : {}),
                             ...(meta.transitionStart ? { transitionStart: meta.transitionStart } : {}),
                             ...(meta.transitionEnd ? { transitionEnd: meta.transitionEnd } : {}),
                             ...(meta.transitionIn ? { transitionIn: meta.transitionIn } : {}),
@@ -241,22 +242,27 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                 if (track.clips?.length) {
                     const validClips = track.clips
                         .filter((clip) => assetMap.has(clip.sourceAssetId))
-                        .map((clip) => ({
-                            id: clip.id ?? crypto.randomUUID(),
-                            trackId: createdTrack.id,
-                            sourceAssetId: clip.sourceAssetId,
-                            sourceStartMs: clip.sourceStartMs,
-                            timelineStartMs: clip.timelineStartMs,
-                            durationMs: clip.durationMs,
-                            name: clip.name ?? null,
-                            // Store transitions + deprecated fields as JSON metadata
-                            metadata: {
-                                ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
-                                ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
-                                ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
-                                ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
-                            },
-                        }));
+                        .map((clip) => {
+                            const clipMeta = clip as typeof clip & { audioMode?: "replace" | "layer" };
+
+                            return {
+                                id: clip.id ?? crypto.randomUUID(),
+                                trackId: createdTrack.id,
+                                sourceAssetId: clip.sourceAssetId,
+                                sourceStartMs: clip.sourceStartMs,
+                                timelineStartMs: clip.timelineStartMs,
+                                durationMs: clip.durationMs,
+                                name: clip.name ?? null,
+                                // Store transitions + deprecated fields as JSON metadata
+                                metadata: {
+                                    ...(clipMeta.audioMode ? { audioMode: clipMeta.audioMode } : {}),
+                                    ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
+                                    ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
+                                    ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
+                                    ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
+                                },
+                            };
+                        });
 
                     if (validClips.length !== track.clips.length) {
                         throw new Error("Invalid sourceAssetId in clips");
@@ -357,8 +363,13 @@ editorRouter.post("/projects/:id/assets/upload", authMiddleware, upload.single("
         const filePath = path.join(assetDir, `${fileId}${ext}`);
         await fs.writeFile(filePath, file.buffer);
 
+        const explicitAssetType = typeof req.body?.assetType === "string" ? String(req.body.assetType).toUpperCase() : null;
         const isAudio = file.mimetype?.startsWith("audio/");
-        const assetType = isAudio ? "AUDIO" : "VIDEO";
+        const assetType = explicitAssetType === "AUDIO" || explicitAssetType === "VIDEO"
+            ? explicitAssetType
+            : isAudio
+                ? "AUDIO"
+                : "VIDEO";
 
         // Get duration from request body if provided
         const durationMs = req.body?.durationMs ? parseInt(req.body.durationMs, 10) : null;

@@ -4,7 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import {
   Play, Pause, Download, Plus, Type, Scissors,
   Undo2, Redo2, RotateCcw, Check,
-  ChevronDown, ChevronUp, Move, Maximize,
+  ChevronDown, ChevronUp, Move, Maximize, Music2,
 } from "lucide-react";
 import { formatTime } from "./helpers";
 
@@ -29,6 +29,7 @@ interface ToolbarProps {
   saving: boolean;
   tracks: any[];
   onAddClip: () => void;
+  onAddAudio: () => void;
   onAddOverlay: (overlay: any) => void;
   onPlayPause: () => void;
   onSplitAtPlayhead: () => void;
@@ -48,6 +49,7 @@ export function Toolbar({
   saving,
   tracks,
   onAddClip,
+  onAddAudio,
   onAddOverlay,
   onPlayPause,
   onSplitAtPlayhead,
@@ -183,16 +185,16 @@ export function Toolbar({
           className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
         >
           <Plus className="mr-2 h-4 w-4" />
-          Add Clip
+          Add Video
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={handleAddTextOverlay}
-          className="flex-1 border-[#f5a623]/20 bg-[#f5a623]/5 text-[#f5a623] hover:bg-[#f5a623]/10 hover:border-[#f5a623]/30"
+          onClick={onAddAudio}
+          className="flex-1 border-[#22c55e]/20 bg-[#22c55e]/5 text-[#4ade80] hover:bg-[#22c55e]/10 hover:border-[#22c55e]/30"
         >
-          <Type className="mr-2 h-4 w-4" />
-          Text
+          <Music2 className="mr-2 h-4 w-4" />
+          Add Audio
         </Button>
         <Button
           variant="outline"

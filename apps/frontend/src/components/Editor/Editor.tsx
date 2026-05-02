@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import type { Track, Overlay, Asset, ClipTransition } from "./types";
 import type { TransitionType } from "./transitions/types";
@@ -88,6 +88,7 @@ export function Editor() {
   }, [tracks, overlays]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timeUpdateRef = useRef<((t: number) => void) | null>(null);
   const playStateChangeRef = useRef<((p: boolean) => void) | null>(null);
@@ -134,7 +135,29 @@ export function Editor() {
     tracks, assetsById, activeAssetId, setActiveAssetId, setSourceUrl, setTimelineTime, setVideoTime, setIsPlaying
   );
 
-  const { handleClipFilePicked } = useMediaUpload(
+  const audioClips = useMemo(() => {
+    return tracks.flatMap((track) => {
+      if (track.type !== "AUDIO") return [];
+
+      return track.clips.flatMap((clip) => {
+        const asset = assetsById[clip.sourceAssetId];
+        if (!asset?.url) return [];
+
+        return [{
+          assetId: clip.sourceAssetId,
+          url: asset.url,
+          timelineStartMs: clip.timelineStartMs,
+          durationMs: clip.durationMs,
+          sourceStartMs: clip.sourceStartMs,
+          muted: track.muted,
+          volume: track.volume / 100,
+          audioMode: clip.audioMode,
+        }];
+      });
+    });
+  }, [tracks, assetsById]);
+
+  const { handleClipFilePicked, handleAudioFilePicked } = useMediaUpload(
     project, tracks, setTracks, setAssetsById, setDurationMs, sourceUrl, setSourceUrl, setActiveAssetId, extractThumbnailsForAsset
   );
 
@@ -167,6 +190,7 @@ export function Editor() {
 
   const {
     videoRef,
+    audioRef,
     canvasRef,
     state: canvasState,
     transform: canvasTransform,
@@ -178,6 +202,7 @@ export function Editor() {
     overlays,
     timelineTimeMs: timelineTime,
     videoAlpha: 1, // Always use full opacity - transitions handled by TransitionRenderer
+    audioClips,
     activeTransition: activeTransitionInfo,
   });
 
@@ -218,6 +243,10 @@ export function Editor() {
 
   const handleAddClip = useCallback(() => {
     fileInputRef.current?.click();
+  }, []);
+
+  const handleAddAudio = useCallback(() => {
+    audioInputRef.current?.click();
   }, []);
 
   const handleSelectTransition = useCallback((type: TransitionType) => {
@@ -308,6 +337,7 @@ export function Editor() {
                   <CanvasPlayer
                     canvasRef={canvasRef}
                     videoRef={videoRef}
+                    audioRef={audioRef}
                     isLoaded={canvasState.isLoaded}
                     onClickToggle={() => setSelectedOverlayId(null)}
                     onDoubleClickFullscreen={() => canvasRef.current?.requestFullscreen?.()}
@@ -352,6 +382,7 @@ export function Editor() {
               saving={saving}
               tracks={tracks}
               onAddClip={handleAddClip}
+              onAddAudio={handleAddAudio}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
               onSplitAtPlayhead={handleSplitAtPlayhead}
@@ -363,7 +394,7 @@ export function Editor() {
             />
 
             {showTransitionPanel ? (
-              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+              <div className="flex-1 min-h-75 overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
                 <TransitionPanel
                   onSelectTransition={handleSelectTransition}
                   selectedTransition={selectedTransitionId ? (() => {
@@ -379,7 +410,7 @@ export function Editor() {
                 />
               </div>
             ) : selectedTransitionId && selectedTransitionLocation ? (
-              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+              <div className="flex-1 min-h-75 overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
                 <TransitionControls
                   transition={(() => {
                     const track = tracks[selectedTransitionLocation.trackIndex];
@@ -423,6 +454,7 @@ export function Editor() {
           zoom={timelineZoom}
           onZoomChange={setTimelineZoom}
           onAddClip={handleAddClip}
+          onAddAudio={handleAddAudio}
           onUpdateTrack={handleUpdateTrack}
           onUpdateClip={handleUpdateClip}
           onDeleteClip={handleDeleteClip}
@@ -449,9 +481,17 @@ export function Editor() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*,audio/*"
+          accept="video/*"
           className="hidden"
           onChange={handleClipFilePicked}
+        />
+
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept=".mp3,.MP3,.m4a,.M4A,.aac,.AAC,.wav,.WAV,.ogg,.OGG,.flac,.FLAC,.webm,.WEBM,audio/*,audio/mpeg,audio/mp3"
+          className="hidden"
+          onChange={handleAudioFilePicked}
         />
 
         {showExportDialog && exportJob && (

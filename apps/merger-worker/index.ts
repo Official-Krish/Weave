@@ -59,7 +59,7 @@ class LocalVideoMerger {
     private readonly outputDir: string;
 
     private config = {
-        frameRate: 30,
+        frameRate: 60,
         audioBitrate: "256k",
     };
 

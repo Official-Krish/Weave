@@ -13,38 +13,36 @@ export function useMediaUpload(
   setActiveAssetId: (id: string | null) => void,
   extractThumbnailsForAsset: (assetId: string, url: string, durationMs: number) => Promise<void>
 ) {
-  const handleClipFilePicked = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleMediaFilePicked = useCallback(async (e: ChangeEvent<HTMLInputElement>, forcedAssetType?: "VIDEO" | "AUDIO") => {
     const file = e.target.files?.[0];
     e.currentTarget.value = "";
     if (!file || !project) return;
 
     const objectUrl = URL.createObjectURL(file);
-    const metaVideo = document.createElement("video");
-    metaVideo.preload = "metadata";
-    metaVideo.src = objectUrl;
+    const isAudio = forcedAssetType ? forcedAssetType === "AUDIO" : file.type.startsWith("audio/");
+    const assetType: "VIDEO" | "AUDIO" = isAudio ? "AUDIO" : "VIDEO";
+
+    const metaElement = document.createElement(isAudio ? "audio" : "video");
+    metaElement.preload = "metadata";
+    metaElement.src = objectUrl;
 
     const duration = await new Promise<number>((resolve) => {
-      metaVideo.onloadedmetadata = () => resolve(Math.round((metaVideo.duration || 1) * 1000));
-      metaVideo.onerror = () => resolve(5000);
+      metaElement.onloadedmetadata = () => resolve(Math.round((metaElement.duration || 1) * 1000));
+      metaElement.onerror = () => resolve(5000);
     });
 
-    const isAudio = file.type.startsWith("audio/");
-
     let assetId: string;
-    let assetUrl: string;
     try {
-      const uploaded = await editorApi.uploadAsset(project.id, file, duration);
+      const uploaded = await editorApi.uploadAsset(project.id, file, duration, assetType);
       assetId = uploaded.id;
-      assetUrl = uploaded.url;
     } catch (error) {
       console.error("Failed to upload asset to backend:", error);
       assetId = crypto.randomUUID();
-      assetUrl = objectUrl;
     }
 
     const newAsset: Asset = {
       id: assetId,
-      assetType: isAudio ? "AUDIO" : "VIDEO",
+      assetType,
       url: objectUrl,
       durationMs: duration,
     };
@@ -57,7 +55,7 @@ export function useMediaUpload(
     const GAP_MS = 500;
 
     setTracks((prev) => {
-      const trackType = isAudio ? "AUDIO" : "VIDEO";
+      const trackType = assetType;
       const existingTrack = prev.find((t) => t.type === trackType);
 
       if (existingTrack) {
@@ -80,6 +78,7 @@ export function useMediaUpload(
                 timelineStartMs: newClipStart,
                 durationMs: duration,
                 name: file.name,
+                  audioMode: isAudio ? "replace" : undefined,
               },
             ],
           };
@@ -102,6 +101,7 @@ export function useMediaUpload(
             timelineStartMs: 0,
             durationMs: duration,
             name: file.name,
+            audioMode: isAudio ? "replace" : undefined,
           },
         ],
       };
@@ -109,7 +109,7 @@ export function useMediaUpload(
     });
 
     setDurationMs((prev) => {
-      const existingTrack = tracks.find((t) => t.type === (isAudio ? "AUDIO" : "VIDEO"));
+      const existingTrack = tracks.find((t) => t.type === assetType);
       const lastClipEnd = existingTrack
         ? existingTrack.clips.reduce((max, c) => Math.max(max, c.timelineStartMs + c.durationMs), 0)
         : 0;
@@ -134,5 +134,13 @@ export function useMediaUpload(
     setSourceUrl,
   ]);
 
-  return { handleClipFilePicked };
+  const handleClipFilePicked = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    void handleMediaFilePicked(e);
+  }, [handleMediaFilePicked]);
+
+  const handleAudioFilePicked = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    void handleMediaFilePicked(e, "AUDIO");
+  }, [handleMediaFilePicked]);
+
+  return { handleClipFilePicked, handleAudioFilePicked };
 }

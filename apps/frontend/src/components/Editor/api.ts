@@ -57,12 +57,16 @@ export const editorApi = {
   async uploadAsset(
     projectId: string,
     file: File,
-    durationMs?: number
+    durationMs?: number,
+    assetType?: "VIDEO" | "AUDIO"
   ): Promise<{ id: string; assetType: "VIDEO" | "AUDIO"; url: string; durationMs: number | null }> {
     const formData = new FormData();
     formData.append("file", file);
     if (durationMs != null) {
       formData.append("durationMs", String(durationMs));
+    }
+    if (assetType) {
+      formData.append("assetType", assetType);
     }
     const response = await http.post<{
       asset: { id: string; assetType: "VIDEO" | "AUDIO"; url: string; durationMs: number | null };
