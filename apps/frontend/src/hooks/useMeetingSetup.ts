@@ -14,9 +14,9 @@ type UseMeetingSetupArgs = {
 function buildPreviewAudioConstraints(selectedMicId: string): MediaTrackConstraints | boolean {
   return {
     deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
     channelCount: 1,
     sampleRate: 48000,
   };

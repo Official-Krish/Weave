@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -9,12 +9,14 @@ import { CheckCircle2, Loader2, XCircle, Download, Film } from "lucide-react";
 interface ExportDialogProps {
   job: ExportJob;
   onClose: () => void;
+  onCompleted?: () => void;
 }
 
-export function ExportDialog({ job, onClose }: ExportDialogProps) {
+export function ExportDialog({ job, onClose, onCompleted }: ExportDialogProps) {
   const [status, setStatus] = useState(job.status);
   const [progress, setProgress] = useState(job.progress ?? 0);
   const [exportJob, setExportJob] = useState<ExportJob>(job);
+  const completionNotifiedRef = useRef(false);
 
   useEffect(() => {
     setStatus(job.status);
@@ -39,6 +41,18 @@ export function ExportDialog({ job, onClose }: ExportDialogProps) {
 
     return () => clearInterval(pollInterval);
   }, [status, exportJob.id]);
+
+  useEffect(() => {
+    if (status === "DONE" && !completionNotifiedRef.current) {
+      completionNotifiedRef.current = true;
+      onCompleted?.();
+      return;
+    }
+
+    if (status !== "DONE") {
+      completionNotifiedRef.current = false;
+    }
+  }, [status, onCompleted]);
 
   const getStatusConfig = () => {
     switch (status) {

@@ -72,6 +72,7 @@ export function Editor() {
 
   // Transition state
   const [showTransitionPanel, setShowTransitionPanel] = useState(false);
+  const [shouldResetAfterExport, setShouldResetAfterExport] = useState(false);
 
   // Automatically recalculate duration when clips/overlays are added, deleted, or split
   useEffect(() => {
@@ -157,7 +158,7 @@ export function Editor() {
     (sourceUrl && durationMs > 0 && waveformData.length === 0)
   );
 
-  const { project, loading, saving } = useEditorProject(
+  const { project, loading, saving, accessDenied } = useEditorProject(
     meetingId, tracks, overlays, durationMs, setTracks, setOverlays, setDurationMs, setAssetsById, setSourceUrl, setActiveAssetId, resetHistory, extractThumbnailsForAsset
   );
 
@@ -362,6 +363,18 @@ export function Editor() {
     );
   }
 
+  if (accessDenied) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/40 p-8 text-center">
+        <Film className="h-12 w-12 text-[#f5a623]/40" />
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-[#fff5de]">You don't have access</h2>
+          <p className="text-[#bfa873]">Ask the host for access to edit this recording.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/40 p-8">
@@ -552,7 +565,13 @@ export function Editor() {
         {showExportDialog && exportJob && (
           <ExportDialog
             job={exportJob}
-            onClose={() => setShowExportDialog(false)}
+            onClose={() => {
+              setShowExportDialog(false);
+              if (shouldResetAfterExport) {
+                window.location.reload();
+              }
+            }}
+            onCompleted={() => setShouldResetAfterExport(true)}
           />
         )}
       </div>

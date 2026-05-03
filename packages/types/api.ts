@@ -100,6 +100,7 @@ export type RecordingPageResponse = {
   hostEmail?: string | null;
   userEmail?: string | null;
   canViewRecording: boolean;
+  canEditRecording: boolean;
   visibleToEmails: string[];
   startedAt?: string | null;
   endedAt?: string | null;

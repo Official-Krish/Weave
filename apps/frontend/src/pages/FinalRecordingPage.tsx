@@ -158,7 +158,7 @@ export function FinalRecordingPage() {
               <ArrowLeft size={14} />
               Back to recordings
             </Link>
-            {meeting && meeting.isHost && (
+            {meeting && meeting.canEditRecording && (
               <button
                 onClick={() => navigate("/edit/" + meeting.id)}
                 className="flex items-center group relative overflow-hidden rounded-full px-6 py-3 text-sm font-bold tracking-wide transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
@@ -169,7 +169,7 @@ export function FinalRecordingPage() {
               >
                 {/* Shimmer sweep */}
                 <span
-                  className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+                  className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700"
                   style={{
                       background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)",
                   }}
@@ -179,6 +179,15 @@ export function FinalRecordingPage() {
             )}
           </div>
         </div>
+
+        {meeting && meeting.canViewRecording && !meeting.canEditRecording && (
+          <div className="wrp-state-card warning">
+            <h2 className="wrp-state-title">You do not have editing access</h2>
+            <p className="wrp-state-desc">
+              Ask the host for access to edit this recording.
+            </p>
+          </div>
+        )}
 
         {/* ── Auth gate ── */}
         {!isAuthenticated ? (
@@ -223,7 +232,7 @@ export function FinalRecordingPage() {
               <div className="wrp-state-card warning">
                 <h2 className="wrp-state-title">Access requires host permission</h2>
                 <p className="wrp-state-desc">
-                  Your email is not in the sharing list yet. Ask the host to add your email in recording sharing settings.
+                  You don't have permission to view this recording. Please ask the host for access.
                 </p>
                 <button type="button" onClick={() => AskPermissionMutation.mutate()} className="wrp-permission-btn">
                   <Mail size={13} />

@@ -18,9 +18,9 @@ type UseMeetingRecordingArgs = {
 function buildRecordingAudioConstraints(selectedMicId?: string): MediaTrackConstraints {
   return {
     deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
     channelCount: 1,
     sampleRate: 48000,
   };

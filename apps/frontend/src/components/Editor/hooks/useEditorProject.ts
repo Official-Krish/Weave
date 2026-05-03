@@ -19,6 +19,7 @@ export function useEditorProject(
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<EditorProject | null>(null);
   const [saving, setSaving] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export function useEditorProject(
         return;
       }
       try {
+        setAccessDenied(false);
         setLoading(true);
         const { projectId } = await editorApi.createProject(meetingId, "FINAL");
         const projectData = await editorApi.getProject(projectId);
@@ -114,6 +116,10 @@ export function useEditorProject(
           );
         }
       } catch (error) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 403) {
+          setAccessDenied(true);
+        }
         console.error("Failed to initialize project:", error);
       } finally {
         setLoading(false);
@@ -155,5 +161,5 @@ export function useEditorProject(
     };
   }, [project, tracks, overlays, durationMs]);
 
-  return { project, loading, saving };
+  return { project, loading, saving, accessDenied };
 }
