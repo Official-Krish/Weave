@@ -102,5 +102,73 @@ export async function refreshMeetingRecordingArtifacts(roomId: string, finalPath
     }),
   );
 
+  try {
+    await cleanupEditorProjectState(roomId, projectId, normalizedPublicFinalPath);
+  } catch (error) {
+    log("warn", "Editor cleanup failed after export", {
+      roomId,
+      projectId,
+      err: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   return normalizedPublicFinalPath;
+}
+
+async function cleanupEditorProjectState(roomId: string, projectId: string, finalVideoUrl: string) {
+  const project = await prisma.editorProject.findFirst({
+    where: { id: projectId },
+    include: {
+      meeting: {
+        include: {
+          finalRecording: true,
+        },
+      },
+      assets: true,
+    },
+  });
+
+  if (!project) {
+    return;
+  }
+
+  const preservedUrl = project.meeting.finalRecording?.videoLink ?? finalVideoUrl;
+  const preservedAsset = project.assets.find((asset) => asset.url === preservedUrl);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.editorOverlay.deleteMany({ where: { projectId } });
+    await tx.editorTrack.deleteMany({ where: { projectId } });
+
+    if (preservedAsset) {
+      await tx.editorAsset.deleteMany({
+        where: {
+          projectId,
+          id: { not: preservedAsset.id },
+        },
+      });
+    } else {
+      await tx.editorAsset.deleteMany({ where: { projectId } });
+      await tx.editorAsset.create({
+        data: {
+          projectId,
+          meetingId: project.meetingId,
+          assetType: "VIDEO",
+          url: preservedUrl,
+        },
+      });
+    }
+
+    await tx.editorProject.update({
+      where: { id: projectId },
+      data: {
+        status: "DRAFT",
+        durationMs: null,
+      },
+    });
+  });
+
+  await Promise.allSettled([
+    removeIfExists(path.join(recordingsRoot, roomId, "editor", "projects", projectId)),
+    removeIfExists(path.join(recordingsRoot, roomId, "editor-assets")),
+  ]);
 }
