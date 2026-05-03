@@ -32,7 +32,7 @@ export function RecordingsPage({
   const queryClient = useQueryClient();
   const pageSize = 4;
   // Paginate meetings
-  const readyRecordings = meetings.filter((meeting) => meeting.recordingState === "READY");
+  const readyRecordings = meetings.filter((meeting) => {return meeting.recordingState === "READY" && meeting.finalRecording !== null});
   const paginatedMeetings = readyRecordings.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(readyRecordings.length / pageSize);
 
@@ -49,43 +49,14 @@ export function RecordingsPage({
       await http.delete(`/recording/delete/${roomId}`);
     },
 
-    onMutate: async (id: string) => {
-      setDeletingId(id);
-
-      await queryClient.cancelQueries({ queryKey: ["recordings"] });
-
-      const previousRecordings = queryClient.getQueryData<MeetingDetails[]>([
-        "recordings",
-      ]);
-
-      queryClient.setQueryData<MeetingDetails[]>(
-        ["recordings"],
-        (old = []) => old.filter((m) => m.id !== id)
-      );
-
-      return { previousRecordings };
-    },
-
-    onError: (error, _id, context) => {
-      if (context?.previousRecordings) {
-        queryClient.setQueryData(
-          ["recordings"],
-          context.previousRecordings
-        );
-      }
-
+    onError: (error, _id) => {
       toast.error(getHttpErrorMessage(error, "Failed to delete recording."));
     },
 
-    onSuccess: () => {
-      toast.success("Recording deleted successfully");
-    },
-
-    onSettled: () => {
+    onSuccess: async () => {
       setDeletingId(null);
-      queryClient.invalidateQueries({
-        queryKey: ["recordings"],
-      });
+      await queryClient.invalidateQueries({ queryKey: ["meetings"] });
+      toast.success("Recording deleted successfully");
     },
   });
 
@@ -135,7 +106,7 @@ export function RecordingsPage({
             {getHttpErrorMessage(error, "Could not load recordings.")}
           </p>
         </div>
-      ) : meetings.length === 0 ? (
+      ) : (meetings.length === 0 || readyRecordings.length === 0) ? (
         <div className="rounded-2xl border border-[#f5a623]/10 bg-black/18 px-5 py-6 text-sm text-[#a89880]">
           No recordings found yet. End a recorded meeting and it will appear here.
         </div>
@@ -160,87 +131,89 @@ export function RecordingsPage({
 
                 <div className="grid gap-3 lg:grid-cols-2">
                   {group.items.map((meeting, index) => (
-                    <motion.div
-                      key={meeting.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.22, delay: index * 0.03 }}
-                      className="rounded-2xl border border-[#f5a623]/8 bg-black/18 p-4 text-left transition hover:border-[#f5a623]/18 hover:bg-black/28 cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex space-x-3">
-                            <p className="truncate text-[15px] font-bold text-[#fff5de]">
-                              {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
-                            </p>
-                            <span
-                              className={[
-                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
-                                group.tone === "ready"
-                                  ? "border border-green-500/20 bg-green-500/12 text-green-300"
+                    meeting.finalRecording !== null && (
+                      <motion.div
+                        key={meeting.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.22, delay: index * 0.03 }}
+                        className="rounded-2xl border border-[#f5a623]/8 bg-black/18 p-4 text-left transition hover:border-[#f5a623]/18 hover:bg-black/28 cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex space-x-3">
+                              <p className="truncate text-[15px] font-bold text-[#fff5de]">
+                                {meeting.roomName?.trim() || `Meeting ${meeting.roomId.slice(0, 8)}`}
+                              </p>
+                              <span
+                                className={[
+                                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                                  group.tone === "ready"
+                                    ? "border border-green-500/20 bg-green-500/12 text-green-300"
+                                    : group.tone === "failed"
+                                      ? "border border-red-500/20 bg-red-500/12 text-red-300"
+                                      : "border border-[#f5a623]/20 bg-[#f5a623]/10 text-[#f5a623]",
+                                ].join(" ")
+                              }
+                              >
+                                {group.tone === "ready"
+                                  ? "Ready"
                                   : group.tone === "failed"
-                                    ? "border border-red-500/20 bg-red-500/12 text-red-300"
-                                    : "border border-[#f5a623]/20 bg-[#f5a623]/10 text-[#f5a623]",
-                              ].join(" ")
-                            }
-                            >
-                              {group.tone === "ready"
-                                ? "Ready"
-                                : group.tone === "failed"
-                                  ? "Failed"
-                                  : "Processing"}
-                            </span>
+                                    ? "Failed"
+                                    : "Processing"}
+                              </span>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
+                              <span className="inline-flex items-center gap-1">
+                                <Users className="size-3" />
+                                {getMeetingParticipantCount(meeting)} participants
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <CalendarDays className="size-3" />
+                                {new Date(getMeetingDate(meeting)).toLocaleDateString()}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Clock3 className="size-3" />
+                                {getDuration(meeting.startedAt, meeting.endedAt)}
+                              </span>
+                            </div>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#b49650]/60">
-                            <span className="inline-flex items-center gap-1">
-                              <Users className="size-3" />
-                              {getMeetingParticipantCount(meeting)} participants
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarDays className="size-3" />
-                              {new Date(getMeetingDate(meeting)).toLocaleDateString()}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Clock3 className="size-3" />
-                              {getDuration(meeting.startedAt, meeting.endedAt)}
-                            </span>
-                          </div>
+
+                          <button
+                            className="cursor-pointer border border-neutral-800 rounded-lg px-2 py-2 hover:bg-red-500 hover:text-white transition-colors duration-200"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteMutation.mutate(meeting.roomId);
+                            }}
+                            disabled={deletingId === meeting.id}
+                            aria-label="Delete recording"
+                          >
+                            {deletingId === meeting.id ? (
+                              <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
 
-                        <button
-                          className="cursor-pointer border border-neutral-800 rounded-lg px-2 py-2 hover:bg-red-500 hover:text-white transition-colors duration-200"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteMutation.mutate(meeting.roomId);
-                          }}
-                          disabled={deletingId === meeting.id}
-                          aria-label="Delete recording"
-                        >
-                          {deletingId === meeting.id ? (
-                            <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </div>
-
-                      <div className="mt-5 flex items-center justify-between">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/10 bg-[#f5a623]/7 px-3 py-1.5 text-[11px] font-medium text-[#f5d08d]">
-                          <Video className="size-3.5" />
-                          {group.tone === "ready" ? "Open recording" : "View status"}
+                        <div className="mt-5 flex items-center justify-between">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/10 bg-[#f5a623]/7 px-3 py-1.5 text-[11px] font-medium text-[#f5d08d]">
+                            <Video className="size-3.5" />
+                            {group.tone === "ready" ? "Open recording" : "View status"}
+                          </div>
+                          <motion.button
+                            initial={{ opacity: 0, x: 6 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2, delay: 0.1 + index * 0.03 }}
+                            className="flex items-center cursor-pointer gap-1 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/10 px-4 py-2 text-[12px] font-bold text-[#f5a623] transition hover:border-[#f5a623]/30 hover:bg-[#f5a623]/14 focus:outline-none focus:ring-2 focus:ring-[#f5a623]/40"
+                            onClick={() => onOpenRecording(meeting.id)}
+                          >
+                            More details
+                            <ChevronRight className="size-4 text-[#f5a623]/70" />
+                          </motion.button>
                         </div>
-                        <motion.button
-                          initial={{ opacity: 0, x: 6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.2, delay: 0.1 + index * 0.03 }}
-                          className="flex items-center cursor-pointer gap-1 rounded-full border border-[#f5a623]/15 bg-[#f5a623]/10 px-4 py-2 text-[12px] font-bold text-[#f5a623] transition hover:border-[#f5a623]/30 hover:bg-[#f5a623]/14 focus:outline-none focus:ring-2 focus:ring-[#f5a623]/40"
-                          onClick={() => onOpenRecording(meeting.id)}
-                        >
-                          More details
-                          <ChevronRight className="size-4 text-[#f5a623]/70" />
-                        </motion.button>
-                      </div>
-                    </motion.div>
+                      </motion.div>
+                    )
                   ))}
                 </div>
               </div>

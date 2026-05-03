@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, X } from "lucide-react";
-import { http } from "../../https";
+import { http } from "../../../https";
 
 type GithubIssue = { title?: string; html_url?: string };
 type RepoItem = {
@@ -102,7 +102,7 @@ export function IssueCreateModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-lg border border-white/8 bg-white/4 text-[#c8a870]/70 transition hover:bg-white/8"
+            className="flex size-8 items-center justify-center rounded-lg border border-white/8 bg-white/4 text-[#c8a870]/70 transition hover:bg-white/8 cursor-pointer"
             aria-label="Close issue modal"
           >
             <X className="size-4" />
@@ -178,7 +178,7 @@ export function IssueCreateModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded bg-white/5 px-3 py-2 text-sm text-[#fff5de] transition hover:bg-white/10"
+            className="rounded bg-white/5 px-3 py-2 text-sm text-[#fff5de] transition hover:bg-white/10 cursor-pointer"
           >
             Cancel
           </button>
@@ -191,7 +191,7 @@ export function IssueCreateModal({
               !title.trim() ||
               !selectedRepo
             }
-            className="inline-flex items-center gap-2 rounded bg-[#f5a623] px-3 py-2 text-sm font-semibold text-black transition hover:bg-[#ffbd4a] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded bg-[#f5a623] px-3 py-2 text-sm font-semibold text-black transition hover:bg-[#ffbd4a] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
             {createMutation.isPending && (
               <LoaderCircle className="size-4 animate-spin" />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import type { Track, Overlay, Asset, ClipTransition } from "./types";
 import type { TransitionType } from "./transitions/types";
@@ -72,6 +72,7 @@ export function Editor() {
 
   // Transition state
   const [showTransitionPanel, setShowTransitionPanel] = useState(false);
+  const [shouldResetAfterExport, setShouldResetAfterExport] = useState(false);
 
   // Automatically recalculate duration when clips/overlays are added, deleted, or split
   useEffect(() => {
@@ -87,7 +88,48 @@ export function Editor() {
     setDurationMs(maxMs > 0 ? maxMs + 2000 : 0);
   }, [tracks, overlays]);
 
+  // Cleanup: revoke blob URLs for assets that are no longer referenced in tracks
+  // This prevents memory bloat from accumulated blob:// URLs
+  useEffect(() => {
+    const usedAssetIds = new Set<string>();
+    tracks.forEach((track) => {
+      track.clips.forEach((clip) => {
+        usedAssetIds.add(clip.sourceAssetId);
+      });
+    });
+
+    // Find and revoke unused blob URLs
+    const toDelete: string[] = [];
+    Object.entries(assetsById).forEach(([assetId, asset]) => {
+      if (!usedAssetIds.has(assetId) && asset.url?.startsWith("blob:")) {
+        URL.revokeObjectURL(asset.url);
+        toDelete.push(assetId);
+      }
+    });
+
+    // Batch the deletion to avoid multiple state updates
+    if (toDelete.length > 0) {
+      setAssetsById((prev) => {
+        const updated = { ...prev };
+        toDelete.forEach((id) => delete updated[id]);
+        return updated;
+      });
+    }
+  }, [tracks]);
+
+  // Cleanup on unmount: revoke all remaining blob URLs
+  useEffect(() => {
+    return () => {
+      Object.values(assetsById).forEach((asset) => {
+        if (asset.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(asset.url);
+        }
+      });
+    };
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timeUpdateRef = useRef<((t: number) => void) | null>(null);
   const playStateChangeRef = useRef<((p: boolean) => void) | null>(null);
@@ -110,7 +152,13 @@ export function Editor() {
     assetsById, sourceUrl, durationMs
   );
 
-  const { project, loading, saving } = useEditorProject(
+  // Global editor busy flag: true while thumbnails or waveform are being extracted
+  const isEditorBusy = Boolean(
+    Object.values(extractingAssets).some((v) => v) ||
+    (sourceUrl && durationMs > 0 && waveformData.length === 0)
+  );
+
+  const { project, loading, saving, accessDenied } = useEditorProject(
     meetingId, tracks, overlays, durationMs, setTracks, setOverlays, setDurationMs, setAssetsById, setSourceUrl, setActiveAssetId, resetHistory, extractThumbnailsForAsset
   );
 
@@ -134,7 +182,29 @@ export function Editor() {
     tracks, assetsById, activeAssetId, setActiveAssetId, setSourceUrl, setTimelineTime, setVideoTime, setIsPlaying
   );
 
-  const { handleClipFilePicked } = useMediaUpload(
+  const audioClips = useMemo(() => {
+    return tracks.flatMap((track) => {
+      if (track.type !== "AUDIO") return [];
+
+      return track.clips.flatMap((clip) => {
+        const asset = assetsById[clip.sourceAssetId];
+        if (!asset?.url) return [];
+
+        return [{
+          assetId: clip.sourceAssetId,
+          url: asset.url,
+          timelineStartMs: clip.timelineStartMs,
+          durationMs: clip.durationMs,
+          sourceStartMs: clip.sourceStartMs,
+          muted: track.muted,
+          volume: track.volume / 100,
+          audioMode: clip.audioMode,
+        }];
+      });
+    });
+  }, [tracks, assetsById]);
+
+  const { handleClipFilePicked, handleAudioFilePicked } = useMediaUpload(
     project, tracks, setTracks, setAssetsById, setDurationMs, sourceUrl, setSourceUrl, setActiveAssetId, extractThumbnailsForAsset
   );
 
@@ -167,6 +237,7 @@ export function Editor() {
 
   const {
     videoRef,
+    audioRef,
     canvasRef,
     state: canvasState,
     transform: canvasTransform,
@@ -178,6 +249,7 @@ export function Editor() {
     overlays,
     timelineTimeMs: timelineTime,
     videoAlpha: 1, // Always use full opacity - transitions handled by TransitionRenderer
+    audioClips,
     activeTransition: activeTransitionInfo,
   });
 
@@ -218,6 +290,10 @@ export function Editor() {
 
   const handleAddClip = useCallback(() => {
     fileInputRef.current?.click();
+  }, []);
+
+  const handleAddAudio = useCallback(() => {
+    audioInputRef.current?.click();
   }, []);
 
   const handleSelectTransition = useCallback((type: TransitionType) => {
@@ -287,6 +363,18 @@ export function Editor() {
     );
   }
 
+  if (accessDenied) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/40 p-8 text-center">
+        <Film className="h-12 w-12 text-[#f5a623]/40" />
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-[#fff5de]">You don't have access</h2>
+          <p className="text-[#bfa873]">Ask the host for access to edit this recording.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-[#f5a623]/10 bg-[#0a0a08]/40 p-8">
@@ -300,6 +388,15 @@ export function Editor() {
     <>
       <style>{EDITOR_CSS}</style>
       <div className="editor-root space-y-4 relative">
+        {/* Global busy overlay while we prepare thumbnails/waveforms */}
+        {isEditorBusy && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-10 w-10 animate-spin text-[#f5a623]" />
+              <p className="text-sm text-[#f5a623]">Preparing editor assets...</p>
+            </div>
+          </div>
+        )}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2" ref={containerRef}>
             <div className="overflow-hidden rounded-2xl border border-[#f5a623]/15 bg-[#0a0a08] shadow-[0_0_0_1px_rgba(245,166,35,0.06),0_16px_48px_rgba(0,0,0,0.5)]">
@@ -308,6 +405,7 @@ export function Editor() {
                   <CanvasPlayer
                     canvasRef={canvasRef}
                     videoRef={videoRef}
+                    audioRef={audioRef}
                     isLoaded={canvasState.isLoaded}
                     onClickToggle={() => setSelectedOverlayId(null)}
                     onDoubleClickFullscreen={() => canvasRef.current?.requestFullscreen?.()}
@@ -352,6 +450,7 @@ export function Editor() {
               saving={saving}
               tracks={tracks}
               onAddClip={handleAddClip}
+              onAddAudio={handleAddAudio}
               onAddOverlay={handleAddOverlay}
               onPlayPause={handlePlayPause}
               onSplitAtPlayhead={handleSplitAtPlayhead}
@@ -363,7 +462,7 @@ export function Editor() {
             />
 
             {showTransitionPanel ? (
-              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+              <div className="flex-1 min-h-75 overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
                 <TransitionPanel
                   onSelectTransition={handleSelectTransition}
                   selectedTransition={selectedTransitionId ? (() => {
@@ -379,7 +478,7 @@ export function Editor() {
                 />
               </div>
             ) : selectedTransitionId && selectedTransitionLocation ? (
-              <div className="flex-1 min-h-[300px] overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
+              <div className="flex-1 min-h-75 overflow-hidden rounded-2xl border border-[#f5a623]/20 bg-[#0a0a08] shadow-lg">
                 <TransitionControls
                   transition={(() => {
                     const track = tracks[selectedTransitionLocation.trackIndex];
@@ -423,6 +522,7 @@ export function Editor() {
           zoom={timelineZoom}
           onZoomChange={setTimelineZoom}
           onAddClip={handleAddClip}
+          onAddAudio={handleAddAudio}
           onUpdateTrack={handleUpdateTrack}
           onUpdateClip={handleUpdateClip}
           onDeleteClip={handleDeleteClip}
@@ -449,15 +549,29 @@ export function Editor() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="video/*,audio/*"
+          accept="video/*"
           className="hidden"
           onChange={handleClipFilePicked}
+        />
+
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept=".mp3,.MP3,.m4a,.M4A,.aac,.AAC,.wav,.WAV,.ogg,.OGG,.flac,.FLAC,.webm,.WEBM,audio/*,audio/mpeg,audio/mp3"
+          className="hidden"
+          onChange={handleAudioFilePicked}
         />
 
         {showExportDialog && exportJob && (
           <ExportDialog
             job={exportJob}
-            onClose={() => setShowExportDialog(false)}
+            onClose={() => {
+              setShowExportDialog(false);
+              if (shouldResetAfterExport) {
+                window.location.reload();
+              }
+            }}
+            onCompleted={() => setShouldResetAfterExport(true)}
           />
         )}
       </div>

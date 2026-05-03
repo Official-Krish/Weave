@@ -4,6 +4,7 @@ import { Loader2, Maximize2 } from "lucide-react";
 type Props = {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
   isLoaded?: boolean;
   onClickToggle?: () => void;
   onDoubleClickFullscreen?: () => void;
@@ -12,6 +13,7 @@ type Props = {
 export default function CanvasPlayer({
   canvasRef,
   videoRef,
+  audioRef,
   isLoaded = true,
   onClickToggle,
   onDoubleClickFullscreen,
@@ -88,7 +90,31 @@ export default function CanvasPlayer({
         playsInline
         preload="auto"
         crossOrigin="anonymous"
-        style={{ display: "none" }}
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          pointerEvents: "none",
+          left: 0,
+          top: 0,
+        }}
+      />
+
+      {/* Hidden audio element — source for external audio playback */}
+      <audio
+        ref={audioRef}
+        preload="auto"
+        crossOrigin="anonymous"
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          pointerEvents: "none",
+          left: 0,
+          top: 0,
+        }}
       />
 
       {/* Loading overlay */}
@@ -103,7 +129,7 @@ export default function CanvasPlayer({
 
       {/* Vignette overlay for premium feel */}
       <div
-        className="absolute inset-0 pointer-events-none z-[1]"
+        className="absolute inset-0 pointer-events-none z-1"
         style={{
           background:
             "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.15) 100%)",
@@ -111,8 +137,8 @@ export default function CanvasPlayer({
       />
 
       {/* Subtle top/bottom bars */}
-      <div className="absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/20 to-transparent pointer-events-none z-[1]" />
-      <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/30 to-transparent pointer-events-none z-[1]" />
+      <div className="absolute inset-x-0 top-0 h-6 bg-linear-to-b from-black/20 to-transparent pointer-events-none z-1" />
+      <div className="absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-black/30 to-transparent pointer-events-none z-1" />
 
       {/* Fullscreen button (appears on hover) */}
       <button

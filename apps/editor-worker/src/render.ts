@@ -1,0 +1,159 @@
+import * as path from "node:path";
+import * as fs from "node:fs/promises";
+import { prisma } from "@repo/db/client";
+import type { RenderPayload } from "./types";
+import { log } from "./logger";
+import { CONFIG } from "./config";
+import { recordingsRoot, ensureDir, runBinary } from "./helpers";
+import { verifySourceExists, updateProgress } from "./utils";
+import { collectRenderClips } from "./clips";
+import { buildClipRenderArgs } from "./transitions";
+import { buildOverlayFilter } from "./overlay";
+import { buildAudioMixArgs, buildConcatArgs } from "./audio";
+import { promoteRenderedVideo, refreshMeetingRecordingArtifacts } from "./artifacts";
+
+function buildOverlayBurnInArgs(inputPath: string, overlays: any[], outputPath: string, width: number, height: number): string[] {
+  const overlay = buildOverlayFilter(overlays, 0, width, height);
+  if (!overlay) {
+    return ["-y", "-i", inputPath, "-c", "copy", outputPath];
+  }
+
+  return [
+    "-y",
+    "-i", inputPath,
+    "-vf", overlay,
+    "-c:v", "libx264",
+    "-preset", "fast",
+    "-crf", "22",
+    "-c:a", "copy",
+    outputPath,
+  ];
+}
+
+export async function processRenderJob(payload: RenderPayload): Promise<void> {
+  const { projectId, jobId, roomId } = payload;
+
+  log("info", "Job started", { jobId, projectId });
+
+  const project = await prisma.editorProject.findFirst({
+    where: { id: projectId },
+    include: {
+      tracks: { include: { clips: true }, orderBy: { order: "asc" } },
+      overlays: true,
+      meeting: { include: { finalRecording: true } },
+      assets: true,
+    },
+  });
+
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+
+  const fps = project.fps ?? 30;
+  const width = project.width ?? 1280;
+  const height = project.height ?? 720;
+
+  const { videoClips, audioClips } = collectRenderClips(project);
+
+  if (!videoClips.length) throw new Error("No video clips found in project");
+
+  const sourcePaths = new Set(videoClips.map((clip) => clip.sourcePath));
+  await Promise.all([...sourcePaths].map((sourcePath) => verifySourceExists(sourcePath)));
+
+  const exportDir = path.join(recordingsRoot, roomId, "editor", "projects", projectId, "exports");
+  await ensureDir(exportDir);
+
+  const outputPath = path.join(exportDir, `${jobId}.mp4`);
+  const videoOnlyPath = outputPath.replace(/\.mp4$/, "_video.mp4");
+  const overlayedPath = outputPath.replace(/\.mp4$/, "_overlay.mp4");
+  const previewPath = outputPath.replace(/\.mp4$/, "_preview.mp4");
+
+  const firstClip = videoClips[0]!;
+
+  // ── Preview (low-res, ultrafast) ──────────────────────────────────────────
+  log("debug", "Generating preview", { jobId });
+  await runBinary(CONFIG.FFMPEG_BIN, [
+    "-y",
+    "-ss", (firstClip.sourceStartMs / 1000).toFixed(3),
+    "-i", firstClip.sourcePath,
+    "-t", (firstClip.durationMs / 1000).toFixed(3),
+    "-vf", "scale=640:-2",
+    "-preset", "ultrafast",
+    "-crf", "32",
+    "-c:a", "aac",
+    "-b:a", "128k",
+    "-ar", "48000",
+    previewPath,
+  ]);
+
+  await updateProgress(jobId, 10);
+
+  const tempFiles: string[] = [];
+  let concatListPath: string | null = null;
+
+  try {
+    if (videoClips.length === 1) {
+      const c = videoClips[0]!;
+      await runBinary(CONFIG.FFMPEG_BIN, buildClipRenderArgs(c, videoOnlyPath, width, height, fps));
+      await updateProgress(jobId, 75);
+    } else {
+      // ── Multi-clip: encode parts then concat ────────────────────────────
+      for (let i = 0; i < videoClips.length; i++) {
+        const c = videoClips[i]!;
+        const partPath = path.join(exportDir, `${jobId}_part${i}.mp4`);
+
+        log("debug", `Encoding part ${i + 1}/${videoClips.length}`, { jobId });
+        await runBinary(CONFIG.FFMPEG_BIN, buildClipRenderArgs(c, partPath, width, height, fps));
+
+        tempFiles.push(partPath);
+        await updateProgress(jobId, 10 + Math.round(((i + 1) / videoClips.length) * 70));
+      }
+
+      const { args, listPath } = await buildConcatArgs(tempFiles, videoOnlyPath);
+      concatListPath = listPath;
+
+      log("debug", "Concatenating parts", { jobId, parts: tempFiles.length });
+      await runBinary(CONFIG.FFMPEG_BIN, args);
+      await updateProgress(jobId, 90);
+    }
+
+    if (project.overlays.length > 0) {
+      log("debug", "Burning overlay timeline into composed video", { jobId, overlays: project.overlays.length });
+      await runBinary(CONFIG.FFMPEG_BIN, buildOverlayBurnInArgs(videoOnlyPath, project.overlays, overlayedPath, width, height));
+      await updateProgress(jobId, 93);
+    } else {
+      await fs.copyFile(videoOnlyPath, overlayedPath);
+      await updateProgress(jobId, 93);
+    }
+
+    if (audioClips.length > 0) {
+      log("debug", "Mixing external audio tracks", { jobId, audioClips: audioClips.length });
+      const mixArgs = buildAudioMixArgs(overlayedPath, audioClips, outputPath);
+      await runBinary(CONFIG.FFMPEG_BIN, mixArgs);
+      await updateProgress(jobId, 98);
+      // Clean up intermediate files (will be skipped in finally block)
+      await fs.rm(videoOnlyPath, { force: true });
+      await fs.rm(overlayedPath, { force: true });
+    } else {
+      await fs.rename(overlayedPath, outputPath);
+      await updateProgress(jobId, 98);
+    }
+
+    // ── Promote to canonical final recording and trigger retranscode ──────
+    const finalPath = await promoteRenderedVideo(roomId, outputPath);
+    const publicFinalPath = await refreshMeetingRecordingArtifacts(roomId, finalPath, jobId, projectId);
+
+    log("info", "Job completed and promoted to final recording", {
+      jobId,
+      finalPath,
+      publicFinalPath,
+      transcodeQueue: CONFIG.TRANSCODE_QUEUE_NAME,
+    });
+  } finally {
+    // Clean up temp files and intermediates (videoOnlyPath/overlayedPath already deleted on success path)
+    await Promise.allSettled([
+      fs.unlink(previewPath),
+      fs.unlink(outputPath), // only needed if job failed before promotion
+      ...tempFiles.map((f) => fs.unlink(f)),
+      concatListPath ? fs.unlink(concatListPath) : Promise.resolve(),
+    ]);
+  }
+}

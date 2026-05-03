@@ -18,9 +18,9 @@ type UseMeetingRecordingArgs = {
 function buildRecordingAudioConstraints(selectedMicId?: string): MediaTrackConstraints {
   return {
     deviceId: selectedMicId ? { exact: selectedMicId } : undefined,
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
     channelCount: 1,
     sampleRate: 48000,
   };
@@ -161,9 +161,9 @@ export function useMeetingRecording({
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 60 },
         },
         audio: buildRecordingAudioConstraints(selectedMicId),
       });
@@ -247,6 +247,24 @@ export function useMeetingRecording({
     }
   }, [enqueueChunkUpload, getSupportedMimeType, selectedMicId]);
 
+  // Safe starter with retry/backoff in case permissions or audio context are not ready.
+  const startLocalRecording = useCallback(async (opts?: { retries?: number; delayMs?: number }) => {
+    const retries = opts?.retries ?? 3;
+    const delayMs = opts?.delayMs ?? 500;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await startLocalChunkRecorder();
+        return;
+      } catch (err) {
+        if (attempt === retries) throw err;
+        // wait and retry
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((res) => setTimeout(res, delayMs));
+      }
+    }
+  }, [startLocalChunkRecorder]);
+
   const stopLocalChunkRecorder = useCallback(async () => {
     cleanupRecorder();
     await uploadChainRef.current;
@@ -329,7 +347,9 @@ export function useMeetingRecording({
     isRecordingBusy,
     recordingButtonLabel,
     stopLocalChunkRecorder,
+    startLocalRecording,
     hasActiveRecorder: () => Boolean(mediaRecorderRef.current),
     isMeetingEnded: Boolean(recordingStatusQuery.data?.isEnded),
   };
 }
+

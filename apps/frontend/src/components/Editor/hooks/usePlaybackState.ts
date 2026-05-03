@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { Track, Asset, Clip } from "../types";
-import { getOrderedClips, mapTimelineToSourceTime } from "../helpers";
+import { mapTimelineToSourceTime } from "../helpers";
 
 export function usePlaybackState(
   tracks: Track[],
@@ -25,6 +25,13 @@ export function usePlaybackState(
       }
     }
     return null;
+  }, [tracks]);
+
+  const getOrderedVideoClips = useCallback(() => {
+    return tracks
+      .filter((track) => track.type === "VIDEO")
+      .flatMap((track) => track.clips)
+      .sort((a, b) => a.timelineStartMs - b.timelineStartMs);
   }, [tracks]);
 
   const handleSeek = useCallback((timeMs: number) => {
@@ -89,11 +96,13 @@ export function usePlaybackState(
       videoTimeMs >= clipEnd - TRANSITION_BUFFER &&
       lastClipIdRef.current === clipId
     ) {
-      const clips = getOrderedClips(tracks);
-      const currentIndex = clips.findIndex(
+      const videoClips = getOrderedVideoClips();
+      const currentIndex = videoClips.findIndex(
         (c) => (c.id ?? c.sourceAssetId) === (currentClip.id ?? currentClip.sourceAssetId)
       );
-      const nextClip = clips[currentIndex + 1];
+      const nextClip = currentIndex >= 0
+        ? videoClips[currentIndex + 1]
+        : videoClips.find((clip) => clip.timelineStartMs > currentClip.timelineStartMs);
 
       lastClipIdRef.current = null;
       if (nextClip) {
@@ -108,7 +117,7 @@ export function usePlaybackState(
         setIsPlaying(false);
       }
     }
-  }, [tracks, activeAssetId, assetsById, setVideoTime, setTimelineTime, setActiveAssetId, setSourceUrl, setIsPlaying]);
+  }, [tracks, activeAssetId, assetsById, setVideoTime, setTimelineTime, setActiveAssetId, setSourceUrl, setIsPlaying, getOrderedVideoClips]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying((prev) => !prev);

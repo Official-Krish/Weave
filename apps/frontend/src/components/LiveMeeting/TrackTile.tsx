@@ -65,7 +65,7 @@ export function TrackTile({
       className={[
         "group relative h-full w-full overflow-hidden rounded-[26px] border text-left transition",
         isLocal
-          ? "border-sky-400/70 bg-[#081018] shadow-[0_0_0_1px_rgba(56,189,248,0.28),0_24px_80px_rgba(8,20,34,0.45)]"
+          ? "border-[#edbc0c] bg-[#081018] shadow-[0_0_0_1px_rgba(56,189,248,0.28),0_24px_80px_rgba(8,20,34,0.45)]"
           : "border-[#f5a623]/14 bg-[#0b0806] hover:border-[#f5a623]/30",
         className ?? "",
       ].join(" ")}
@@ -103,10 +103,7 @@ export function TrackTile({
       <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/82 via-black/18 to-transparent" />
       <div
         className={[
-          "pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100",
-          isLocal
-            ? "bg-[radial-gradient(circle_at_75%_12%,rgba(56,189,248,0.24),transparent_34%)]"
-            : "bg-[radial-gradient(circle_at_70%_10%,rgba(245,166,35,0.18),transparent_38%)]",
+          "pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         ].join(" ")}
       />
 

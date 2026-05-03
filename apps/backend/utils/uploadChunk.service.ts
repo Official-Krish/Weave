@@ -27,7 +27,7 @@ export async function uploadChunk({
   mimeType,
 }: UploadChunkParams) {
   const participantId =
-    sanitizePathSegment(rawParticipantId) || sanitizePathSegment(userId);
+    sanitizePathSegment(userId) || sanitizePathSegment(rawParticipantId);
 
   if (!participantId) {
     const error = new Error("Invalid participant identity");

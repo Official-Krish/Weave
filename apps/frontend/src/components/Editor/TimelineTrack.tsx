@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import React from "react";
 import type { Track, Clip } from "./types";
 import { Eye, EyeOff, Volume2, VolumeX, Video, AudioWaveform, Type, X, Blend, Loader2 } from "lucide-react";
 import { getTrackColors } from "./helpers";
@@ -9,6 +10,7 @@ interface TimelineTrackProps {
   durationMs: number;
   currentTime: number;
   onAddClip: (trackIndex: number) => void;
+  onAddAudio: () => void;
   onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
   onDeleteClip: (trackIndex: number, clipId: string) => void;
@@ -33,12 +35,13 @@ export function getTrackIcon(type: Track["type"]) {
 
 type DragMode = "move" | "resize-left" | "resize-right";
 
-export function TimelineTrack({
+function TimelineTrackComponent({
   track,
   index,
   durationMs,
   currentTime,
   onAddClip,
+  onAddAudio,
   onUpdateTrack,
   onUpdateClip,
   onDeleteClip,
@@ -206,7 +209,7 @@ export function TimelineTrack({
         return (
           <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
             <div
-              className="absolute inset-0 h-full w-[200%] bg-gradient-to-r from-transparent via-white/5 to-transparent"
+              className="absolute inset-0 h-full w-[200%] bg-linear-to-r from-transparent via-white/5 to-transparent"
               style={{ animation: "editor-slide-shimmer 1.5s ease-in-out infinite" }}
             />
             {isExtracting && <Loader2 className="h-4 w-4 text-[#f5a623] animate-spin absolute" />}
@@ -233,7 +236,7 @@ export function TimelineTrack({
       );
 
       // Determine how many frames to show based on clip width
-      const numFrames = Math.min(clipThumbs.length, Math.max(2, Math.floor(clip.durationMs / 800)));
+      const numFrames = Math.min(4, clipThumbs.length);
       const frames = Array.from({ length: numFrames }, (_, i) => {
         const idx = Math.floor((i / Math.max(1, numFrames - 1)) * (clipThumbs.length - 1));
         return clipThumbs[Math.min(clipThumbs.length - 1, Math.max(0, idx))];
@@ -255,7 +258,7 @@ export function TimelineTrack({
             />
           ))}
           {/* Subtle dark overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-black/20" />
 
           {/* Spinner overlay if still extracting more frames */}
           {isExtracting && (
@@ -312,10 +315,16 @@ export function TimelineTrack({
         {/* Add Clip Button */}
         <button
           className="ml-2 rounded bg-[#f5a623]/10 px-2 py-1 text-xs text-[#f5a623] hover:bg-[#f5a623]/20 transition-colors"
-          title="Add Clip"
-          onClick={() => onAddClip(index)}
+          title={track.type === "AUDIO" ? "Add Audio Clip" : "Add Clip"}
+          onClick={() => {
+              if (track.type === "AUDIO") {
+                onAddAudio();
+            } else {
+              onAddClip(index);
+            }
+          }}
         >
-          + Clip
+          {track.type === "AUDIO" ? "+ Audio" : "+ Clip"}
         </button>
       </div>
 
@@ -323,10 +332,16 @@ export function TimelineTrack({
       <div
         data-track-lane={track.id}
         className={`relative overflow-hidden rounded-xl border-2 transition-all duration-200
-          ${track.type === "VIDEO" ? "h-[72px] border-[#eab308]/50 bg-[#1a1a16]/80" : `h-14 ${colors.border} ${colors.bg}`}
+          ${track.type === "VIDEO" ? "h-18 border-[#eab308]/50 bg-[#1a1a16]/80" : `h-14 ${colors.border} ${colors.bg}`}
           hover:border-opacity-60 ${splitMode ? "cursor-crosshair" : "cursor-pointer"}`}
         onClick={onClick}
       >
+        {track.type === "AUDIO" && (
+          <div className="absolute left-3 top-1 z-10 rounded-full border border-[#22c55e]/20 bg-[#22c55e]/10 px-2 py-0.5 text-[9px] font-medium text-[#4ade80]">
+            Drag to move, trim handles to control playback range
+          </div>
+        )}
+
         {/* Playhead */}
         <div
           className="absolute top-0 bottom-0 w-px bg-[#f5a623] z-20 pointer-events-none shadow-[0_0_8px_rgba(245,166,35,0.6)]"
@@ -383,7 +398,7 @@ export function TimelineTrack({
               {/* Left resize handle */}
               <div
                 className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize z-10
-                  bg-gradient-to-r from-[#eab308]/40 to-transparent
+                  bg-linear-to-r from-[#eab308]/40 to-transparent
                   hover:from-[#eab308]/80 transition-colors"
                 onMouseDown={(e) => startDrag(e, clip, "resize-left")}
               >
@@ -393,7 +408,7 @@ export function TimelineTrack({
               {/* Right resize handle */}
               <div
                 className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize z-10
-                  bg-gradient-to-l from-[#eab308]/40 to-transparent
+                  bg-linear-to-l from-[#eab308]/40 to-transparent
                   hover:from-[#eab308]/80 transition-colors"
                 onMouseDown={(e) => startDrag(e, clip, "resize-right")}
               >
@@ -412,7 +427,7 @@ export function TimelineTrack({
 
               {/* Clickable area for selecting / splitting */}
               <div
-                className="absolute inset-0 z-[5]"
+                className="absolute inset-0 z-5"
                 style={{ left: "6px", right: "6px" }} // Don't overlap resize handles
                 onClick={(e) => handleClipClick(e, clip, clipId)}
                 onMouseDown={(e) => {
@@ -457,10 +472,10 @@ export function TimelineTrack({
 
               {/* Drag Over Drop Zone Indicators */}
               {dragOverZone?.clipId === clipId && dragOverZone.position === "start" && (
-                <div className="absolute left-0 top-0 bottom-0 w-1/4 max-w-[60px] bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-l-lg" />
+                <div className="absolute left-0 top-0 bottom-0 w-1/4 max-w-15 bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-l-lg" />
               )}
               {dragOverZone?.clipId === clipId && dragOverZone.position === "end" && (
-                <div className="absolute right-0 top-0 bottom-0 w-1/4 max-w-[60px] bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-r-lg" />
+                <div className="absolute right-0 top-0 bottom-0 w-1/4 max-w-15 bg-[#06b6d4]/30 border-2 border-dashed border-[#06b6d4] z-30 pointer-events-none rounded-r-lg" />
               )}
 
               {/* Start Transition Block */}
@@ -550,3 +565,6 @@ export function TimelineTrack({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent re-renders but props haven't changed
+export const TimelineTrack = React.memo(TimelineTrackComponent);

@@ -86,6 +86,7 @@ export function LiveMeetingPage() {
     isRecordingBusy,
     recordingButtonLabel,
     stopLocalChunkRecorder,
+    startLocalRecording,
     hasActiveRecorder,
     isMeetingEnded,
   } = useMeetingRecording({
@@ -118,7 +119,22 @@ export function LiveMeetingPage() {
       isMuted,
       isVideoOff,
     },
-    onRemoteRecordingState: setIsRecording,
+    onRemoteRecordingState: (remoteIsRecording) => {
+      setIsRecording(remoteIsRecording);
+
+      // If server signalled recording start/stop, start/stop local recorder immediately for non-hosts.
+      if (!isHost) {
+        if (remoteIsRecording) {
+          void startLocalRecording?.().catch(() => {
+            // best-effort: notify user
+            // eslint-disable-next-line no-console
+            console.warn("Failed to start local recording on signal");
+          });
+        } else {
+          void stopLocalChunkRecorder();
+        }
+      }
+    },
     onParticipantJoined: (participant) => {
       toast.success(`${participant.displayName} joined the meeting`);
     },

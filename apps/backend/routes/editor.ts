@@ -6,12 +6,42 @@ import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { CreateEditorProjectSchema, SaveEditorProjectSchema } from "@repo/types";
 import { redisPublisher } from "../utils/redis";
-import { recordingsRoot, toPublicRecordingLink } from "../utils/helpers";
+import { canViewFinalRecording, recordingsRoot, toPublicRecordingLink } from "../utils/helpers";
 import { EDITOR_RENDER_QUEUE, writeProjectSnapshot } from "../utils/editor.helpers";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB
 
 const editorRouter = express.Router();
+
+async function canUserEditMeeting(meetingId: string, userId: string) {
+    const [meeting, user] = await Promise.all([
+        prisma.meeting.findFirst({
+            where: { id: meetingId },
+            include: { finalRecording: true },
+        }),
+        prisma.user.findFirst({
+            where: { id: userId },
+            select: { email: true },
+        }),
+    ]);
+
+    if (!meeting) {
+        return { meeting: null, canEditRecording: false };
+    }
+
+    const isHost = meeting.userId === userId;
+    const userEmail = user?.email?.toLowerCase() || null;
+    const visibleToEmails = meeting.finalRecording?.visibleToEmails ?? [];
+
+    return {
+        meeting,
+        canEditRecording: meeting.recordingState === "READY" && canViewFinalRecording({
+            isHost,
+            userEmail,
+            visibleToEmails,
+        }),
+    };
+}
 
 editorRouter.post("/projects", authMiddleware, async (req, res) => {
     const userId = req.userId;
@@ -26,21 +56,23 @@ editorRouter.post("/projects", authMiddleware, async (req, res) => {
     }
     try {
         const { meetingId, sourceMode } = parseData.data;
+        const access = await canUserEditMeeting(meetingId, userId);
+
+        if (!access.meeting) {
+            return res.status(404).json({ message: "Meeting not found" });
+        }
+
+        if (!access.canEditRecording) {
+            return res.status(403).json({ message: "You do not have permission to edit this recording" });
+        }
+
+        const meeting = access.meeting;
         const existing = await prisma.editorProject.findFirst({
             where: { meetingId, ownerId: userId, sourceMode },
         });
 
         if (existing) {
             return res.status(201).json({ message: "Project already exists", projectId: existing.id });
-        }
-
-        const meeting = await prisma.meeting.findFirst({
-            where: { id: meetingId },
-            include: { finalRecording: true },
-        });
-
-        if (!meeting) {
-            return res.status(404).json({ message: "Meeting not found" });
         }
 
         const { project } = await prisma.$transaction(async (tx) => {
@@ -140,6 +172,7 @@ editorRouter.get("/projects/:id", authMiddleware, async (req, res) => {
                             timelineStartMs: clip.timelineStartMs,
                             durationMs: clip.durationMs,
                             name: clip.name ?? undefined,
+                            ...(meta.audioMode ? { audioMode: meta.audioMode } : {}),
                             ...(meta.transitionStart ? { transitionStart: meta.transitionStart } : {}),
                             ...(meta.transitionEnd ? { transitionEnd: meta.transitionEnd } : {}),
                             ...(meta.transitionIn ? { transitionIn: meta.transitionIn } : {}),
@@ -241,22 +274,27 @@ editorRouter.put("/projects/:id", authMiddleware, async (req, res) => {
                 if (track.clips?.length) {
                     const validClips = track.clips
                         .filter((clip) => assetMap.has(clip.sourceAssetId))
-                        .map((clip) => ({
-                            id: clip.id ?? crypto.randomUUID(),
-                            trackId: createdTrack.id,
-                            sourceAssetId: clip.sourceAssetId,
-                            sourceStartMs: clip.sourceStartMs,
-                            timelineStartMs: clip.timelineStartMs,
-                            durationMs: clip.durationMs,
-                            name: clip.name ?? null,
-                            // Store transitions + deprecated fields as JSON metadata
-                            metadata: {
-                                ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
-                                ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
-                                ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
-                                ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
-                            },
-                        }));
+                        .map((clip) => {
+                            const clipMeta = clip as typeof clip & { audioMode?: "replace" | "layer" };
+
+                            return {
+                                id: clip.id ?? crypto.randomUUID(),
+                                trackId: createdTrack.id,
+                                sourceAssetId: clip.sourceAssetId,
+                                sourceStartMs: clip.sourceStartMs,
+                                timelineStartMs: clip.timelineStartMs,
+                                durationMs: clip.durationMs,
+                                name: clip.name ?? null,
+                                // Store transitions + deprecated fields as JSON metadata
+                                metadata: {
+                                    ...(clipMeta.audioMode ? { audioMode: clipMeta.audioMode } : {}),
+                                    ...(clip.transitionStart ? { transitionStart: clip.transitionStart } : {}),
+                                    ...(clip.transitionEnd ? { transitionEnd: clip.transitionEnd } : {}),
+                                    ...(clip.transitionIn ? { transitionIn: clip.transitionIn } : {}),
+                                    ...(clip.transitionOut ? { transitionOut: clip.transitionOut } : {}),
+                                },
+                            };
+                        });
 
                     if (validClips.length !== track.clips.length) {
                         throw new Error("Invalid sourceAssetId in clips");
@@ -357,8 +395,13 @@ editorRouter.post("/projects/:id/assets/upload", authMiddleware, upload.single("
         const filePath = path.join(assetDir, `${fileId}${ext}`);
         await fs.writeFile(filePath, file.buffer);
 
+        const explicitAssetType = typeof req.body?.assetType === "string" ? String(req.body.assetType).toUpperCase() : null;
         const isAudio = file.mimetype?.startsWith("audio/");
-        const assetType = isAudio ? "AUDIO" : "VIDEO";
+        const assetType = explicitAssetType === "AUDIO" || explicitAssetType === "VIDEO"
+            ? explicitAssetType
+            : isAudio
+                ? "AUDIO"
+                : "VIDEO";
 
         // Get duration from request body if provided
         const durationMs = req.body?.durationMs ? parseInt(req.body.durationMs, 10) : null;

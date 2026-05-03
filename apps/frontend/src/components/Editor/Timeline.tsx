@@ -14,6 +14,7 @@ interface TimelineProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   onAddClip: (trackIndex: number) => void;
+  onAddAudio: () => void;
   onUpdateClip: (trackIndex: number, clipId: string, updates: Partial<Clip>) => void;
   onDeleteClip: (trackIndex: number, clipId: string) => void;
   onUpdateTrack: (trackIndex: number, updates: Partial<Track>) => void;
@@ -45,6 +46,7 @@ export function Timeline({
   zoom,
   onZoomChange,
   onAddClip,
+  onAddAudio,
   onUpdateTrack,
   onUpdateClip,
   onDeleteClip,
@@ -240,6 +242,7 @@ export function Timeline({
                   durationMs={durationMs}
                   currentTime={currentTime}
                   onAddClip={onAddClip}
+                  onAddAudio={onAddAudio}
                   onUpdateTrack={onUpdateTrack}
                   onUpdateClip={onUpdateClip}
                   onDeleteClip={onDeleteClip}

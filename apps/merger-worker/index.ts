@@ -8,13 +8,22 @@ import jwt from "jsonwebtoken";
 import axios from "axios";
 
 const redisClient = new Redis({
-    host: process.env.REDIS_HOST,
-    port: 6379,
+    host: process.env.REDIS_HOST || "localhost",
+    port: Number(process.env.REDIS_PORT || 6379),
+});
+
+redisClient.on("error", (error) => {
+    console.error(`[${new Date().toISOString()}] Redis error:`, error);
+});
+
+redisClient.on("ready", () => {
+    console.log(`[${new Date().toISOString()}] Connected to Redis at ${process.env.REDIS_HOST || "localhost"}:${process.env.REDIS_PORT || 6379}`);
 });
 
 interface UserChunk {
     userId: string;
     localPath: string;
+    timestamp: number; // milliseconds since epoch
 }
 
 interface ProcessedUser {
@@ -22,11 +31,36 @@ interface ProcessedUser {
     videoPath: string;
     duration: number;
     hasAudio: boolean;
+    joinTimestamp: number; // when user joined (first chunk timestamp)
+    leadingPaddingSeconds: number;
 }
 
 interface FailedUser {
     userId: string;
     estimatedDuration: number;
+    joinTimestamp: number;
+}
+
+// Parse timestamp from chunk filename like "chunk-000001-2024-05-02T14-30-45-123Z.webm"
+function parseChunkTimestamp(filename: string): number | null {
+    const match = filename.match(/chunk-(?:\d+-)?(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\./);
+    if (!match || !match[1]) {
+        return null;
+    }
+    
+    const raw = match[1]; // "2024-05-02T14-30-45-123Z"
+    const [datePart, timePart] = raw.split('T');
+    if (!datePart || !timePart) {
+        return null;
+    }
+    
+    // Replace dashes in time part: 14-30-45-123Z → 14:30:45.123Z
+    // timePart format: "14-30-45-123Z"
+    const timeMs = timePart.replace(/^(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/, '$1:$2:$3.$4Z');
+    
+    const isoString = `${datePart}T${timeMs}`;
+    const timestamp = new Date(isoString).getTime();
+    return isNaN(timestamp) ? null : timestamp;
 }
 
 function getWorkerServiceJwtSecret(): string {
@@ -52,6 +86,18 @@ function getBackendServiceToken(): string {
   );
 }
 
+function getPositiveIntegerEnv(name: string, fallback: number): number {
+    const value = Number(process.env[name]);
+    if (!Number.isInteger(value) || value < 1) {
+        return fallback;
+    }
+    return value;
+}
+
+function escapeConcatFilePath(filePath: string): string {
+    return filePath.replace(/'/g, "'\\''");
+}
+
 class LocalVideoMerger {
     private readonly meetingId: string;
     private readonly recordingsRoot: string;
@@ -59,8 +105,9 @@ class LocalVideoMerger {
     private readonly outputDir: string;
 
     private config = {
-        frameRate: 30,
-        audioBitrate: "256k",
+        frameRate: 60,
+        audioBitrate: "320k",
+        maxConcurrentUserJobs: getPositiveIntegerEnv("MERGER_USER_CONCURRENCY", 2),
     };
 
     private readonly ffmpegBin: string;
@@ -86,34 +133,117 @@ class LocalVideoMerger {
         await fs.mkdir(this.outputDir, { recursive: true });
     }
 
-    private async executeFFmpeg(args: string[]): Promise<void> {
+    private async executeFFmpeg(args: string[], timeoutMs: number = 600000, label: string = "FFmpeg"): Promise<void> {
+        const startTime = Date.now();
+
         await new Promise<void>((resolve, reject) => {
-        const ffmpeg = spawn(this.ffmpegBin, args);
-        let stderr = "";
+            const ffmpeg = spawn(this.ffmpegBin, args);
+            let stderr = "";
+            let timeoutHandle: NodeJS.Timeout | null = null;
+            let resolved = false;
+            let progressLines = 0;
+            let lastProgressAt = Date.now();
 
-        ffmpeg.stderr.on("data", (data) => {
-            stderr += data.toString();
-        });
+            // Wait for the process to actually exit via the 'close' event
+            const waitForExit = (): Promise<void> =>
+                new Promise((res) => {
+                    if (ffmpeg.exitCode !== null) {
+                        // Already exited
+                        res();
+                        return;
+                    }
+                    // 'close' fires after stdio streams are closed and process has exited
+                    ffmpeg.once("close", () => res());
+                    // Safety net: if close never fires, give up after 3s
+                    setTimeout(res, 3000);
+                });
 
-        ffmpeg.on("close", (code) => {
-            if (code === 0) {
-                resolve();
-                return;
-            }
-            reject(new Error(`FFmpeg failed with code ${code}: ${stderr}`));
-        });
+            const cleanup = async () => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
 
-        ffmpeg.on("error", (error) => {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-                reject(new Error(`ffmpeg binary not found. Checked path: ${this.ffmpegBin}`));
-                return;
-            }
-            reject(error);
-        });
+                if (ffmpeg.exitCode === null) {
+                    // Process is still alive — escalate: SIGTERM first, then SIGKILL
+                    ffmpeg.kill("SIGTERM");
+
+                    // Give it 1s to exit gracefully, then SIGKILL
+                    await Promise.race([
+                        waitForExit(),
+                        new Promise<void>((res) => setTimeout(res, 1000)),
+                    ]);
+
+                    if (ffmpeg.exitCode === null) {
+                        ffmpeg.kill("SIGKILL");
+                        await waitForExit(); // SIGKILL cannot be ignored
+                    }
+                }
+
+                ffmpeg.removeAllListeners();
+            };
+
+            const doResolve = async (error?: Error) => {
+                if (resolved) return;
+                resolved = true;
+                await cleanup();
+
+                const duration = Date.now() - startTime;
+                if (error) {
+                    this.log(`[${label}] Failed after ${duration}ms: ${error.message}`);
+                    reject(error);
+                } else {
+                    this.log(`[${label}] Completed successfully in ${duration}ms (${progressLines} progress lines)`);
+                    resolve();
+                }
+            };
+
+            const resetTimeout = () => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                timeoutHandle = setTimeout(() => {
+                    const idleFor = Date.now() - lastProgressAt;
+                    this.log(`[${label}] No FFmpeg progress for ${idleFor}ms, killing process...`);
+                    if (progressLines === 0) {
+                        this.log(`[${label}] WARNING: No FFmpeg output received - process may be stuck`);
+                    }
+                    doResolve(new Error(`FFmpeg stalled after ${idleFor}ms without progress`));
+                }, timeoutMs);
+            };
+
+            resetTimeout();
+
+            ffmpeg.stderr.on("data", (data) => {
+                const output = data.toString();
+                stderr += output;
+
+                if (output.includes("frame=") || output.includes("error") || output.includes("Error") || output.includes("FAILED")) {
+                    progressLines++;
+                    lastProgressAt = Date.now();
+                    resetTimeout();
+                    const snippet = output.substring(0, 150).replace(/\n/g, " ");
+                }
+            });
+
+            ffmpeg.on("close", (code) => {
+                if (resolved) return; // Timeout already fired, cleanup already handled
+                if (code === 0) {
+                    doResolve();
+                    return;
+                }
+                doResolve(new Error(`FFmpeg failed with code ${code}: ${stderr.substring(0, 200)}`));
+            });
+
+            ffmpeg.on("error", (error) => {
+                if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                    doResolve(new Error(`ffmpeg binary not found. Checked path: ${this.ffmpegBin}`));
+                    return;
+                }
+                doResolve(error);
+            });
         });
     }
 
     private async getVideoDuration(videoPath: string): Promise<number> {
+        const startTime = Date.now();
+        const label = `getVideoDuration[${path.basename(videoPath)}]`;
+        
         return await new Promise<number>((resolve, reject) => {
             const ffprobe = spawn(this.ffprobeBin, [
                 "-v",
@@ -126,20 +256,36 @@ class LocalVideoMerger {
             ]);
 
             let stdout = "";
+            let timeoutHandle: NodeJS.Timeout | null = null;
+
+            const cleanup = () => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                ffprobe.removeAllListeners();
+                ffprobe.kill('SIGTERM');
+            };
+
+            timeoutHandle = setTimeout(() => {
+                cleanup();
+                reject(new Error(`FFprobe timeout for ${videoPath}`));
+            }, 30000);
+
             ffprobe.stdout.on("data", (data) => {
                 stdout += data.toString();
             });
 
             ffprobe.on("close", (code) => {
+                cleanup();
                 if (code === 0) {
                     const duration = parseFloat(stdout.trim());
-                    resolve(Math.ceil(duration));
+                    resolve(duration);
                     return;
                 }
+                this.log(`[${label}] Failed with code ${code}`);
                 reject(new Error(`FFprobe failed with code ${code}`));
             });
 
             ffprobe.on("error", (error) => {
+                cleanup();
                 if ((error as NodeJS.ErrnoException).code === "ENOENT") {
                     reject(new Error(`ffprobe binary not found. Checked path: ${this.ffprobeBin}`));
                     return;
@@ -150,6 +296,9 @@ class LocalVideoMerger {
     }
 
     private async hasAudioStream(videoPath: string): Promise<boolean> {
+        const startTime = Date.now();
+        const label = `hasAudioStream[${path.basename(videoPath)}]`;
+        
         return await new Promise<boolean>((resolve, reject) => {
             const ffprobe = spawn(this.ffprobeBin, [
                 "-v",
@@ -164,19 +313,36 @@ class LocalVideoMerger {
             ]);
 
             let stdout = "";
+            let timeoutHandle: NodeJS.Timeout | null = null;
+
+            const cleanup = () => {
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                ffprobe.removeAllListeners();
+                ffprobe.kill('SIGTERM');
+            };
+
+            timeoutHandle = setTimeout(() => {
+                cleanup();
+                reject(new Error(`FFprobe timeout for ${videoPath}`));
+            }, 30000);
+
             ffprobe.stdout.on("data", (data) => {
                 stdout += data.toString();
             });
 
             ffprobe.on("close", (code) => {
+                cleanup();
                 if (code === 0) {
-                    resolve(stdout.trim().length > 0);
+                    const hasAudio = stdout.trim().length > 0;
+                    resolve(hasAudio);
                     return;
                 }
+                this.log(`[${label}] Failed with code ${code}`);
                 reject(new Error(`FFprobe failed with code ${code}`));
             });
 
             ffprobe.on("error", (error) => {
+                cleanup();
                 if ((error as NodeJS.ErrnoException).code === "ENOENT") {
                     reject(new Error(`ffprobe binary not found. Checked path: ${this.ffprobeBin}`));
                     return;
@@ -187,6 +353,8 @@ class LocalVideoMerger {
     }
 
     private async collectUserChunks(): Promise<Map<string, UserChunk[]>> {
+        const startTime = Date.now();
+        
         const usersRoot = path.join(this.recordingsRoot, this.meetingId, "raw", "users");
 
         const userDirs = await fs.readdir(usersRoot, { withFileTypes: true }).catch(() => []);
@@ -195,6 +363,7 @@ class LocalVideoMerger {
         }
 
         const userChunks = new Map<string, UserChunk[]>();
+        let totalChunks = 0;
 
         for (const dirent of userDirs) {
             if (!dirent.isDirectory()) {
@@ -207,15 +376,16 @@ class LocalVideoMerger {
 
             const chunks = files
                 .filter((file) => /chunk-.*\.(webm|mp4|ogg)$/i.test(file))
-                .sort((a, b) => a.localeCompare(b))
                 .map((file) => ({
-                userId,
-                localPath: path.join(userDirPath, file),
-                }));
+                    userId,
+                    localPath: path.join(userDirPath, file),
+                    timestamp: parseChunkTimestamp(file) ?? Date.now(),
+                }))
+                .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
 
             if (chunks.length > 0) {
                 userChunks.set(userId, chunks);
-                this.log(`User ${userId}: ${chunks.length} chunks`);
+                totalChunks += chunks.length;
             }
         }
 
@@ -226,10 +396,48 @@ class LocalVideoMerger {
         return userChunks;
     }
 
+    private async hasWebmHeader(filePath: string): Promise<boolean> {
+        const file = await fs.open(filePath, "r");
+        try {
+            const header = Buffer.alloc(4);
+            const { bytesRead } = await file.read(header, 0, header.length, 0);
+            return bytesRead === header.length && header.equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+        } finally {
+            await file.close();
+        }
+    }
+
+    private async shouldConcatenateWebmFragments(chunks: UserChunk[]): Promise<boolean> {
+        if (chunks.length < 2 || !chunks.every((chunk) => chunk.localPath.toLowerCase().endsWith(".webm"))) {
+            return false;
+        }
+
+        const [firstChunk, secondChunk] = chunks;
+        if (!firstChunk || !secondChunk) {
+            return false;
+        }
+
+        return (await this.hasWebmHeader(firstChunk.localPath)) && !(await this.hasWebmHeader(secondChunk.localPath));
+    }
+
+    private async concatenateChunksBytewise(chunks: UserChunk[], outputPath: string): Promise<void> {
+        const output = await fs.open(outputPath, "w");
+        try {
+            for (const chunk of chunks) {
+                await output.writeFile(await fs.readFile(chunk.localPath));
+            }
+        } finally {
+            await output.close();
+        }
+    }
+
     private async createUserVideo(userId: string, chunks: UserChunk[]): Promise<string | null> {
         const outputVideo = path.join(this.tempDir, "videos", `${userId}.mp4`);
+        const startTime = Date.now();
+        const label = `createUserVideo[${userId}]`;
 
         try {
+            
             if (chunks.length === 1) {
                 await this.executeFFmpeg([
                 "-y",
@@ -246,24 +454,48 @@ class LocalVideoMerger {
                 "-r",
                 this.config.frameRate.toString(),
                 outputVideo,
-                ]);
+                ], 300000, `${label}:encode-single`);
             } else {
                 const userTmp = path.join(this.tempDir, "videos", `${userId}-tmp`);
                 await fs.mkdir(userTmp, { recursive: true });
 
-                const combinedWebmPath = path.join(userTmp, "combined.webm");
-                const chunkBuffers: Buffer[] = [];
+                if (await this.shouldConcatenateWebmFragments(chunks)) {
+                    const combinedWebmPath = path.join(userTmp, "combined.webm");
+                    await this.concatenateChunksBytewise(chunks, combinedWebmPath);
 
-                for (const chunk of chunks) {
-                chunkBuffers.push(await fs.readFile(chunk.localPath));
+                    await this.executeFFmpeg([
+                    "-y",
+                    "-i",
+                    combinedWebmPath,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "fast",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-vf",
+                    "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2",
+                    "-r",
+                    this.config.frameRate.toString(),
+                    outputVideo,
+                    ], 600000, `${label}:encode-webm-fragments`);
+                    const elapsed = Date.now() - startTime;
+                    return outputVideo;
                 }
 
-                await fs.writeFile(combinedWebmPath, Buffer.concat(chunkBuffers));
+                // Use FFmpeg concat demuxer instead of binary concatenation
+                const fileListPath = path.join(userTmp, "filelist.txt");
+                const fileListContent = chunks.map(c => `file '${escapeConcatFilePath(c.localPath)}'`).join('\n');
+                await fs.writeFile(fileListPath, fileListContent);
 
                 await this.executeFFmpeg([
                 "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
                 "-i",
-                combinedWebmPath,
+                fileListPath,
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -275,20 +507,22 @@ class LocalVideoMerger {
                 "-r",
                 this.config.frameRate.toString(),
                 outputVideo,
-                ]);
+                ], 600000, `${label}:concat`);
             }
-
             return outputVideo;
         } catch (error) {
-            this.log(`Failed creating user video for ${userId}: ${error}`);
+            const elapsed = Date.now() - startTime;
+            this.log(`[${label}] Failed after ${elapsed}ms: ${error}`);
             return null;
         }
     }
 
     private async createBlackPlaceholderVideo(userId: string, duration: number): Promise<string> {
+        const label = `createBlackPlaceholderVideo[${userId}]`;
         const safeDuration = Math.max(1, Math.ceil(duration));
         const outputVideo = path.join(this.tempDir, "videos", `${userId}_placeholder.mp4`);
 
+        const startTime = Date.now();
         await this.executeFFmpeg([
             "-y",
             "-f",
@@ -304,64 +538,20 @@ class LocalVideoMerger {
             "-pix_fmt",
             "yuv420p",
             outputVideo,
-        ]);
-
+        ], 300000, label);
         return outputVideo;
     }
 
-    private async normalizeVideoDurations(processedUsers: ProcessedUser[]): Promise<ProcessedUser[]> {
+    private async normalizeVideoDurations(processedUsers: ProcessedUser[]): Promise<ProcessedUser[]> { 
         const maxDuration = Math.max(...processedUsers.map((u) => u.duration));
-        const outputs: ProcessedUser[] = [];
 
         for (const user of processedUsers) {
-            if (user.duration >= maxDuration) {
-                outputs.push(user);
-                continue;
-            }
-
-            const paddingDuration = maxDuration - user.duration;
-            const paddedPath = path.join(this.tempDir, "videos", `${user.userId}_padded.mp4`);
-
-            const args = [
-                "-y",
-                "-i",
-                user.videoPath,
-                "-vf",
-                `tpad=stop_mode=clone:stop_duration=${paddingDuration}`,
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-pix_fmt",
-                "yuv420p",
-                "-r",
-                this.config.frameRate.toString(),
-            ];
-
-            if (user.hasAudio) {
-                args.push(
-                "-af",
-                `apad=pad_dur=${paddingDuration}`,
-                "-c:a",
-                "aac",
-                "-b:a",
-                this.config.audioBitrate,
-                );
-            } else {
-                args.push("-an");
-            }
-
-            args.push(paddedPath);
-            await this.executeFFmpeg(args);
-
-            outputs.push({
-                ...user,
-                videoPath: paddedPath,
-                duration: maxDuration,
-            });
+            const trailingPaddingSeconds = Math.max(0, maxDuration - user.duration);
+            this.log(
+                `[normalizeVideoDurations] User ${user.userId}: leading=${user.leadingPaddingSeconds.toFixed(2)}s trailing=${trailingPaddingSeconds.toFixed(2)}s deferred to final grid encode`
+            );
         }
-
-        return outputs;
+        return processedUsers;
     }
 
     private calculateGridDimensions(count: number) {
@@ -377,43 +567,131 @@ class LocalVideoMerger {
     }
 
     private async createGridVideo(normalizedUsers: ProcessedUser[]): Promise<string> {
+        const outputPath = path.join(this.tempDir, "output", "meeting_grid_recording.mp4");
+        const startTime = Date.now();
+        const label = `createGridVideo[${normalizedUsers.length}-users]`;
+
+        // Handle single-user case by bypassing xstack
+        if (normalizedUsers.length === 1) {
+            const user = normalizedUsers[0]!;
+            const targetDuration = Math.max(1, user.duration);
+            const tpadFilter = user.leadingPaddingSeconds > 0.1
+                ? `,tpad=start_mode=add:start_duration=${user.leadingPaddingSeconds}:color=black`
+                : "";
+            const audioDelayMs = Math.max(0, Math.round(user.leadingPaddingSeconds * 1000));
+            const filter = `[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2${tpadFilter}[video_out]${user.hasAudio && audioDelayMs > 0 ? `;[0:a]adelay=${audioDelayMs}:all=1[audio_out]` : ""}`;
+            
+            const args = [
+                "-y",
+                "-i",
+                user.videoPath,
+                "-filter_complex",
+                filter,
+                "-map",
+                "[video_out]",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "23",
+                "-pix_fmt",
+                "yuv420p",
+            ];
+            
+            if (user.hasAudio) {
+                args.push(
+                    "-map",
+                    audioDelayMs > 0 ? "[audio_out]" : "0:a",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    this.config.audioBitrate,
+                    "-ar",
+                    "48000",
+                );
+            } else {
+                args.push("-an");
+            }
+            
+            args.push(
+                "-t",
+                targetDuration.toString(),
+                "-r",
+                this.config.frameRate.toString(),
+                outputPath,
+            );
+            
+            await this.executeFFmpeg(args, 600000, `${label}:single-user`);
+            return outputPath;
+        }
+
         const { rows, cols } = this.calculateGridDimensions(normalizedUsers.length);
+        const targetDuration = Math.max(...normalizedUsers.map((u) => u.duration));
+        
         const outputWidth = 1920;
         const outputHeight = 1080;
 
         const tileWidth = Math.floor(outputWidth / cols);
         const tileHeight = Math.floor(outputHeight / rows);
-        const outputPath = path.join(this.tempDir, "output", "meeting_grid_recording.mp4");
 
         const inputs: string[] = [];
         let filter = "";
 
         for (let i = 0; i < normalizedUsers.length; i++) {
-        inputs.push("-i", normalizedUsers[i]!.videoPath);
-        filter += `[${i}:v]scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=decrease,pad=${tileWidth}:${tileHeight}:(ow-iw)/2:(oh-ih)/2,drawbox=x=0:y=0:w=iw:h=ih:color=#1f2937@0.6:t=2[v${i}];`;
+            const user = normalizedUsers[i]!;
+            const trailingPaddingSeconds = Math.max(0, targetDuration - user.duration);
+            const tpadOptions = [
+                user.leadingPaddingSeconds > 0.1
+                    ? `start_mode=add:start_duration=${user.leadingPaddingSeconds}:color=black`
+                    : "",
+                trailingPaddingSeconds > 0.1
+                    ? `stop_mode=clone:stop_duration=${trailingPaddingSeconds}`
+                    : "",
+            ].filter(Boolean);
+
+            inputs.push("-i", user.videoPath);
+            filter += `[${i}:v]scale=${tileWidth}:${tileHeight}:force_original_aspect_ratio=decrease,pad=${tileWidth}:${tileHeight}:(ow-iw)/2:(oh-ih)/2${tpadOptions.length > 0 ? `,tpad=${tpadOptions.join(":")}` : ""},drawbox=x=0:y=0:w=iw:h=ih:color=#1f2937@0.6:t=2[v${i}];`;
         }
 
         const layout: string[] = [];
         for (let i = 0; i < normalizedUsers.length; i++) {
-        const x = (i % cols) * tileWidth;
-        const y = Math.floor(i / cols) * tileHeight;
-        layout.push(`${x}_${y}`);
+            const x = (i % cols) * tileWidth;
+            const y = Math.floor(i / cols) * tileHeight;
+            layout.push(`${x}_${y}`);
         }
 
         filter += `${Array.from({ length: normalizedUsers.length }, (_, i) => `[v${i}]`).join("")}xstack=inputs=${normalizedUsers.length}:layout=${layout.join("|")}:fill=black[video];`;
         filter += `[video]scale=${outputWidth}:${outputHeight}:flags=lanczos[video_out];`;
 
         const audioInputs = normalizedUsers
-        .map((user, idx) => (user.hasAudio ? idx : -1))
-        .filter((idx) => idx >= 0);
+            .map((user, idx) => (user.hasAudio ? idx : -1))
+            .filter((idx) => idx >= 0);
 
         let audioMap: string[] = [];
         if (audioInputs.length > 0) {
-        filter += `${audioInputs.map((i) => `[${i}:a]`).join("")}amix=inputs=${audioInputs.length}:duration=longest:normalize=0[audio]`;
-        audioMap = ["-map", "[audio]"];
+            const audioLabels: string[] = [];
+            for (const inputIndex of audioInputs) {
+                const user = normalizedUsers[inputIndex]!;
+                const delayMs = Math.max(0, Math.round(user.leadingPaddingSeconds * 1000));
+                const trailingPaddingSeconds = Math.max(0, targetDuration - user.duration);
+                const audioFilters = [
+                    delayMs > 0 ? `adelay=${delayMs}:all=1` : "",
+                    trailingPaddingSeconds > 0.1 ? `apad=pad_dur=${trailingPaddingSeconds}` : "",
+                ].filter(Boolean);
+
+                if (audioFilters.length > 0) {
+                    filter += `[${inputIndex}:a]${audioFilters.join(",")}[a${inputIndex}];`;
+                    audioLabels.push(`[a${inputIndex}]`);
+                } else {
+                    audioLabels.push(`[${inputIndex}:a]`);
+                }
+            }
+            filter += `${audioLabels.join("")}amix=inputs=${audioInputs.length}:duration=longest:normalize=0[audio]`;
+            audioMap = ["-map", "[audio]"];
         } else {
-        inputs.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
-        audioMap = ["-map", `${normalizedUsers.length}:a`];
+            inputs.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
+            audioMap = ["-map", `${normalizedUsers.length}:a`];
         }
 
         await this.executeFFmpeg([
@@ -427,7 +705,7 @@ class LocalVideoMerger {
         "-c:v",
         "libx264",
         "-preset",
-        "medium",
+        "veryfast",
         "-crf",
         "23",
         "-pix_fmt",
@@ -436,17 +714,28 @@ class LocalVideoMerger {
         "aac",
         "-b:a",
         this.config.audioBitrate,
+        "-ar",
+        "48000",
+        "-t",
+        targetDuration.toString(),
         "-r",
         this.config.frameRate.toString(),
         outputPath,
-        ]);
+        ], 900000, `${label}:xstack`);
 
+        const elapsed = Date.now() - startTime;
         return outputPath;
     }
 
     private async persistFinal(gridVideoPath: string): Promise<string> {
+        const startTime = Date.now();
+        const label = `persistFinal[${path.basename(gridVideoPath)}]`;
+        
         const finalPath = path.join(this.outputDir, "meeting_grid_recording.mp4");
+        
         await fs.copyFile(gridVideoPath, finalPath);
+        
+        const elapsed = Date.now() - startTime;
 
         // GCP upload flow retained for future use (intentionally commented, not removed).
         // import { Storage } from "@google-cloud/storage";
@@ -461,73 +750,177 @@ class LocalVideoMerger {
     }
 
     private async cleanup(): Promise<void> {
-        await fs.rm(this.tempDir, { recursive: true, force: true }).catch(() => undefined);
+        const startTime = Date.now();
+        const label = `cleanup[${this.tempDir}]`;
+        
+        try {
+            await fs.rm(this.tempDir, { recursive: true, force: true });
+        } catch (error) {
+            const elapsed = Date.now() - startTime;
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.log(`[${label}] Cleanup error after ${elapsed}ms: ${errorMsg}`);
+        }
     }
 
     private async cleanupLegacyRecordingsTmp(): Promise<void> {
-        const legacyTmpDir = path.join(this.recordingsRoot, "tmp");
-        await fs.rm(legacyTmpDir, { recursive: true, force: true }).catch(() => undefined);
+        // Only cleanup temp directories from media_merge_* pattern
+        // Don't delete shared tmp/ dir as other jobs may be using it
+        const startTime = Date.now();
+        
+        const tmpBaseDir = path.join(this.recordingsRoot, "tmp");
+        
+        try {
+            const entries = await fs.readdir(tmpBaseDir, { withFileTypes: true });
+            let deletedCount = 0;
+            
+            for (const entry of entries) {
+                // Only delete media_merge_* directories
+                if (entry.isDirectory() && entry.name.startsWith("media_merge_")) {
+                    await fs.rm(path.join(tmpBaseDir, entry.name), { recursive: true, force: true }).catch(() => undefined);
+                    deletedCount++;
+                }
+            }
+        } catch (error) {
+            // Ignore errors if tmp dir doesn't exist
+            this.log(`[cleanupLegacyRecordingsTmp] Note: Could not access tmp directory (may be normal)`);
+        }
+    }
+
+    private async runWithConcurrency<T>(
+        items: T[],
+        concurrency: number,
+        worker: (item: T, index: number) => Promise<void>
+    ): Promise<void> {
+        let nextIndex = 0;
+        const workerCount = Math.min(concurrency, items.length);
+
+        await Promise.all(Array.from({ length: workerCount }, async () => {
+            while (nextIndex < items.length) {
+                const currentIndex = nextIndex++;
+                await worker(items[currentIndex]!, currentIndex);
+            }
+        }));
     }
 
     public async process(): Promise<string> {
-        this.log(`Starting local merge for meeting ${this.meetingId}`);
-        this.log(`Recordings root: ${this.recordingsRoot}`);
+        const totalStartTime = Date.now();
 
         try {
+            let phaseStart = Date.now();
             await this.createDirectories();
+            let phaseDuration = Date.now() - phaseStart;
 
+            phaseStart = Date.now();
             const userChunks = await this.collectUserChunks();
+            phaseDuration = Date.now() - phaseStart;
+            
+            // Calculate recording start time and user join times
+            let recordingStartTime = Number.MAX_VALUE;
+            const userJoinTimes = new Map<string, number>();
+            
+            for (const [userId, chunks] of userChunks.entries()) {
+                const joinTime = chunks[0]!.timestamp; // First chunk timestamp is when user joined
+                userJoinTimes.set(userId, joinTime);
+                recordingStartTime = Math.min(recordingStartTime, joinTime);
+            }
+
             const processedUsers: ProcessedUser[] = [];
             const failedUsers: FailedUser[] = [];
 
-            for (const [userId, chunks] of userChunks.entries()) {
+            phaseStart = Date.now();
+            const userEntries = Array.from(userChunks.entries());
+            await this.runWithConcurrency(userEntries, this.config.maxConcurrentUserJobs, async ([userId, chunks]) => {
+                const userStart = Date.now();
                 const userVideo = await this.createUserVideo(userId, chunks);
+                const userDuration = Date.now() - userStart;
+                const joinTime = userJoinTimes.get(userId) || Date.now();
+                const leadingPaddingSeconds = Math.max(0, (joinTime - recordingStartTime) / 1000);
+                
                 if (!userVideo) {
-                failedUsers.push({
-                    userId,
-                    estimatedDuration: Math.max(1, chunks.length * 5),
-                });
-                continue;
+                    this.log(`[phase:createUserVideos] User ${userId} FAILED (${userDuration}ms)`);
+                    failedUsers.push({
+                        userId,
+                        estimatedDuration: leadingPaddingSeconds + Math.max(1, chunks.length * 5),
+                        joinTimestamp: joinTime,
+                    });
+                    return;
                 }
 
                 const duration = await this.getVideoDuration(userVideo);
                 const hasAudio = await this.hasAudioStream(userVideo);
-                processedUsers.push({ userId, videoPath: userVideo, duration, hasAudio });
-            }
+                const finalDuration = duration + leadingPaddingSeconds;
+
+                processedUsers.push({ 
+                    userId, 
+                    videoPath: userVideo, 
+                    duration: finalDuration, 
+                    hasAudio,
+                    joinTimestamp: joinTime,
+                    leadingPaddingSeconds,
+                });
+            });
+            phaseDuration = Date.now() - phaseStart;
 
             if (failedUsers.length > 0) {
+                phaseStart = Date.now();
                 const baseDuration =
                 processedUsers.length > 0
                     ? Math.max(...processedUsers.map((user) => user.duration))
                     : Math.max(...failedUsers.map((user) => user.estimatedDuration));
 
+                let failedCount = 0;
                 for (const failedUser of failedUsers) {
-                const placeholderDuration = Math.max(baseDuration, failedUser.estimatedDuration);
-                const placeholderPath = await this.createBlackPlaceholderVideo(
-                    failedUser.userId,
-                    placeholderDuration
-                );
+                    failedCount++;
+                    const leadingPaddingSeconds = Math.max(0, (failedUser.joinTimestamp - recordingStartTime) / 1000);
+                    const placeholderDuration = Math.max(1, baseDuration - leadingPaddingSeconds);
+                    
+                    const placeholderPath = await this.createBlackPlaceholderVideo(
+                        failedUser.userId,
+                        placeholderDuration
+                    );
 
-                processedUsers.push({
-                    userId: failedUser.userId,
-                    videoPath: placeholderPath,
-                    duration: placeholderDuration,
-                    hasAudio: false,
-                });
+                    const finalDuration = placeholderDuration + leadingPaddingSeconds;
+                    processedUsers.push({
+                        userId: failedUser.userId,
+                        videoPath: placeholderPath,
+                        duration: finalDuration,
+                        hasAudio: false,
+                        joinTimestamp: failedUser.joinTimestamp,
+                        leadingPaddingSeconds,
+                    });
                 }
+                phaseDuration = Date.now() - phaseStart;
             }
 
             if (processedUsers.length === 0) {
                 throw new Error("No videos were created for merging");
             }
 
+            // Sort by join time for consistent grid layout (users appear in order they joined)
+            processedUsers.sort((a, b) => a.joinTimestamp - b.joinTimestamp);
+
+            phaseStart = Date.now();
             const normalized = await this.normalizeVideoDurations(processedUsers);
+            phaseDuration = Date.now() - phaseStart;
+
+            phaseStart = Date.now();
             const gridVideo = await this.createGridVideo(normalized);
+            phaseDuration = Date.now() - phaseStart;
+
+            phaseStart = Date.now();
             const finalPath = await this.persistFinal(gridVideo);
+            phaseDuration = Date.now() - phaseStart;
+
             await this.cleanupLegacyRecordingsTmp();
-            this.log(`Final local recording stored at ${finalPath}`);
+
+            const totalDuration = Date.now() - totalStartTime;
+            this.log(`✓ MERGE COMPLETE in ${(totalDuration / 1000).toFixed(1)}s - Final: ${finalPath}`);
 
             return finalPath;
+        } catch (error) {
+            const totalDuration = Date.now() - totalStartTime;
+            this.log(`✗ MERGE FAILED after ${(totalDuration / 1000).toFixed(1)}s - Error: ${error}`);
+            throw error;
         } finally {
             await this.cleanup();
         }
@@ -536,59 +929,91 @@ class LocalVideoMerger {
 
 async function reportWorkerStatus(meetingId: string, status: "PROCESSING" | "READY" | "FAILED", finalPath?: string) {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:3000/api/v1";
-    await axios.request({
-        url: `${backendUrl}/worker/recording-status/${meetingId}`,
-        method: "POST",
-        headers: {
-            "x-worker-token": getBackendServiceToken(),
-            "Content-Type": "application/json",
-        },
-        data: {
-            status,
-            finalPath,
-        },
-    });
+    try {
+        await axios.request({
+            url: `${backendUrl}/worker/recording-status/${meetingId}`,
+            method: "POST",
+            headers: {
+                "x-worker-token": getBackendServiceToken(),
+                "Content-Type": "application/json",
+            },
+            data: {
+                status,
+                finalPath,
+            },
+            timeout: 10000,
+        });
+    } catch (error) {
+        console.error(`Failed to report status ${status} for meeting ${meetingId}:`, error);
+        throw error; // Re-throw to allow caller to handle
+    }
 }
 
 async function processQueue() {
-  console.log("Starting merger-worker queue processor...");
+    console.log("Starting merger-worker queue processor...");
 
     while (true) {
+        let meetingId: string | null = null;
+        const queueStart = Date.now();
         try {
-            const result = await redisClient.blpop("ProcessVideo", 0);
+            const result = await Promise.race([
+                redisClient.blpop("ProcessVideo", 0),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Redis timeout")), 35000)
+                ) as Promise<[string, string]>
+            ]) as [string, string];
+            
             if (!result) {
+                console.log(`[${new Date().toISOString()}] No result from queue`);
                 continue;
             }
 
             const data = JSON.parse(result[1]);
-            const meetingId = data.roomId || data.meetingId;
+            meetingId = data.roomId || data.meetingId;
 
             if (!meetingId) {
-                console.error("Invalid queue payload: missing meetingId");
+                console.error(`[${new Date().toISOString()}] Invalid queue payload: missing meetingId - ${JSON.stringify(data)}`);
                 continue;
             }
 
             try {
                 await reportWorkerStatus(meetingId, "PROCESSING");
             } catch (error) {
-                console.error("Failed to report PROCESSING status:", error);
+                console.error(`[${new Date().toISOString()}] Failed to report PROCESSING status:`, error);
+                // Don't bail out, attempt merge anyway
             }
 
             try {
                 const merger = new LocalVideoMerger(meetingId);
                 const finalPath = await merger.process();
+                
+                // Queue for transcoding
                 await redisClient.rpush("TranscodeVideo", JSON.stringify({ meetingId, finalPath }));
-                console.log(`Merge completed for ${meetingId}. Queued for transcoding.`);
+                
+                // Report successful completion
+                try {
+                    await reportWorkerStatus(meetingId, "READY", finalPath);
+                } catch (error) {
+                    console.error(`[${new Date().toISOString()}] Failed to report READY status:`, error);
+                    // Still consider it success since merge completed
+                }
             } catch (error) {
-                console.error(`Merge failed for ${meetingId}:`, error);
+                console.error(`[${new Date().toISOString()}] Merge failed for ${meetingId}:`, error);
                 try {
                     await reportWorkerStatus(meetingId, "FAILED");
                 } catch (statusError) {
-                    console.error("Failed to report FAILED status:", statusError);
+                    console.error(`[${new Date().toISOString()}] Failed to report FAILED status:`, statusError);
                 }
             }
         } catch (error) {
-            console.error("Queue loop error:", error);
+            if (error instanceof Error && error.message === "Redis timeout") {
+                // Intentional timeout, continue loop
+                console.log(`[${new Date().toISOString()}] Queue timeout (normal), waiting for next job...`);
+                continue;
+            }
+            console.error(`[${new Date().toISOString()}] Queue loop error:`, error);
+            // Wait before retrying to avoid tight loop
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
     }
 }

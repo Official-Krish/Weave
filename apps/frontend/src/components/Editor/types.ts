@@ -25,6 +25,8 @@ export interface Clip {
   sourceStartMs: number;
   timelineStartMs: number;
   durationMs: number;
+  /** Audio behavior for audio tracks. replace mutes the source video audio during this range. */
+  audioMode?: "replace" | "layer";
   /** @deprecated Use transitionStart/transitionEnd instead */
   transitionIn?: "fade" | "cut";
   /** @deprecated Use transitionStart/transitionEnd instead */

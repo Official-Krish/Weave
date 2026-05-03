@@ -1,15 +1,12 @@
-/**
- * Transition Panel Component
- * Professional transition selector similar to Premiere Pro Effects panel
- */
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type TransitionCategory,
   type TransitionType,
   getTransitionsByCategory,
 } from "./types";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
 
 interface TransitionPanelProps {
   onSelectTransition: (type: TransitionType) => void;
@@ -24,6 +21,9 @@ const CATEGORIES: { id: TransitionCategory; label: string; icon: string }[] = [
   { id: "special", label: "Special", icon: "✦" },
 ];
 
+const PAGE_SIZE = 4;
+const SWIPE_THRESHOLD = 48;
+
 export function TransitionPanel({
   onSelectTransition,
   selectedTransition,
@@ -31,6 +31,11 @@ export function TransitionPanel({
 }: TransitionPanelProps) {
   const [activeCategory, setActiveCategory] = useState<TransitionCategory>("basic");
   const [searchQuery, setSearchQuery] = useState("");
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageDirection, setPageDirection] = useState<"up" | "down">("up");
+  const swipeStartYRef = useRef<number | null>(null);
+  const swipePointerIdRef = useRef<number | null>(null);
+  const wheelLockRef = useRef(false);
 
   const filteredTransitions = useMemo(() => {
     const transitions = getTransitionsByCategory(activeCategory);
@@ -40,6 +45,87 @@ export function TransitionPanel({
       t.type.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [activeCategory, searchQuery]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredTransitions.length / PAGE_SIZE));
+
+  const pagedTransitions = useMemo(() => {
+    const start = pageIndex * PAGE_SIZE;
+    return filteredTransitions.slice(start, start + PAGE_SIZE);
+  }, [filteredTransitions, pageIndex]);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [activeCategory, searchQuery]);
+
+  useEffect(() => {
+    if (pageIndex > pageCount - 1) {
+      setPageIndex(Math.max(0, pageCount - 1));
+    }
+  }, [pageCount, pageIndex]);
+
+  const goToPage = (nextPage: number, direction: "up" | "down") => {
+    setPageIndex((current) => {
+      const clamped = Math.min(Math.max(nextPage, 0), pageCount - 1);
+      setPageDirection(direction);
+      return clamped === current ? current : clamped;
+    });
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    swipeStartYRef.current = event.clientY;
+    swipePointerIdRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (swipePointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    const startY = swipeStartYRef.current;
+    swipeStartYRef.current = null;
+    swipePointerIdRef.current = null;
+
+    if (startY === null) {
+      return;
+    }
+
+    const deltaY = event.clientY - startY;
+    if (deltaY <= -SWIPE_THRESHOLD) {
+      goToPage(pageIndex + 1, "up");
+    } else if (deltaY >= SWIPE_THRESHOLD) {
+      goToPage(pageIndex - 1, "down");
+    }
+  };
+
+  const handlePointerCancel = () => {
+    swipeStartYRef.current = null;
+    swipePointerIdRef.current = null;
+  };
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (wheelLockRef.current || pageCount <= 1) {
+      return;
+    }
+
+    const deltaY = event.deltaY;
+    if (Math.abs(deltaY) < SWIPE_THRESHOLD) {
+      return;
+    }
+
+    event.preventDefault();
+    wheelLockRef.current = true;
+
+    if (deltaY > 0) {
+      goToPage(pageIndex + 1, "up");
+    } else {
+      goToPage(pageIndex - 1, "down");
+    }
+
+    window.setTimeout(() => {
+      wheelLockRef.current = false;
+    }, 180);
+  };
 
   return (
     <div className="flex h-full flex-col bg-[#0a0a08]">
@@ -89,59 +175,101 @@ export function TransitionPanel({
       </div>
 
       {/* Transition Grid */}
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="grid grid-cols-2 gap-2">
-          {filteredTransitions.map((transition) => {
-            const isSelected = selectedTransition === transition.type;
-            return (
-              <button
-                key={transition.type}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("application/json", JSON.stringify({ type: "transition", transitionType: transition.type }));
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                onClick={() => onSelectTransition(transition.type)}
-                className={cn(
-                  "group relative flex flex-col items-center justify-center rounded-lg border p-3 transition-all duration-200 cursor-grab active:cursor-grabbing",
-                  isSelected
-                    ? "border-[#f5a623] bg-[#f5a623]/10 shadow-[0_0_12px_rgba(245,166,35,0.3)]"
-                    : "border-[#f5a623]/10 bg-[#1a1a16]/50 hover:border-[#f5a623]/30 hover:bg-[#1a1a16]"
-                )}
-              >
-                {/* Preview Icon */}
-                <div
+      <div className="flex-1 overflow-hidden p-3">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={`${activeCategory}-${searchQuery}-${pageIndex}`}
+            className="grid grid-cols-2 grid-rows-2 gap-2 touch-none"
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            onWheel={handleWheel}
+            variants={{
+              enter: (direction: "up" | "down") => ({ opacity: 0, y: direction === "up" ? 28 : -28 }),
+              center: { opacity: 1, y: 0 },
+              exit: (direction: "up" | "down") => ({ opacity: 0, y: direction === "up" ? -28 : 28 }),
+            }}
+            custom={pageDirection}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            {pagedTransitions.map((transition) => {
+              const isSelected = selectedTransition === transition.type;
+              return (
+                <button
+                  key={transition.type}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/json", JSON.stringify({ type: "transition", transitionType: transition.type }));
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onClick={() => onSelectTransition(transition.type)}
                   className={cn(
-                    "mb-2 flex h-8 w-8 items-center justify-center rounded transition-colors",
-                    isSelected ? "text-[#f5a623]" : "text-[#8d7850] group-hover:text-[#bfa873]"
+                    "group relative flex flex-col items-center justify-center rounded-lg border p-3 transition-all duration-200 cursor-grab active:cursor-grabbing",
+                    isSelected
+                      ? "border-[#f5a623] bg-[#f5a623]/10 shadow-[0_0_12px_rgba(245,166,35,0.3)]"
+                      : "border-[#f5a623]/10 bg-[#1a1a16]/50 hover:border-[#f5a623]/30 hover:bg-[#1a1a16]"
                   )}
                 >
-                  <TransitionIcon type={transition.type} />
-                </div>
+                  {/* Preview Icon */}
+                  <div
+                    className={cn(
+                      "mb-2 flex h-8 w-8 items-center justify-center rounded transition-colors",
+                      isSelected ? "text-[#f5a623]" : "text-[#8d7850] group-hover:text-[#bfa873]"
+                    )}
+                  >
+                    <TransitionIcon type={transition.type} />
+                  </div>
 
-                {/* Name */}
-                <span
-                  className={cn(
-                    "text-[10px] font-medium transition-colors",
-                    isSelected ? "text-[#f5a623]" : "text-[#8d7850] group-hover:text-[#bfa873]"
+                  {/* Name */}
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium transition-colors",
+                      isSelected ? "text-[#f5a623]" : "text-[#8d7850] group-hover:text-[#bfa873]"
+                    )}
+                  >
+                    {transition.name}
+                  </span>
+
+                  {/* Selected indicator */}
+                  {isSelected && (
+                    <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f5a623]" />
                   )}
-                >
-                  {transition.name}
-                </span>
+                </button>
+              );
+            })}
 
-                {/* Selected indicator */}
-                {isSelected && (
-                  <div className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f5a623]" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+            {Array.from({ length: Math.max(0, PAGE_SIZE - pagedTransitions.length) }).map((_, index) => (
+              <div
+                key={`empty-${index}`}
+                className="min-h-23 rounded-lg border border-dashed border-[#f5a623]/6 bg-[#1a1a16]/20"
+              />
+            ))}
+          </motion.div>
+        </AnimatePresence>
 
         {filteredTransitions.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="mb-2 text-2xl text-[#8d7850]">⊘</div>
             <p className="text-xs text-[#8d7850]">No transitions found</p>
+          </div>
+        )}
+
+        {filteredTransitions.length > PAGE_SIZE && (
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            {Array.from({ length: pageCount }).map((_, index) => (
+              <button
+                key={`page-dot-${index}`}
+                onClick={() => goToPage(index, index > pageIndex ? "up" : "down")}
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  pageIndex === index ? "w-6 bg-[#f5a623]" : "w-1.5 bg-[#8d7850]/50 hover:bg-[#bfa873]/70"
+                )}
+                aria-label={`Go to transition page ${index + 1}`}
+              />
+            ))}
           </div>
         )}
       </div>

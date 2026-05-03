@@ -155,6 +155,7 @@ export const SaveEditorProjectSchema = z.object({
                     timelineStartMs: z.number(),
                     durationMs: z.number(),
                     name: z.string().optional(),
+                    audioMode: z.enum(["replace", "layer"]).optional(),
                     // Transition metadata stored as JSON
                     transitionStart: z.any().optional(),
                     transitionEnd: z.any().optional(),

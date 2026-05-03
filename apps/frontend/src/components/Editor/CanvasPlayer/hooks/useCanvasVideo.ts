@@ -19,6 +19,16 @@ export interface UseCanvasVideoOptions {
   overlays?: Overlay[];
   timelineTimeMs?: number;
   videoAlpha?: number;
+  audioClips?: Array<{
+    assetId: string;
+    url: string;
+    timelineStartMs: number;
+    durationMs: number;
+    sourceStartMs: number;
+    muted?: boolean;
+    volume?: number;
+    audioMode?: "replace" | "layer";
+  }>;
   /** Active transition state computed by useActiveTransition hook */
   activeTransition?: ActiveTransitionInfo | null;
 }
@@ -32,10 +42,12 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     overlays = [],
     timelineTimeMs = 0,
     videoAlpha = 1,
+    audioClips = [],
     activeTransition = null,
   } = options;
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stopLoopRef = useRef<(() => void) | null>(null);
   const isSeekingInternalRef = useRef(false);
@@ -76,6 +88,14 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
   const timelineTimeMsRef = useRef(0);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
+
+  const getActiveAudioClip = useCallback((timeMs: number) => {
+    return audioClips.find(
+      (clip) =>
+        timeMs >= clip.timelineStartMs &&
+        timeMs < clip.timelineStartMs + clip.durationMs
+    ) ?? null;
+  }, [audioClips]);
 
   // Update refs synchronously during render (no effects needed for refs)
   activeTransitionRef.current = activeTransition ?? null;
@@ -144,6 +164,79 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     drawSingleFrame(ctx, video, canvas, transformRef.current, activeOverlays);
   }, [getVisibleOverlays]);
 
+  const syncExternalAudio = useCallback(async () => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio) return;
+
+    const isActuallyPlaying = !video.paused; // Source of truth from DOM
+    const activeAudioClip = getActiveAudioClip(timelineTimeMsRef.current);
+    const shouldReplaceSourceAudio = Boolean(activeAudioClip && (activeAudioClip.audioMode ?? "replace") === "replace");
+
+    if (!activeAudioClip || !isActuallyPlaying) {
+      audio.pause();
+      video.muted = shouldReplaceSourceAudio ? true : muted;
+      return;
+    }
+
+    // Only change audio src if it's different (avoid redundant load() calls)
+    const timelineOffsetMs = timelineTimeMsRef.current - activeAudioClip.timelineStartMs;
+    const nextAudioTime = Math.max(0, (activeAudioClip.sourceStartMs + timelineOffsetMs) / 1000);
+
+    // If URL changed, set up a one-time loadeddata handler before attempting to seek/play.
+    if (audio.src !== activeAudioClip.url) {
+      // Pause and reset to avoid artifacts while loading new source
+      try { audio.pause(); } catch {}
+      audio.src = activeAudioClip.url;
+
+      const handleLoaded = () => {
+        audio.removeEventListener("loadeddata", handleLoaded);
+        // Only seek if the target time differs meaningfully
+        if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+          try { audio.currentTime = nextAudioTime; } catch {}
+        }
+        audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+        audio.muted = Boolean(activeAudioClip.muted);
+        // Attempt to play; if blocked, user gesture will resume
+        void audio.play().catch(() => {});
+      };
+
+      audio.addEventListener("loadeddata", handleLoaded, { once: true });
+      // Trigger load by setting src; some browsers auto-load with src assignment
+      try { audio.load(); } catch {}
+    } else {
+      // Same URL: only adjust playback time if audio is ready
+      if (audio.readyState >= 2) {
+        if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+          try { audio.currentTime = nextAudioTime; } catch {}
+        }
+        audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+        audio.muted = Boolean(activeAudioClip.muted);
+        try { await audio.play(); } catch {}
+      } else {
+        // Not ready yet: wait for loadeddata then continue in handler to avoid seeks that cause crackle
+        const onReady = () => {
+          audio.removeEventListener("loadeddata", onReady);
+          try {
+            if (Number.isFinite(nextAudioTime) && Math.abs((audio.currentTime || 0) - nextAudioTime) > 0.5) {
+              audio.currentTime = nextAudioTime;
+            }
+            audio.volume = Math.max(0, Math.min(1, activeAudioClip.volume ?? 1));
+            audio.muted = Boolean(activeAudioClip.muted);
+            void audio.play();
+          } catch {}
+        };
+        audio.addEventListener("loadeddata", onReady, { once: true });
+      }
+    }
+
+    if (shouldReplaceSourceAudio) {
+      video.muted = true;
+    } else {
+      video.muted = muted;
+    }
+  }, [getActiveAudioClip, muted]);
+
   // ─── Source switching + Event listeners (merged to avoid mount-order issues) ───
   // This effect re-runs whenever `src` changes. It sets the video source,
   // attaches all event listeners, and cleans up on unmount or src change.
@@ -185,6 +278,19 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
       }
     };
 
+    const handleLoadedData = () => {
+      setDuration(video.duration);
+      setIsLoaded(true);
+
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          drawSingleFrame(ctx, video, canvas, transformRef.current);
+        }
+      }
+    };
+
     const handleCanPlay = () => {
       // Additional draw attempt once video has enough data
       if (video.paused) {
@@ -201,12 +307,15 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
     const handlePlay = () => {
       onPlayStateChangeRef.current?.(true);
       startLoop();
+      // Let DOM settle to ensure video.paused has flipped to false before syncExternalAudio reads it
+      setTimeout(() => void syncExternalAudio(), 0);
     };
 
     const handlePause = () => {
       onPlayStateChangeRef.current?.(false);
       stopLoopRef.current?.();
       stopLoopRef.current = null;
+      audioRef.current?.pause();
       // Draw a single frame so the canvas isn't blank
       const canvas = canvasRef.current;
       if (canvas) {
@@ -235,6 +344,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
       onPlayStateChangeRef.current?.(false);
       stopLoopRef.current?.();
       stopLoopRef.current = null;
+      audioRef.current?.pause();
     };
 
     const handleTimeUpdate = () => {
@@ -244,6 +354,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
 
     // ─── Attach listeners ───────────────────────────────────────
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("loadeddata", handleLoadedData);
     video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
@@ -258,6 +369,9 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
       prevSrcRef.current = src;
       video.src = src;
       video.load();
+      if (video.readyState >= 2) {
+        handleLoadedData();
+      }
     } else if (video.readyState >= 1) {
       // Source already loaded (e.g. effect re-run with same src)
       handleLoadedMetadata();
@@ -265,6 +379,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
 
     return () => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("loadeddata", handleLoadedData);
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
@@ -274,6 +389,12 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
       stopLoopRef.current?.();
     };
   }, [src, startLoop, getVisibleOverlays]);
+
+  useEffect(() => {
+    void syncExternalAudio();
+    // Only sync on audioClips changes — not on every timelineTimeMs tick (60fps)
+    // to avoid constant audio restarts during playback
+  }, [syncExternalAudio, audioClips]);
 
   // ─── Sync play/pause from editor ──────────────────────────────────
   useEffect(() => {
@@ -392,6 +513,7 @@ export function useCanvasVideo(src: string, options: UseCanvasVideoOptions = {})
 
   return {
     videoRef,
+    audioRef,
     canvasRef,
     state,
     actions,
