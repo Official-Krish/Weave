@@ -78,6 +78,14 @@ export function canViewFinalRecording(args: {
     return args.visibleToEmails.includes(args.userEmail);
 }
 
+export function canEditFinalRecording(args: {
+  isHost: boolean;
+  userEmail: string | null;
+  visibleToEmails: string[];
+}) {
+  return canViewFinalRecording(args);
+}
+
 export function normalizeEmails(values: unknown): string[] {
     if (!Array.isArray(values)) {
         return [];

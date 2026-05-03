@@ -6,12 +6,42 @@ import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
 import { CreateEditorProjectSchema, SaveEditorProjectSchema } from "@repo/types";
 import { redisPublisher } from "../utils/redis";
-import { recordingsRoot, toPublicRecordingLink } from "../utils/helpers";
+import { canViewFinalRecording, recordingsRoot, toPublicRecordingLink } from "../utils/helpers";
 import { EDITOR_RENDER_QUEUE, writeProjectSnapshot } from "../utils/editor.helpers";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB
 
 const editorRouter = express.Router();
+
+async function canUserEditMeeting(meetingId: string, userId: string) {
+    const [meeting, user] = await Promise.all([
+        prisma.meeting.findFirst({
+            where: { id: meetingId },
+            include: { finalRecording: true },
+        }),
+        prisma.user.findFirst({
+            where: { id: userId },
+            select: { email: true },
+        }),
+    ]);
+
+    if (!meeting) {
+        return { meeting: null, canEditRecording: false };
+    }
+
+    const isHost = meeting.userId === userId;
+    const userEmail = user?.email?.toLowerCase() || null;
+    const visibleToEmails = meeting.finalRecording?.visibleToEmails ?? [];
+
+    return {
+        meeting,
+        canEditRecording: meeting.recordingState === "READY" && canViewFinalRecording({
+            isHost,
+            userEmail,
+            visibleToEmails,
+        }),
+    };
+}
 
 editorRouter.post("/projects", authMiddleware, async (req, res) => {
     const userId = req.userId;
@@ -26,21 +56,23 @@ editorRouter.post("/projects", authMiddleware, async (req, res) => {
     }
     try {
         const { meetingId, sourceMode } = parseData.data;
+        const access = await canUserEditMeeting(meetingId, userId);
+
+        if (!access.meeting) {
+            return res.status(404).json({ message: "Meeting not found" });
+        }
+
+        if (!access.canEditRecording) {
+            return res.status(403).json({ message: "You do not have permission to edit this recording" });
+        }
+
+        const meeting = access.meeting;
         const existing = await prisma.editorProject.findFirst({
             where: { meetingId, ownerId: userId, sourceMode },
         });
 
         if (existing) {
             return res.status(201).json({ message: "Project already exists", projectId: existing.id });
-        }
-
-        const meeting = await prisma.meeting.findFirst({
-            where: { id: meetingId },
-            include: { finalRecording: true },
-        });
-
-        if (!meeting) {
-            return res.status(404).json({ message: "Meeting not found" });
         }
 
         const { project } = await prisma.$transaction(async (tx) => {
