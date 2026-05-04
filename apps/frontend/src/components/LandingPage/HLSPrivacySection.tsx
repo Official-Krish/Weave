@@ -4,9 +4,9 @@ function EncryptionPipelineDiagram() {
   const nodes = [
     { label: "Raw Stream", x: 60 },
     { label: "Segment", x: 230 },
-    { label: "AES-128", x: 400 },
-    { label: ".ts Chunk", x: 570 },
-    { label: "Local Storage", x: 740, highlight: true },
+    { label: ".ts Chunk", x: 400 },
+    { label: "HTTPS", x: 570 },
+    { label: "CDN", x: 740, highlight: true },
   ];
 
   return (
@@ -134,34 +134,37 @@ export function HLSPrivacySection() {
 
             {/* Headline */}
             <h2 className="font-syne text-3xl font-bold leading-tight text-foreground sm:text-4xl mb-8">
-              Your keys. Your content.<br />
-              Zero cloud exposure.
+              Your content.<br />
+              Secure by default.
             </h2>
 
             {/* Specs Grid */}
             <div className="mb-8 grid grid-cols-3 gap-1 border-l border-r border-border/20">
               {/* Stat 1 */}
               <div className="border-r border-border/20 px-4 py-4">
-                <p className="text-sm font-bold text-[#F5A623] mb-1">AES-128</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/70">Military-grade encryption standard</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-bold text-[#F5A623]">End-to-End</p>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-[#F5A623]/15 text-[#F5A623] rounded">Coming Soon</span>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground/70">Client-side AES-128 encryption</p>
               </div>
 
               {/* Stat 2 */}
               <div className="border-r border-border/20 px-4 py-4">
-                <p className="text-sm font-bold text-[#F5A623] mb-1">Local Gen</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/70">Keys generated on your device</p>
+                <p className="text-sm font-bold text-[#F5A623] mb-1">HTTPS Secure</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/70">Military-grade TLS 1.3</p>
               </div>
 
               {/* Stat 3 */}
               <div className="px-4 py-4">
-                <p className="text-sm font-bold text-[#F5A623] mb-1">Zero CDN</p>
-                <p className="text-xs leading-relaxed text-muted-foreground/70">No third-party cloud processors</p>
+                <p className="text-sm font-bold text-[#F5A623] mb-1">Zero-Knowledge</p>
+                <p className="text-xs leading-relaxed text-muted-foreground/70">Weave cannot access raw footage</p>
               </div>
             </div>
 
             {/* Bottom line */}
             <p className="text-xs leading-relaxed text-muted-foreground/50">
-              We architected Weave so that even we cannot access your recordings.
+              Currently: HTTPS transport with zero-knowledge architecture. Roadmap: Client-side AES-128 before CDN upload for encrypted-at-rest protection.
             </p>
           </motion.div>
         </div>

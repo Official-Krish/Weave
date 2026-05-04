@@ -1,6 +1,9 @@
 import { prisma } from "@repo/db/client";
 import path from "node:path";
 import { redisPublisher } from "./redis";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
 
 export const recordingsRoot = path.resolve(process.cwd(), "../../recordings");
 
@@ -26,6 +29,63 @@ export function generateString() {
     }
 
     return result;
+}
+
+export function generateRandomToken() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+export async function SendVerificationEmail(email: string, token: string) {
+  await resend.emails.send({
+    from: "Weave <support@weave.krishdev.xyz>",
+    to: email,
+    subject: `Verify Your Weave Account`,
+    html: ` <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Verify Your Weave Account</title>
+    </head>
+    <body style="margin:0;padding:0;background:#0c0b0a;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0c0b0a;padding:40px 16px;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+              <!-- Header -->
+              <tr>
+                <td style="background:linear-gradient(135deg,#1a1408 0%,#241c0a 100%);border-radius:16px;padding:32px 36px;border-bottom:1px solid #f5a623;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td>
+                        <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#f5a623;opacity:0.7;">Weave · Account Verification</p>
+                        <h1 style="margin:8px 0 0;font-size:24px;font-weight:800;color:#fff5de;line-height:1.25;">Verify Your Account</h1>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Body -->
+              <tr>
+                <td style="background:#14100c;padding:28px 36px;border-radius:0 0 16px 16px;">
+                  <p style="margin:0 0 16px;font-size:14px;color:#c5ac72;line-height:1.6;">Use the verification code below to verify your Weave account.</p>
+                  <div style="display:inline-block;padding:12px 20px;background:#1a1408;border:1px solid rgba(245,166,35,0.18);border-radius:8px;">
+                    <span style="font-size:18px;font-weight:700;letter-spacing:0.1em;color:#f5a623;">${token}</span>
+                  </div>
+                </td>
+              </tr>
+
+            </table>
+            <p style="margin:24px 0 0;font-size:12px;color:#b49650;opacity:0.7;">If you did not sign up for a Weave account, you can safely ignore this email.</p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+     `
+  });
 }
 
 export async function getMeetingSessions(roomId: string) {

@@ -124,7 +124,7 @@ NotificationRouter.post("/create", authMiddleware, async (req, res) => {
             const { roomId } = parsed.data as z.infer<typeof schemas.RECORDING_REQUEST>;
 
             const user = await prisma.user.findFirst({
-                where: { id: userId },
+                where: { id: userId, isVerified: true },
                 select: { name: true, email: true },
             });
 

@@ -77,13 +77,16 @@ GithubRouter.get("/callback", async (req, res) => {
     const user = userRes.data;
 
     if (user) {
-      await prisma.user.update({
-        where: { id: userId },
+      const response = await prisma.user.update({
+        where: { id: userId, isVerified: true },
         data: {
           githubToken: access_token,
           githubUsername: user.login,
         },
       });
+      if (!response) {
+        return res.status(404).json({ error: "User not found or not verified" });
+      }
       res.redirect(`${process.env.FRONTEND_URL}/profile`);
     } else {
       res.status(400).json({ error: "Failed to fetch user info" });
@@ -142,7 +145,7 @@ GithubRouter.get("/user", authMiddleware, async (req, res) => {
   }
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true },
     });
 
@@ -170,7 +173,7 @@ GithubRouter.get("/repos", authMiddleware, async (req, res) => {
   }
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true },
     });
 
@@ -203,7 +206,7 @@ GithubRouter.post("/create/issue", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
 
@@ -244,7 +247,7 @@ GithubRouter.get("/issues", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
 
@@ -288,7 +291,7 @@ GithubRouter.post("/issue/comment", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
 
@@ -333,7 +336,7 @@ GithubRouter.patch("/issue/update", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
 
@@ -379,7 +382,7 @@ GithubRouter.post("/issue/assign", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
 
@@ -425,7 +428,7 @@ GithubRouter.post("/issue/labels", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true, githubUsername: true },
     });
     if (!user || !user.githubToken) {
@@ -463,7 +466,7 @@ GithubRouter.get("/filtered-repos", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { githubToken: true },
     });
     if (!user || !user.githubToken) {

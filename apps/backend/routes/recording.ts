@@ -1,7 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../utils/authMiddleware";
 import { prisma } from "@repo/db/client";
-import { canViewFinalRecording, canEditFinalRecording, getUserMeetingSession, normalizeEmails, toSingleString } from "../utils/helpers";
+import { canViewFinalRecording, canEditFinalRecording, normalizeEmails, toSingleString } from "../utils/helpers";
 import { putRecordingVisibilitySchema, removeRecordingVisibilitySchema } from "@repo/types";
 
 const RecordingRouter = express.Router();
@@ -176,7 +176,7 @@ RecordingRouter.get("/page/:id", authMiddleware, async (req, res) => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { email: true },
     });
 

@@ -12,6 +12,7 @@ import { MeetingSetupPage } from "../pages/MeetingSetupPage";
 import { FinalRecordingPage } from "../pages/FinalRecordingPage";
 import { SignInPage } from "../pages/SignInPage";
 import { SignUpPage } from "../pages/SignUpPage";
+import { VerificationPendingPage } from "../pages/VerificationPendingPage";
 import { PublicAuth } from "./PublicAuth";
 import { Pricing } from "@/pages/Pricing";
 import { BlogPage, ChangelogPage, FeaturesPage, PrivacyPage, SecurityPage, SupportPage, TermsPage } from "@/pages/StaticPages";
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
       {
         path: "signup",
         element: <PublicAuth><SignUpPage /></PublicAuth>,
+      },
+      {
+        path: "verify-pending",
+        element: <PublicAuth><VerificationPendingPage /></PublicAuth>,
       },
       {
         path: "auth/callback",

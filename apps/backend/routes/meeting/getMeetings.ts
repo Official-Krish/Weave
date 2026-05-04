@@ -14,7 +14,7 @@ getMeetingsRouter.get("/getAll", authMiddleware, async (req, res) => {
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: userId as string },
+            where: { id: userId as string, isVerified: true },
             select: { email: true },
         });
 
@@ -136,7 +136,7 @@ getMeetingsRouter.get("/get/:id", authMiddleware, async (req, res) => {
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: userId as string },
+            where: { id: userId as string, isVerified: true },
             select: { email: true },
         });
 

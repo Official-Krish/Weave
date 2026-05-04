@@ -22,7 +22,7 @@ createMeetingRouter.post("/create", authMiddleware, async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isVerified: true },
       select: { id: true, name: true, email: true, googleRefreshToken: true },
     });
 
@@ -41,6 +41,7 @@ createMeetingRouter.post("/create", authMiddleware, async (req, res) => {
     const invitedUsers = await prisma.user.findMany({
       where: {
         email: { in: normalizedEmails },
+        isVerified: true,
       },
       select: { id: true, email: true, googleRefreshToken: true },
     });

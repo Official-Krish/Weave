@@ -3,6 +3,7 @@ import { FinalCtaSection } from "@/components/LandingPage/FinalCtaSection";
 import { HeroSection } from "@/components/LandingPage/HeroSection";
 import { HowItWorksSection } from "@/components/LandingPage/HowItWorksSection";
 import { HLSPrivacySection } from "@/components/LandingPage/HLSPrivacySection";
+import { IntegrationsSection } from "@/components/LandingPage/IntegrationsSection";
 import { PricingSection } from "@/components/LandingPage/PricingSection";
 import { ProblemSection } from "@/components/LandingPage/ProblemSection";
 import { QualityFormatsSection } from "@/components/LandingPage/QualityFormatsSection";
@@ -16,6 +17,7 @@ export const LandingPage = () => {
         <ProblemSection />
         <HowItWorksSection />
         <FeaturesSection />
+        <IntegrationsSection />
         <HLSPrivacySection />
         <QualityFormatsSection />
         <VideoEditorPreviewSection />

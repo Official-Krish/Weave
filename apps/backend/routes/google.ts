@@ -92,6 +92,7 @@ GoogleRouter.get("/auth/callback", async (req, res) => {
       update: {
         googleId: googleId ?? undefined,
         name: name ?? undefined,
+        isVerified: true,
         ...(tokens.refresh_token && { googleRefreshToken: tokens.refresh_token }),
       },
       create: {
@@ -99,6 +100,7 @@ GoogleRouter.get("/auth/callback", async (req, res) => {
         name,
         googleId,
         googleRefreshToken: tokens.refresh_token,
+        isVerified: true,
       },
     });
 

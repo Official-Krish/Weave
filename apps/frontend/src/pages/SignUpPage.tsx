@@ -57,7 +57,7 @@ export function SignUpPage() {
             <Field label="Password" icon={<Lock className="size-3.5" />}>
               <input
                 type="password"
-                placeholder="Min. 8 characters"
+                placeholder="Min. 8 characters (Should Contain A-Z, a-z, 0-9, and special characters)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border border-white/8 bg-white/4 py-2.5 pl-9 pr-4 text-sm text-[#fff5de] outline-none placeholder:text-[#c8b880]/35 transition focus:border-[#f5a623]/40 focus:bg-[#f5a623]/[0.03]"
