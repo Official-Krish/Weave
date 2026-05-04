@@ -521,8 +521,6 @@ class LocalVideoMerger {
         const label = `createBlackPlaceholderVideo[${userId}]`;
         const safeDuration = Math.max(1, Math.ceil(duration));
         const outputVideo = path.join(this.tempDir, "videos", `${userId}_placeholder.mp4`);
-
-        const startTime = Date.now();
         await this.executeFFmpeg([
             "-y",
             "-f",

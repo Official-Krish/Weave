@@ -44,7 +44,7 @@ scheduleRouter.post("/create/schedule", authMiddleware, async (req, res) => {
 
     const users = await prisma.user.findMany({
       where: {
-        email: { in: normalizedEmails },
+        email: { in: normalizedEmails, isVerified: true },
       },
       select: { id: true, email: true, googleRefreshToken: true },
     });

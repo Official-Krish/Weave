@@ -1,3 +1,4 @@
+import { prisma } from "@repo/db/client";
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
@@ -45,6 +46,11 @@ export async function authMiddleware(
 
 
     req.userId = userId;
+    const user = await prisma.user.findUnique({ where: { id: userId, isVerified: true } });
+    if (!user) {
+      res.status(403).json({ message: "User not found or email not verified" });
+      return;
+    }
 
     next();
   } catch (error) {

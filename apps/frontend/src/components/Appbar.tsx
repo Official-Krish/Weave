@@ -12,6 +12,7 @@ type NavItem = {
 const authenticatedNavItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", end: true },
   { to: "/meetingSetup", label: "Create or Join Meeting" },
+  { to: "/meeting/schedule", label: "Schedule" },
 ];
 
 const guestNavItems: NavItem[] = [
