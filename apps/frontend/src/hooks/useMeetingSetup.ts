@@ -159,8 +159,8 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
 
           const source = audioContext.createMediaStreamSource(stream);
           const analyser = audioContext.createAnalyser();
-          analyser.fftSize = 2048;
-          analyser.smoothingTimeConstant = 0.85;
+          analyser.fftSize = 256; // Smaller FFT for more responsive meter
+          analyser.smoothingTimeConstant = 0.8; // Slightly less smoothing for responsiveness
           source.connect(analyser);
 
           const timeDomainData = new Float32Array(analyser.fftSize);
@@ -171,13 +171,27 @@ export function useMeetingSetup({ displayNameFallback, navigate }: UseMeetingSet
             }
 
             analyser.getFloatTimeDomainData(timeDomainData);
-            const rms = Math.sqrt(
-              timeDomainData.reduce((sum, value) => sum + value * value, 0) / timeDomainData.length
-            );
+            
+            // Find peak (max absolute value) - matches Chrome's behavior
+            let peak = 0;
+            for (let i = 0; i < timeDomainData.length; i++) {
+              const value = Math.abs(timeDomainData[i]);
+              if (value > peak) {
+                peak = value;
+              }
+            }
+            let levelDb: number;
+            if (peak > 0) {
+              levelDb = 20 * Math.log10(peak);
+            } else {
+              levelDb = -96; // Represent silence
+            }
+
             const normalizedLevel = Math.min(
               100,
-              Math.round(Math.max(0, ((rms - 0.01) / 0.16) * 100))
+              Math.max(0, Math.round(((levelDb + 40) / 40) * 100))
             );
+            
             setMicLevel(normalizedLevel);
             animationFrameRef.current = requestAnimationFrame(updateMicLevel);
           };

@@ -120,7 +120,6 @@ userRouter.post("/resend-verification-email", async (req, res) => {
         });
 
         await SendVerificationEmail(email, verificationCode);
-        console.log(`New verification code for ${email}: ${verificationCode}`);
 
         res.status(200).json({ message: "Verification code sent successfully" });
     } catch (error) {

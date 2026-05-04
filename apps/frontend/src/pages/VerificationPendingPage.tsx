@@ -157,12 +157,6 @@ export function VerificationPendingPage() {
             </button>
           </div>
 
-          <div className="mt-8 rounded-2xl border border-[#f5a623]/20 bg-[#f5a623]/5 p-5">
-            <p className="text-[12px] leading-relaxed text-[#c8b880]">
-              Check your email for the 6-digit code. The code will expire in 24 hours.
-            </p>
-          </div>
-
           {/* Resend Section */}
           <div className="mt-8 space-y-3 border-t border-white/8 pt-8">
             <p className="text-[12px] text-[#c8b880]/60">

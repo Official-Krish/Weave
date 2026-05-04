@@ -50,7 +50,7 @@ export function CreateMeetingForm({
           <input
             value={passcode}
             onChange={(event) => onPasscodeChange(event.target.value)}
-            placeholder="Set a room passcode"
+            placeholder="Set room passcode (Minimum 4 Characters)"
              className="w-full rounded-xl border border-input bg-card px-4 py-3 pr-10 text-sm text-foreground outline-none transition focus:border-[#f5a623]/45 focus:ring-2 focus:ring-[#f5a623]/20"
           />
           <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
