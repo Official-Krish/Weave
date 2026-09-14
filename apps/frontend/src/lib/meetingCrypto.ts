@@ -73,7 +73,7 @@ function bytesToBase64(bytes: Uint8Array) {
 }
 
 /**
- * Deterministic IV per chunk. Uses auth user id (stable) + sequence — not Jitsi ids.
+ * Deterministic IV per chunk. Uses auth user id (stable) + sequence — not SFU participant ids.
  */
 async function deriveChunkIv(authUserId: string, sequenceNumber: number) {
   const payload = `${authUserId}:${sequenceNumber}`;

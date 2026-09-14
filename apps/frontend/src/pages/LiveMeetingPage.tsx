@@ -186,6 +186,7 @@ export function LiveMeetingPage() {
     selectedMicId,
     initialMuted: initialMicOff,
     initialVideoOff,
+    passcode: passcode || undefined,
     enabled:
       joinMutation.status === "success" &&
       wrappedCekMutation.status === "success",
@@ -215,7 +216,7 @@ export function LiveMeetingPage() {
     isVideoOff,
     selectedMicId,
     selectedCameraId,
-    jitsiLocalAudioTrack: localAudioTrack,
+    sharedLocalAudioTrack: localAudioTrack?.mediaStreamTrack ?? null,
   });
 
   const {
@@ -329,12 +330,10 @@ export function LiveMeetingPage() {
   const allTiles = useMemo<MeetingTile[]>(() => {
     const remoteTiles = participants.flatMap((participant) => {
       const cameraTrack = (participant.tracks.find(
-        (track) =>
-          track.getType?.() === "video" && track.getVideoType?.() !== "desktop",
+        (track) => track.kind === "video" && track.source !== "screen",
       ) || null) as MeetingTile["track"];
       const screenTrack = (participant.tracks.find(
-        (track) =>
-          track.getType?.() === "video" && track.getVideoType?.() === "desktop",
+        (track) => track.kind === "video" && track.source === "screen",
       ) || null) as MeetingTile["track"];
 
       const participantName = participant.displayName || participant.id;
@@ -431,7 +430,8 @@ export function LiveMeetingPage() {
             track: mediaState.isMuted
               ? null
               : participant.tracks.find(
-                  (track) => track.getType?.() === "audio",
+                  (track) =>
+                    track.kind === "audio" && track.source === "microphone",
                 ) || null,
           };
         })
@@ -442,12 +442,10 @@ export function LiveMeetingPage() {
   const participantList = useMemo<MeetingParticipantState[]>(() => {
     const remoteParticipants = participants.map((participant) => {
       const cameraTrack = (participant.tracks.find(
-        (track) =>
-          track.getType?.() === "video" && track.getVideoType?.() !== "desktop",
+        (track) => track.kind === "video" && track.source !== "screen",
       ) || null) as MeetingTile["track"];
       const screenTrack = (participant.tracks.find(
-        (track) =>
-          track.getType?.() === "video" && track.getVideoType?.() === "desktop",
+        (track) => track.kind === "video" && track.source === "screen",
       ) || null) as MeetingTile["track"];
       const mediaState = getParticipantMediaState(
         participantMediaStates,

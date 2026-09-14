@@ -2,7 +2,6 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import crypto from "node:crypto";
 import { LoginSchema, SignupSchema } from "@repo/types";
 import { prisma } from "@repo/db/client";
 import { authMiddleware } from "../utils/authMiddleware";

@@ -14,12 +14,7 @@ import {
 } from "../lib/meetingCrypto";
 import { buildMeetingAudioConstraints } from "../lib/meetingAudio";
 
-type ConnectionState =
-  | "idle"
-  | "loading-lib"
-  | "connecting"
-  | "connected"
-  | "failed";
+type ConnectionState = "idle" | "connecting" | "connected" | "failed";
 
 type UseMeetingRecordingArgs = {
   meetingId: string;
@@ -33,7 +28,7 @@ type UseMeetingRecordingArgs = {
   isVideoOff: boolean;
   selectedMicId?: string;
   selectedCameraId?: string;
-  jitsiLocalAudioTrack?: { getTrack?: () => MediaStreamTrack } | null;
+  sharedLocalAudioTrack?: MediaStreamTrack | null;
 };
 
 function buildRecordingVideoConstraints(
@@ -59,7 +54,7 @@ export function useMeetingRecording({
   isVideoOff,
   selectedMicId,
   selectedCameraId,
-  jitsiLocalAudioTrack,
+  sharedLocalAudioTrack,
 }: UseMeetingRecordingArgs) {
   const CHUNK_DURATION_MS = 10000;
 
@@ -83,11 +78,11 @@ export function useMeetingRecording({
   const chunkStartedAtRef = useRef<number | null>(null);
   const chunkStopTimeoutRef = useRef<number | null>(null);
   const ownedMediaTracksRef = useRef<Set<MediaStreamTrack>>(new Set());
-  const jitsiLocalAudioTrackRef = useRef(jitsiLocalAudioTrack);
+  const sharedLocalAudioTrackRef = useRef(sharedLocalAudioTrack);
 
   useEffect(() => {
-    jitsiLocalAudioTrackRef.current = jitsiLocalAudioTrack;
-  }, [jitsiLocalAudioTrack]);
+    sharedLocalAudioTrackRef.current = sharedLocalAudioTrack;
+  }, [sharedLocalAudioTrack]);
 
   const markTrackOwned = useCallback((track: MediaStreamTrack | null) => {
     if (track) {
@@ -344,18 +339,12 @@ export function useMeetingRecording({
     releaseRecorderResources();
   }, [enqueueChunkUpload, releaseRecorderResources]);
 
-  const waitForSharedJitsiAudioTrack = useCallback(async () => {
-    const deadline = Date.now() + 8000;
-
-    while (Date.now() < deadline) {
-      const track = jitsiLocalAudioTrackRef.current?.getTrack?.() ?? null;
-      if (track && track.readyState === "live") {
-        return track;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+  const getSharedLiveKitAudioTrack = useCallback(() => {
+    const track = sharedLocalAudioTrackRef.current ?? null;
+    if (track && track.readyState === "live") {
+      return track;
     }
-
-    return jitsiLocalAudioTrackRef.current?.getTrack?.() ?? null;
+    return null;
   }, []);
 
   const startLocalChunkRecorder = useCallback(
@@ -387,15 +376,15 @@ export function useMeetingRecording({
           return canvas.captureStream(60).getVideoTracks()[0] ?? null;
         };
 
-        const sharedJitsiAudioTrack = await waitForSharedJitsiAudioTrack();
+        const sharedLiveKitAudioTrack = getSharedLiveKitAudioTrack();
 
         const mediaConstraints: MediaStreamConstraints = {
           // Keep a real video source available even when the meeting camera is
           // currently "off" so later camera-on toggles can produce frames.
           video: buildRecordingVideoConstraints(selectedCameraId),
-          // Reuse the Jitsi mic when possible — opening a second audio input
+          // Reuse the LiveKit mic when possible — opening a second audio input
           // competes with WebRTC processing and causes echo / noise artifacts.
-          audio: sharedJitsiAudioTrack
+          audio: sharedLiveKitAudioTrack
             ? false
             : buildMeetingAudioConstraints(selectedMicId, "recording"),
         };
@@ -411,11 +400,11 @@ export function useMeetingRecording({
         const recorderStream = new MediaStream();
 
         const rawAudioTrack =
-          sharedJitsiAudioTrack ?? stream.getAudioTracks()[0] ?? null;
+          sharedLiveKitAudioTrack ?? stream.getAudioTracks()[0] ?? null;
         if (rawAudioTrack) {
           audioTrackRef.current = rawAudioTrack;
           recorderStream.addTrack(rawAudioTrack);
-          if (!sharedJitsiAudioTrack) {
+          if (!sharedLiveKitAudioTrack) {
             markTrackOwned(rawAudioTrack);
           }
         }
@@ -602,7 +591,7 @@ export function useMeetingRecording({
       selectedCameraId,
       selectedMicId,
       syncRecorderMediaState,
-      waitForSharedJitsiAudioTrack,
+      getSharedLiveKitAudioTrack,
     ],
   );
 
