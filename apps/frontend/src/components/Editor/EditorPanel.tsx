@@ -291,7 +291,7 @@ export function EditorPanel({
         <div className="flex items-center gap-3">
           <button
             onClick={onPlayPause}
-            className="relative h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+            className="relative h-10 w-10 shrink-0 flex items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
             style={{
               background: "linear-gradient(135deg, #f5a623 0%, #e0900f 100%)",
               boxShadow: isPlaying

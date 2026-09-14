@@ -35,7 +35,7 @@ export function CameraPriorityPanel({
         >
           <GripVertical className="h-3 w-3 text-[#8d7850] cursor-grab" />
           <span
-            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+            className="h-2.5 w-2.5 rounded-full shrink-0"
             style={{ backgroundColor: getParticipantColor(i) }}
           />
           <span className="flex-1 text-xs text-[#bfa873] truncate">

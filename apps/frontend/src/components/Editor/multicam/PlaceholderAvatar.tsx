@@ -16,7 +16,7 @@ export function PlaceholderAvatar({
 
   return (
     <div
-      className="flex items-center justify-center rounded-full flex-shrink-0"
+      className="flex items-center justify-center rounded-full shrink-0"
       style={{
         width: size,
         height: size,
