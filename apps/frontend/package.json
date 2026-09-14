@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build:frontend": "vite build",
+    "dev": "bun --bun vite",
+    "build": "tsc -b && bun --bun vite build",
+    "build:frontend": "bun --bun vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "bun --bun vite preview"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
