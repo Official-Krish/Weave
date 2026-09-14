@@ -27,13 +27,6 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 80
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /
@@ -94,14 +87,6 @@ spec:
           ports:
             - containerPort: 3000
 
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
-
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/backend/.env
@@ -146,15 +131,6 @@ spec:
         - name: weave-merger-worker
           image: krishanand01/weave-merger-worker:v1.2.22
           imagePullPolicy: Always
-
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "512m"
-              memory: "1Gi"
-
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/merger-worker/.env
@@ -207,14 +183,6 @@ spec:
           image: krishanand01/weave-editor-worker:v1.2.22
           imagePullPolicy: Always
 
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "512m"
-              memory: "1Gi"
-
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/editor-worker/.env
@@ -266,14 +234,6 @@ spec:
         - name: weave-transcoder
           image: krishanand01/weave-transcoder:v1.2.22
           imagePullPolicy: Always
-
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "512m"
-              memory: "1Gi"
 
           volumeMounts:
             - name: env-file
@@ -328,14 +288,6 @@ spec:
           ports:
             - containerPort: 9093
 
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-
           volumeMounts:
             - name: env-file
               mountPath: /app/apps/ws-relayer/.env
@@ -379,14 +331,6 @@ spec:
 
           ports:
             - containerPort: 6379
-
-          resources:
-            requests:
-              cpu: "5m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "128Mi"
 
           volumeMounts:
             - name: redis-data
