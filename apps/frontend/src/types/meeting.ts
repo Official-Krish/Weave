@@ -1,6 +1,13 @@
+export type MeetingTrackKind = "video" | "audio";
+
+export type MeetingTrackSource = "camera" | "screen" | "microphone";
+
 export type VideoTrackLike = {
-  attach?: (element: HTMLVideoElement) => void;
-  detach?: (element: HTMLVideoElement) => void;
+  attach?: (element: HTMLMediaElement) => void;
+  detach?: (element?: HTMLMediaElement) => void;
+  kind?: MeetingTrackKind;
+  source?: MeetingTrackSource;
+  mediaStreamTrack?: MediaStreamTrack | null;
 };
 
 export type MeetingTile = {
@@ -41,7 +48,6 @@ export type MeetingParticipantState = {
 
 export type MeetingConnectionState =
   | "idle"
-  | "loading-lib"
   | "connecting"
   | "connected"
   | "failed";

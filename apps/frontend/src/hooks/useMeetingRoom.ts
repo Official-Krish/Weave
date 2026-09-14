@@ -1,40 +1,70 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { JITSI_BASE_URL } from "../lib/config";
-import { buildMeetingAudioConstraints } from "../lib/meetingAudio";
+import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
+import type {
+  LocalParticipant,
+  RemoteParticipant,
+  TrackPublication,
+} from "livekit-client";
+import { http } from "../https";
+import type { LivekitTokenResponse } from "@repo/types/api";
 
-type ConnectionState =
-  | "idle"
-  | "loading-lib"
-  | "connecting"
-  | "connected"
-  | "failed";
+type ConnectionState = "idle" | "connecting" | "connected" | "failed";
 
-type JitsiTrack = any;
-type JitsiConference = any;
-type JitsiConnection = any;
+export type RoomTrackKind = "video" | "audio";
 
-declare global {
-  interface Window {
-    JitsiMeetJS?: any;
-  }
-}
+export type RoomTrackSource = "camera" | "screen" | "microphone";
+
+export type RoomTrack = {
+  id: string;
+  kind: RoomTrackKind;
+  source: RoomTrackSource;
+  mediaStreamTrack: MediaStreamTrack | null;
+  attach: (element: HTMLMediaElement) => void;
+  detach: (element?: HTMLMediaElement) => void;
+};
 
 type ParticipantState = {
   id: string;
   displayName: string;
-  tracks: JitsiTrack[];
+  tracks: RoomTrack[];
 };
 
-function buildMeetingVideoConstraints(
-  selectedCameraId?: string,
-): MediaTrackConstraints {
+function wrapPublication(publication: TrackPublication): RoomTrack | null {
+  const track = publication.track;
+  if (!track) {
+    return null;
+  }
+
+  const kind: RoomTrackKind =
+    publication.kind === Track.Kind.Video ? "video" : "audio";
+
+  let source: RoomTrackSource;
+  if (
+    publication.source === Track.Source.ScreenShare ||
+    publication.source === Track.Source.ScreenShareAudio
+  ) {
+    source = "screen";
+  } else if (kind === "audio") {
+    source = "microphone";
+  } else {
+    source = "camera";
+  }
+
   return {
-    deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    frameRate: { ideal: 30, max: 60 },
-    aspectRatio: { ideal: 16 / 9 },
+    id: publication.trackSid,
+    kind,
+    source,
+    mediaStreamTrack: track.mediaStreamTrack ?? null,
+    attach: (element: HTMLMediaElement) => {
+      track.attach(element);
+    },
+    detach: (element?: HTMLMediaElement) => {
+      if (element) {
+        track.detach(element);
+      } else {
+        track.detach();
+      }
+    },
   };
 }
 
@@ -45,6 +75,7 @@ export function useMeetingRoom({
   selectedMicId,
   initialMuted = false,
   initialVideoOff = false,
+  passcode,
   enabled = true,
 }: {
   meetingId: string;
@@ -53,6 +84,7 @@ export function useMeetingRoom({
   selectedMicId?: string;
   initialMuted?: boolean;
   initialVideoOff?: boolean;
+  passcode?: string;
   enabled?: boolean;
 }) {
   const [connectionState, setConnectionState] =
@@ -73,160 +105,20 @@ export function useMeetingRoom({
     string | null
   >(null);
 
-  const connectionRef = useRef<JitsiConnection | null>(null);
-  const conferenceRef = useRef<JitsiConference | null>(null);
-  const localAudioTrackRef = useRef<JitsiTrack | null>(null);
-  const localVideoTrackRef = useRef<JitsiTrack | null>(null);
-  const localScreenTrackRef = useRef<JitsiTrack | null>(null);
+  const roomRef = useRef<Room | null>(null);
 
-  const [localAudioTrack, setLocalAudioTrack] = useState<JitsiTrack | null>(
+  const [localAudioTrack, setLocalAudioTrack] = useState<RoomTrack | null>(
     null,
   );
-  const [localVideoTrack, setLocalVideoTrack] = useState<JitsiTrack | null>(
+  const [localVideoTrack, setLocalVideoTrack] = useState<RoomTrack | null>(
     null,
   );
-  const [localScreenTrack, setLocalScreenTrack] = useState<JitsiTrack | null>(
+  const [localScreenTrack, setLocalScreenTrack] = useState<RoomTrack | null>(
     null,
   );
   const [participantsMap, setParticipantsMap] = useState<
     Record<string, ParticipantState>
   >({});
-
-  const parsedBase = useMemo(() => {
-    try {
-      return new URL(JITSI_BASE_URL);
-    } catch {
-      return new URL("http://localhost");
-    }
-  }, []);
-
-  const fetchJitsiConnectionConfig = useCallback(async () => {
-    const fallbackDomain = parsedBase.hostname;
-    const fallbackMuc = `conference.${fallbackDomain}`;
-    // Use proxied BOSH endpoint with absolute URL (goes through local dev server, avoiding cert issues)
-    const fallbackBosh = `https://jitsi.krishlabs.tech/http-bind`;
-    const fallbackWebsocket = `${parsedBase.protocol === "https:" ? "wss" : "ws"}://${parsedBase.host}/xmpp-websocket`;
-
-    try {
-      const proxyUrl = `/jitsi/config.js`;
-      const response = await fetch(proxyUrl, { cache: "no-store" });
-      const configText = await response.text();
-
-      const extract = (pattern: RegExp) =>
-        configText.match(pattern)?.[1]?.trim();
-
-      const domain =
-        extract(/config\.hosts\.domain\s*=\s*'([^']+)'/) || fallbackDomain;
-      const rawMuc = extract(/config\.hosts\.muc\s*=\s*'([^']+)'/);
-      // Some Jitsi config.js files build muc using string concatenation, which regex can partially read as "muc.".
-      const muc =
-        rawMuc && rawMuc !== "muc." && !rawMuc.includes("+")
-          ? rawMuc
-          : `muc.${domain}`;
-      // Extract path from BOSH URL and proxy through /jitsi/
-      let bosh = fallbackBosh;
-      const extractedBosh = extract(/config\.bosh\s*=\s*'([^']+)'/);
-      if (extractedBosh) {
-        // Convert 'https://localhost:8443/http-bind' to absolute proxied URL
-        const boshPath = extractedBosh.replace(/^[a-z]+:\/\/[^/]+/, "");
-        // Ensure it's not empty or just "/"
-        const safeBoshPath =
-          boshPath && boshPath !== "/" ? boshPath : "/http-bind";
-        bosh = `https://jitsi.krishlabs.tech/${safeBoshPath}`;
-      }
-      const websocket =
-        extract(/config\.websocket\s*=\s*'([^']+)'/) || fallbackWebsocket;
-
-      return {
-        domain,
-        muc,
-        bosh,
-        websocket,
-      };
-    } catch {
-      return {
-        domain: fallbackDomain,
-        muc: fallbackMuc,
-        bosh: fallbackBosh,
-        websocket: fallbackWebsocket,
-      };
-    }
-  }, [parsedBase.host, parsedBase.hostname, parsedBase.protocol]);
-
-  const removeRemoteTrackById = useCallback(
-    (participantId: string, trackId: string) => {
-      setParticipantsMap((prev) => {
-        const participant = prev[participantId];
-        if (!participant) {
-          return prev;
-        }
-        const nextTracks = participant.tracks.filter(
-          (track) => track.getId?.() !== trackId,
-        );
-        return {
-          ...prev,
-          [participantId]: {
-            ...participant,
-            tracks: nextTracks,
-          },
-        };
-      });
-    },
-    [],
-  );
-
-  const addRemoteTrack = useCallback(
-    (participantId: string, track: JitsiTrack) => {
-      setParticipantsMap((prev) => {
-        const current =
-          prev[participantId] ||
-          ({
-            id: participantId,
-            displayName: participantId,
-            tracks: [],
-          } as ParticipantState);
-
-        const alreadyExists = current.tracks.some(
-          (item) => item.getId?.() === track.getId?.(),
-        );
-        if (alreadyExists) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [participantId]: {
-            ...current,
-            tracks: [...current.tracks, track],
-          },
-        };
-      });
-    },
-    [],
-  );
-
-  const updateParticipantName = useCallback(
-    (participantId: string, nextName: string) => {
-      setParticipantsMap((prev) => {
-        const current =
-          prev[participantId] ||
-          ({
-            id: participantId,
-            displayName: nextName || participantId,
-            tracks: [],
-          } as ParticipantState);
-
-        return {
-          ...prev,
-          [participantId]: {
-            ...current,
-            displayName: nextName || current.displayName || participantId,
-          },
-        };
-      });
-    },
-    [],
-  );
 
   const clearRoomState = useCallback(() => {
     setParticipantsMap({});
@@ -240,163 +132,121 @@ export function useMeetingRoom({
     setSelectedParticipantId(null);
   }, []);
 
-  const disposeTrack = (track: JitsiTrack | null) => {
-    if (!track) {
+  const syncLocalTracks = useCallback(() => {
+    const room = roomRef.current;
+    if (!room) {
       return;
     }
-    try {
-      track.dispose?.();
-    } catch {
-      // best effort
+    const local: LocalParticipant = room.localParticipant;
+    setLocalParticipantId(local.identity);
+
+    let audio: RoomTrack | null = null;
+    let video: RoomTrack | null = null;
+    let screen: RoomTrack | null = null;
+
+    local.trackPublications.forEach((publication) => {
+      const wrapped = wrapPublication(publication);
+      if (!wrapped) {
+        return;
+      }
+      if (publication.source === Track.Source.Microphone) {
+        audio = wrapped;
+      } else if (publication.source === Track.Source.Camera) {
+        video = wrapped;
+      } else if (publication.source === Track.Source.ScreenShare) {
+        screen = wrapped;
+      }
+    });
+
+    setLocalAudioTrack(audio);
+    setLocalVideoTrack(video);
+    setLocalScreenTrack(screen);
+    setIsMuted(!local.isMicrophoneEnabled);
+    setIsVideoOff(!local.isCameraEnabled);
+    setIsScreenSharing(local.isScreenShareEnabled);
+  }, []);
+
+  const syncRemoteParticipants = useCallback(() => {
+    const room = roomRef.current;
+    if (!room) {
+      return;
     }
-  };
 
-  const syncLocalTrackFlags = useCallback((track: JitsiTrack) => {
-    const trackType = track.getType?.();
-
-    const refreshState = () => {
-      const muted = Boolean(track.isMuted?.());
-
-      if (trackType === "audio") {
-        setIsMuted(muted);
-      }
-
-      if (trackType === "video") {
-        setIsVideoOff(muted);
-      }
-    };
-
-    refreshState();
-
-    const onMuteChanged = () => {
-      refreshState();
-    };
-
-    const onStopped = () => {
-      if (trackType === "audio") {
-        setIsMuted(true);
-      }
-
-      if (trackType === "video") {
-        setIsVideoOff(true);
-      }
-    };
-
-    track.addEventListener?.("TRACK_MUTE_CHANGED", onMuteChanged);
-    track.addEventListener?.("LOCAL_TRACK_STOPPED", onStopped);
-
-    return () => {
-      track.removeEventListener?.("TRACK_MUTE_CHANGED", onMuteChanged);
-      track.removeEventListener?.("LOCAL_TRACK_STOPPED", onStopped);
-    };
+    const next: Record<string, ParticipantState> = {};
+    room.remoteParticipants.forEach((participant: RemoteParticipant) => {
+      const tracks: RoomTrack[] = [];
+      participant.trackPublications.forEach((publication) => {
+        if (!publication.isSubscribed) {
+          return;
+        }
+        const wrapped = wrapPublication(publication);
+        if (wrapped) {
+          tracks.push(wrapped);
+        }
+      });
+      next[participant.identity] = {
+        id: participant.identity,
+        displayName: participant.name || participant.identity,
+        tracks,
+      };
+    });
+    setParticipantsMap(next);
   }, []);
 
   const leaveRoom = useCallback(() => {
     try {
-      const conference = conferenceRef.current;
-      if (conference) {
-        conference.leave?.();
-      }
+      roomRef.current?.disconnect();
     } catch {
       // best effort
     }
-
-    disposeTrack(localScreenTrackRef.current);
-    disposeTrack(localVideoTrackRef.current);
-    disposeTrack(localAudioTrackRef.current);
-
-    localScreenTrackRef.current = null;
-    localVideoTrackRef.current = null;
-    localAudioTrackRef.current = null;
-
-    try {
-      connectionRef.current?.disconnect?.();
-    } catch {
-      // best effort
-    }
-
-    conferenceRef.current = null;
-    connectionRef.current = null;
+    roomRef.current = null;
     clearRoomState();
     setConnectionState("idle");
   }, [clearRoomState]);
 
   const toggleAudio = useCallback(async () => {
-    const track = localAudioTrackRef.current;
-    if (!track) {
+    const room = roomRef.current;
+    if (!room) {
       return null;
     }
 
-    if (isMuted) {
-      await track.unmute?.();
-      setIsMuted(false);
-      return false;
-    } else {
-      await track.mute?.();
-      setIsMuted(true);
-      return true;
-    }
-  }, [isMuted]);
+    const nextMuted = room.localParticipant.isMicrophoneEnabled;
+    await room.localParticipant.setMicrophoneEnabled(!nextMuted);
+    setIsMuted(nextMuted);
+    syncLocalTracks();
+    return nextMuted;
+  }, [syncLocalTracks]);
 
   const toggleVideo = useCallback(async () => {
-    const track = localVideoTrackRef.current;
-    if (!track) {
+    const room = roomRef.current;
+    if (!room) {
       return null;
     }
 
-    if (isVideoOff) {
-      await track.unmute?.();
-      setIsVideoOff(false);
-      return false;
-    } else {
-      await track.mute?.();
-      setIsVideoOff(true);
-      return true;
-    }
-  }, [isVideoOff]);
+    const nextVideoOff = room.localParticipant.isCameraEnabled;
+    await room.localParticipant.setCameraEnabled(!nextVideoOff);
+    setIsVideoOff(nextVideoOff);
+    syncLocalTracks();
+    return nextVideoOff;
+  }, [syncLocalTracks]);
 
   const toggleScreenShare = useCallback(async () => {
-    const JitsiMeetJS = window.JitsiMeetJS;
-    const conference = conferenceRef.current;
-
-    if (!JitsiMeetJS || !conference) {
-      return;
-    }
-
-    if (localScreenTrackRef.current) {
-      try {
-        conference.removeTrack?.(localScreenTrackRef.current);
-      } catch {
-        // no-op
-      }
-      disposeTrack(localScreenTrackRef.current);
-      localScreenTrackRef.current = null;
-      setLocalScreenTrack(null);
-      setIsScreenSharing(false);
+    const room = roomRef.current;
+    if (!room) {
       return;
     }
 
     try {
-      const tracks = await JitsiMeetJS.createLocalTracks({
-        devices: ["desktop"],
-      });
-      const screenTrack = tracks?.[0];
-      if (!screenTrack) {
-        return;
+      if (room.localParticipant.isScreenShareEnabled) {
+        await room.localParticipant.setScreenShareEnabled(false);
+      } else {
+        await room.localParticipant.setScreenShareEnabled(true);
       }
-      localScreenTrackRef.current = screenTrack;
-      conference.addTrack?.(screenTrack);
-      setLocalScreenTrack(screenTrack);
-      setIsScreenSharing(true);
-
-      screenTrack.addEventListener?.("LOCAL_TRACK_STOPPED", () => {
-        setLocalScreenTrack(null);
-        setIsScreenSharing(false);
-      });
+      syncLocalTracks();
     } catch {
       setError("Could not start screen sharing.");
     }
-  }, []);
+  }, [syncLocalTracks]);
 
   useEffect(() => {
     if (!meetingId || !enabled) {
@@ -404,226 +254,103 @@ export function useMeetingRoom({
     }
 
     let cancelled = false;
-    const scriptId = "weave-lib-jitsi";
 
     const init = async () => {
-      setConnectionState("loading-lib");
+      setConnectionState("connecting");
       setError(null);
 
       try {
-        if (!window.JitsiMeetJS) {
-          await new Promise<void>((resolve, reject) => {
-            const existing = document.getElementById(
-              scriptId,
-            ) as HTMLScriptElement | null;
-            if (existing) {
-              existing.addEventListener("load", () => resolve(), {
-                once: true,
-              });
-              existing.addEventListener(
-                "error",
-                () => reject(new Error("lib-jitsi-meet load error")),
-                { once: true },
-              );
-              return;
-            }
+        const { data } = await http.post<LivekitTokenResponse>(
+          `/meeting/${meetingId}/token`,
+          {
+            passcode: passcode || undefined,
+          },
+        );
 
-            const script = document.createElement("script");
-            script.id = scriptId;
-            script.async = true;
-            script.src = `${JITSI_BASE_URL}/libs/lib-jitsi-meet.min.js`;
-            script.addEventListener("load", () => resolve(), { once: true });
-            script.addEventListener(
-              "error",
-              () => reject(new Error("lib-jitsi-meet load error")),
-              { once: true },
-            );
-            document.body.appendChild(script);
-          });
-        }
-
-        if (cancelled || !window.JitsiMeetJS) {
+        if (cancelled) {
           return;
         }
 
-        const JitsiMeetJS = window.JitsiMeetJS;
-        console.log("JitsiMeetJS loaded:", JitsiMeetJS);
-        JitsiMeetJS.init({
-          disableAudioLevels: true,
-          disableThirdPartyRequests: true,
+        // Server is the single source of truth for the LiveKit URL —
+        // it arrives with the token so the client needs no SFU env of its own.
+        const url = data.url;
+        if (!url) {
+          throw new Error("LiveKit URL is not configured on the server.");
+        }
+
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
         });
-        JitsiMeetJS.setLogLevel?.(JitsiMeetJS.logLevels?.ERROR ?? "error");
+        roomRef.current = room;
 
-        setConnectionState("connecting");
-
-        const runtimeConfig = await fetchJitsiConnectionConfig();
-        console.log("Jitsi config:", runtimeConfig);
-
-        const connection = new JitsiMeetJS.JitsiConnection(null, null, {
-          hosts: {
-            domain: "jitsi.krishlabs.tech",
-            muc: `conference.jitsi.krishlabs.tech`,
-          },
-          serviceUrl: runtimeConfig.bosh,
-          clientNode: "http://jitsi.org/jitsimeet",
-          enableLipSync: false,
-          externalConnectUrl: null,
-        });
-
-        console.log("JitsiConnection created:", connection);
-        connectionRef.current = connection;
-
-        connection.addEventListener(
-          JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,
-          async () => {
-            if (cancelled || !connectionRef.current) {
-              return;
-            }
-
-            const conference = connectionRef.current.initJitsiConference(
-              meetingId,
-              {
-                openBridgeChannel: true,
-                p2p: {
-                  enabled: true,
-                },
-                useStunTurn: false,
-                disableSimulcast: true,
-              },
-            );
-            conferenceRef.current = conference;
-
-            conference.on(
-              JitsiMeetJS.events.conference.USER_JOINED,
-              (participantId: string, user: any) => {
-                updateParticipantName(
-                  participantId,
-                  user?.getDisplayName?.() || participantId,
-                );
-              },
-            );
-
-            conference.on(
-              JitsiMeetJS.events.conference.USER_LEFT,
-              (participantId: string) => {
-                setParticipantsMap((prev) => {
-                  const next = { ...prev };
-                  delete next[participantId];
-                  return next;
-                });
-              },
-            );
-
-            conference.on(
-              JitsiMeetJS.events.conference.DISPLAY_NAME_CHANGED,
-              (participantId: string, name: string) => {
-                updateParticipantName(participantId, name);
-              },
-            );
-
-            conference.on(
-              JitsiMeetJS.events.conference.TRACK_ADDED,
-              (track: JitsiTrack) => {
-                if (!track || track.isLocal?.()) {
-                  return;
-                }
-                const participantId = track.getParticipantId?.();
-                if (participantId) {
-                  addRemoteTrack(participantId, track);
-                }
-              },
-            );
-
-            conference.on(
-              JitsiMeetJS.events.conference.TRACK_REMOVED,
-              (track: JitsiTrack) => {
-                if (!track || track.isLocal?.()) {
-                  return;
-                }
-                const participantId = track.getParticipantId?.();
-                const trackId = track.getId?.();
-                if (participantId && trackId) {
-                  removeRemoteTrackById(participantId, trackId);
-                }
-              },
-            );
-
-            conference.on(
-              JitsiMeetJS.events.conference.CONFERENCE_JOINED,
-              () => {
-                setLocalParticipantId(conference.myUserId?.() || null);
-                setConnectionState("connected");
-              },
-            );
-
-            conference.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT, () => {
+        room
+          .on(RoomEvent.ParticipantConnected, syncRemoteParticipants)
+          .on(RoomEvent.ParticipantDisconnected, syncRemoteParticipants)
+          .on(RoomEvent.TrackSubscribed, syncRemoteParticipants)
+          .on(RoomEvent.TrackUnsubscribed, syncRemoteParticipants)
+          .on(RoomEvent.TrackMuted, syncRemoteParticipants)
+          .on(RoomEvent.TrackUnmuted, syncRemoteParticipants)
+          .on(RoomEvent.LocalTrackPublished, syncLocalTracks)
+          .on(RoomEvent.LocalTrackUnpublished, syncLocalTracks)
+          .on(RoomEvent.TrackMuted, syncLocalTracks)
+          .on(RoomEvent.TrackUnmuted, syncLocalTracks)
+          .on(RoomEvent.Disconnected, () => {
+            if (!cancelled) {
               setConnectionState("idle");
-            });
-
-            const localTracks = await JitsiMeetJS.createLocalTracks({
-              devices: ["audio", "video"],
-              resolution: 1080,
-              cameraDeviceId: selectedCameraId || undefined,
-              micDeviceId: selectedMicId || undefined,
-              constraints: {
-                audio: buildMeetingAudioConstraints(
-                  selectedMicId,
-                  "conference",
-                ),
-                video: buildMeetingVideoConstraints(selectedCameraId),
-              },
-            });
-
-            for (const track of localTracks) {
-              if (track.getType?.() === "audio" && initialMuted) {
-                await track.mute?.();
-              }
-              if (track.getType?.() === "video" && initialVideoOff) {
-                await track.mute?.();
-              }
-
-              conference.addTrack(track);
-              if (track.getType?.() === "audio") {
-                localAudioTrackRef.current = track;
-                setLocalAudioTrack(track);
-              }
-              if (track.getType?.() === "video") {
-                localVideoTrackRef.current = track;
-                setLocalVideoTrack(track);
-              }
-
-              syncLocalTrackFlags(track);
             }
+          });
 
-            conference.setDisplayName?.(displayName || "Guest");
-            conference.join();
-          },
-        );
+        await room.connect(url, data.token);
 
-        connection.addEventListener(
-          JitsiMeetJS.events.connection.CONNECTION_FAILED,
-          () => {
-            setConnectionState("failed");
-            setError(
-              `Could not connect to Jitsi XMPP at ${JITSI_BASE_URL}. Verify Jitsi is running and reachable.`,
-            );
-          },
-        );
+        if (cancelled) {
+          room.disconnect();
+          return;
+        }
 
-        connection.addEventListener(
-          JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,
-          () => {
-            setConnectionState("idle");
-          },
-        );
+        try {
+          await room.localParticipant.setName(displayName || "Guest");
+        } catch {
+          // best effort — token name claim already carries the user name
+        }
 
-        connection.connect();
+        // Conference audio profile: EC/NS on, AGC off (mirrors
+        // buildMeetingAudioConstraints "conference" with plain booleans,
+        // which is what LiveKit's AudioCaptureOptions expects).
+        await room.localParticipant.setMicrophoneEnabled(!initialMuted, {
+          deviceId: selectedMicId || undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false,
+          channelCount: 1,
+          sampleRate: 48000,
+        });
+
+        if (cancelled) {
+          room.disconnect();
+          return;
+        }
+
+        await room.localParticipant.setCameraEnabled(!initialVideoOff, {
+          deviceId: selectedCameraId || undefined,
+          resolution: VideoPresets.h1080,
+        });
+
+        if (cancelled) {
+          room.disconnect();
+          return;
+        }
+
+        setLocalParticipantId(room.localParticipant.identity);
+        syncLocalTracks();
+        syncRemoteParticipants();
+        setConnectionState("connected");
       } catch (err) {
-        console.error("Jitsi initialization error:", err);
+        console.error("LiveKit initialization error:", err);
         if (!cancelled) {
           setConnectionState("failed");
           setError(
-            `Jitsi error: ${err instanceof Error ? err.message : String(err)}`,
+            `LiveKit error: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
@@ -633,24 +360,25 @@ export function useMeetingRoom({
 
     return () => {
       cancelled = true;
-      leaveRoom();
+      try {
+        roomRef.current?.disconnect();
+      } catch {
+        // best effort
+      }
+      roomRef.current = null;
     };
   }, [
-    addRemoteTrack,
-    displayName,
-    enabled,
-    leaveRoom,
     meetingId,
-    parsedBase.host,
-    parsedBase.hostname,
-    parsedBase.protocol,
-    fetchJitsiConnectionConfig,
-    removeRemoteTrackById,
+    enabled,
+    displayName,
+    passcode,
     selectedCameraId,
+    selectedMicId,
     initialMuted,
     initialVideoOff,
-    selectedMicId,
-    updateParticipantName,
+    leaveRoom,
+    syncLocalTracks,
+    syncRemoteParticipants,
   ]);
 
   const participants = useMemo(

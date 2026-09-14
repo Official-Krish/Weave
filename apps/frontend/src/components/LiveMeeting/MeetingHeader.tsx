@@ -36,7 +36,7 @@ export function MeetingHeader({
         <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-muted-foreground">
           {connectionState === "connected"
             ? "Connected"
-            : connectionState === "connecting" || connectionState === "loading-lib"
+            : connectionState === "connecting"
               ? "Connecting"
               : connectionState === "failed"
                 ? "Connection failed"

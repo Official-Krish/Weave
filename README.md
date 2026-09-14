@@ -25,7 +25,7 @@ Weave is a next-generation video conferencing platform that revolutionizes meeti
 
 ### 🎥 Core Functionality
 
-- **Real-time video conferencing** with Jitsi Meet integration
+- **Real-time video conferencing** with LiveKit integration
 - **Local recording** with automatic chunk upload and encryption
 - **Screen sharing** capabilities
 - **Participant management** with host controls
@@ -110,7 +110,7 @@ Weave is a next-generation video conferencing platform that revolutionizes meeti
 - **Tailwind CSS 4** for styling
 - **Framer Motion** for animations
 - **TanStack Query** for server state
-- **Jitsi Meet SDK** for video conferencing
+- **LiveKit client** for video conferencing
 - **Konva + React-Konva** for canvas-based editor
 
 ### Backend
@@ -224,7 +224,6 @@ CDN_BASE_URL="https://cdn.yourdomain.com"
 ```env
 VITE_API_URL="http://localhost:3000"
 VITE_WS_URL="ws://localhost:9093"
-VITE_JITSI_DOMAIN="meet.jit.si"
 ```
 
 ### Worker Services
@@ -309,7 +308,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- **Jitsi Meet** for the video conferencing foundation
+- **LiveKit** for the video conferencing foundation
 - **FFmpeg** for video processing capabilities
 - **Amazon Cloud Platform** for scalable infrastructure
 - **Bun** for high-performance JavaScript runtime

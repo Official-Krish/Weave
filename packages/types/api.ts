@@ -49,6 +49,15 @@ export type JoinMeetingResponse = {
     | "FAILED";
 };
 
+export type LivekitTokenResponse = {
+  token: string;
+  url: string;
+  identity: string;
+  roomId: string;
+  meetingId: string;
+  isHost: boolean;
+};
+
 export type ServerPublicKeyResponse = {
   algorithm: "RSA-OAEP-256";
   publicKey: JsonWebKey;

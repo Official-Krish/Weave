@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { http } from "@/https";
 import type { UserProfileResponse } from "@repo/types/api";
+import type { VideoTrackLike } from "@/types/meeting";
 
 function getInitials(name: string) {
   return name
@@ -20,11 +21,6 @@ function getInitials(name: string) {
     .toUpperCase()
     .slice(0, 2);
 }
-
-type VideoTrackLike = {
-  attach?: (element: HTMLVideoElement) => void;
-  detach?: (element: HTMLVideoElement) => void;
-};
 
 export function TrackTile({
   title,

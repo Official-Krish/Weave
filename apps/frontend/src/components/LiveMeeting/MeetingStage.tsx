@@ -19,7 +19,7 @@ export function MeetingStage({
   allTiles,
   onSelectFocusTile,
 }: MeetingStageProps) {
-  if (connectionState === "connecting" || connectionState === "loading-lib") {
+  if (connectionState === "connecting") {
     return (
       <div className="flex h-full items-center justify-center text-[#c9af79]">
         <span className="inline-flex items-center gap-2 rounded-full border border-[#f5a623]/16 bg-[#130f0a]/92 px-4 py-2 text-sm">
